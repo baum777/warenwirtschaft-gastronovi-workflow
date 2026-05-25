@@ -1,5 +1,9 @@
 import type { Actor } from "../auth/actor.js";
-import type { CreateGoodsReceiptInput, GoodsReceiptDto } from "./inventory.schemas.js";
+import type {
+  CreateGoodsReceiptInput,
+  GoodsReceiptDto,
+  GoodsReceiptReadDto
+} from "./inventory.schemas.js";
 import { InventoryStockService } from "./inventory-stock.service.js";
 
 type PurchaseOrderStatus = "draft" | "ordered" | "partially_received" | "received" | "cancelled";
@@ -22,6 +26,29 @@ type PurchaseOrderWithItems = {
   items: Array<{
     orderedQty: number;
     receivedQty: number;
+  }>;
+};
+
+type GoodsReceiptReadRecord = {
+  id: string;
+  purchaseOrderId: string | null;
+  receivedById: string;
+  receivedAt: Date;
+  note: string | null;
+  createdAt: Date;
+  items: Array<{
+    id: string;
+    inventoryItemId: string;
+    inventoryItem?: {
+      name: string;
+    } | null;
+    quantity: number;
+    unit: string;
+    storageLocationId: string | null;
+    storageLocation?: {
+      name: string;
+    } | null;
+    note: string | null;
   }>;
 };
 
@@ -146,10 +173,21 @@ type ReceiptTransactionClient = {
 
 export type GoodsReceiptDatabaseClient = {
   $transaction<T>(callback: (transaction: any) => Promise<T>): Promise<T>;
+  goodsReceipt?: {
+    findMany(args: unknown): Promise<GoodsReceiptReadRecord[]>;
+    findUnique(args: {
+      where: {
+        id: string;
+      };
+      include: unknown;
+    }): Promise<GoodsReceiptReadRecord | null>;
+  };
 };
 
 export type GoodsReceiptServicePort = {
   create(input: CreateGoodsReceiptInput, actor: Actor): Promise<GoodsReceiptDto>;
+  list(): Promise<GoodsReceiptReadDto[]>;
+  get(id: string): Promise<GoodsReceiptReadDto>;
 };
 
 export class GoodsReceiptService implements GoodsReceiptServicePort {
@@ -316,6 +354,40 @@ export class GoodsReceiptService implements GoodsReceiptServicePort {
     });
   }
 
+  public async list(): Promise<GoodsReceiptReadDto[]> {
+    if (!this.options.db.goodsReceipt) {
+      throw new Error("goods receipt read model is not available");
+    }
+
+    const receipts = await this.options.db.goodsReceipt.findMany({
+      include: goodsReceiptReadInclude,
+      orderBy: {
+        receivedAt: "desc"
+      }
+    });
+
+    return receipts.map(mapGoodsReceiptRead);
+  }
+
+  public async get(id: string): Promise<GoodsReceiptReadDto> {
+    if (!this.options.db.goodsReceipt) {
+      throw new Error("goods receipt read model is not available");
+    }
+
+    const receipt = await this.options.db.goodsReceipt.findUnique({
+      where: {
+        id
+      },
+      include: goodsReceiptReadInclude
+    });
+
+    if (!receipt) {
+      throw new Error("goods receipt not found");
+    }
+
+    return mapGoodsReceiptRead(receipt);
+  }
+
   private async recalculatePurchaseOrderStatus(
     tx: ReceiptTransactionClient,
     purchaseOrderId: string
@@ -358,4 +430,45 @@ function calculatePurchaseOrderStatus(
   }
 
   return "ordered";
+}
+
+const goodsReceiptReadInclude = {
+  items: {
+    include: {
+      inventoryItem: {
+        select: {
+          name: true
+        }
+      },
+      storageLocation: {
+        select: {
+          name: true
+        }
+      }
+    },
+    orderBy: {
+      id: "asc"
+    }
+  }
+};
+
+function mapGoodsReceiptRead(record: GoodsReceiptReadRecord): GoodsReceiptReadDto {
+  return {
+    goodsReceiptId: record.id,
+    purchaseOrderId: record.purchaseOrderId ?? undefined,
+    receivedById: record.receivedById,
+    receivedAt: record.receivedAt.toISOString(),
+    note: record.note ?? undefined,
+    createdAt: record.createdAt.toISOString(),
+    items: record.items.map((item) => ({
+      goodsReceiptItemId: item.id,
+      inventoryItemId: item.inventoryItemId,
+      inventoryItemName: item.inventoryItem?.name,
+      quantity: item.quantity,
+      unit: item.unit,
+      storageLocationId: item.storageLocationId ?? undefined,
+      storageLocationName: item.storageLocation?.name,
+      note: item.note ?? undefined
+    }))
+  };
 }

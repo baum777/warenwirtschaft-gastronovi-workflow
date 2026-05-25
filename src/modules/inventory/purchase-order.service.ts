@@ -1,4 +1,8 @@
-import type { CreatePurchaseOrderInput, PurchaseOrderDto } from "./inventory.schemas.js";
+import type {
+  CreatePurchaseOrderInput,
+  PurchaseOrderDto,
+  PurchaseOrderReadDto
+} from "./inventory.schemas.js";
 
 type PurchaseOrderStatus = PurchaseOrderDto["status"];
 
@@ -6,6 +10,31 @@ type PurchaseOrderRecord = {
   id: string;
   status: PurchaseOrderStatus;
   items?: Array<{ id: string }>;
+};
+
+type PurchaseOrderReadRecord = {
+  id: string;
+  status: PurchaseOrderStatus;
+  supplierId: string | null;
+  supplier?: {
+    name: string;
+  } | null;
+  createdById: string;
+  orderedAt: Date | null;
+  note: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  items: Array<{
+    id: string;
+    inventoryItemId: string;
+    inventoryItem?: {
+      name: string;
+    } | null;
+    orderedQty: number;
+    receivedQty: number;
+    unit: string;
+    note: string | null;
+  }>;
 };
 
 export type PurchaseOrderDatabaseClient = {
@@ -28,14 +57,13 @@ export type PurchaseOrderDatabaseClient = {
         items: true;
       };
     }): Promise<PurchaseOrderRecord>;
+    findMany?(args: unknown): Promise<PurchaseOrderReadRecord[]>;
     findUnique(args: {
       where: {
         id: string;
       };
-      include: {
-        items: true;
-      };
-    }): Promise<PurchaseOrderRecord | null>;
+      include: unknown;
+    }): Promise<PurchaseOrderRecord | PurchaseOrderReadRecord | null>;
     update(args: {
       where: {
         id: string;
@@ -48,6 +76,16 @@ export type PurchaseOrderDatabaseClient = {
         items: true;
       };
     }): Promise<PurchaseOrderRecord>;
+  };
+  inventoryItem: {
+    findUnique(args: {
+      where: {
+        id: string;
+      };
+      select: {
+        id: true;
+      };
+    }): Promise<{ id: string } | null>;
   };
   workflowEvent: {
     create(args: {
@@ -71,6 +109,8 @@ export type PurchaseOrderDatabaseClient = {
 export type PurchaseOrderServicePort = {
   create(input: CreatePurchaseOrderInput, actorUserId: string): Promise<PurchaseOrderDto>;
   markOrdered(id: string, actorUserId: string): Promise<PurchaseOrderDto>;
+  list(): Promise<PurchaseOrderReadDto[]>;
+  get(id: string): Promise<PurchaseOrderReadDto>;
 };
 
 export class PurchaseOrderService implements PurchaseOrderServicePort {
@@ -85,6 +125,8 @@ export class PurchaseOrderService implements PurchaseOrderServicePort {
     input: CreatePurchaseOrderInput,
     actorUserId: string
   ): Promise<PurchaseOrderDto> {
+    await this.assertInventoryItemsExist(input.items.map((item) => item.inventoryItemId));
+
     const purchaseOrder = await this.options.db.purchaseOrder.create({
       data: {
         supplierId: input.supplierId,
@@ -161,11 +203,102 @@ export class PurchaseOrderService implements PurchaseOrderServicePort {
 
     return mapPurchaseOrder(purchaseOrder);
   }
+
+  public async list(): Promise<PurchaseOrderReadDto[]> {
+    if (!this.options.db.purchaseOrder.findMany) {
+      throw new Error("purchase order read model is not available");
+    }
+
+    const purchaseOrders = await this.options.db.purchaseOrder.findMany({
+      include: purchaseOrderReadInclude,
+      orderBy: {
+        createdAt: "desc"
+      }
+    });
+
+    return purchaseOrders.map(mapPurchaseOrderRead);
+  }
+
+  public async get(id: string): Promise<PurchaseOrderReadDto> {
+    const purchaseOrder = await this.options.db.purchaseOrder.findUnique({
+      where: {
+        id
+      },
+      include: purchaseOrderReadInclude
+    });
+
+    if (!purchaseOrder) {
+      throw new Error("purchase order not found");
+    }
+
+    return mapPurchaseOrderRead(purchaseOrder as PurchaseOrderReadRecord);
+  }
+
+  private async assertInventoryItemsExist(inventoryItemIds: string[]): Promise<void> {
+    for (const inventoryItemId of new Set(inventoryItemIds)) {
+      const inventoryItem = await this.options.db.inventoryItem.findUnique({
+        where: {
+          id: inventoryItemId
+        },
+        select: {
+          id: true
+        }
+      });
+
+      if (!inventoryItem) {
+        throw new Error("inventory item not found");
+      }
+    }
+  }
 }
 
 function mapPurchaseOrder(record: PurchaseOrderRecord): PurchaseOrderDto {
   return {
     purchaseOrderId: record.id,
     status: record.status
+  };
+}
+
+const purchaseOrderReadInclude = {
+  supplier: {
+    select: {
+      name: true
+    }
+  },
+  items: {
+    include: {
+      inventoryItem: {
+        select: {
+          name: true
+        }
+      }
+    },
+    orderBy: {
+      id: "asc"
+    }
+  }
+};
+
+function mapPurchaseOrderRead(record: PurchaseOrderReadRecord): PurchaseOrderReadDto {
+  return {
+    purchaseOrderId: record.id,
+    status: record.status,
+    supplierId: record.supplierId ?? undefined,
+    supplierName: record.supplier?.name,
+    createdById: record.createdById,
+    orderedAt: record.orderedAt?.toISOString(),
+    note: record.note ?? undefined,
+    createdAt: record.createdAt.toISOString(),
+    updatedAt: record.updatedAt.toISOString(),
+    items: record.items.map((item) => ({
+      purchaseOrderItemId: item.id,
+      inventoryItemId: item.inventoryItemId,
+      inventoryItemName: item.inventoryItem?.name,
+      orderedQty: item.orderedQty,
+      receivedQty: item.receivedQty,
+      pendingQty: item.orderedQty - item.receivedQty,
+      unit: item.unit,
+      note: item.note ?? undefined
+    }))
   };
 }

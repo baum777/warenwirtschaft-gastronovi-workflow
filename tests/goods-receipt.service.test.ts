@@ -141,6 +141,27 @@ describe("GoodsReceiptService", () => {
         }
       }
     });
+    expect(calls).toContainEqual({
+      model: "workflowEvent",
+      method: "create",
+      args: {
+        data: {
+          type: "inventory.goods_receipt.recorded",
+          version: 1,
+          source: "system",
+          externalId: "gr-1",
+          idempotencyKey: "inventory.goods_receipt.recorded:gr-1",
+          occurredAt: receivedAt,
+          dataJson: {
+            goodsReceiptId: "gr-1",
+            purchaseOrderId: undefined,
+            actorUserId: "staff-1",
+            itemCount: 1
+          },
+          metadataJson: undefined
+        }
+      }
+    });
   });
 
   it("updates linked purchase order quantities and creates overdelivery review", async () => {
@@ -280,4 +301,270 @@ describe("GoodsReceiptService", () => {
       true
     );
   });
+
+  it("sets linked purchase orders to partially_received after a partial receipt", async () => {
+    const calls: Array<{ model: string; method: string; args?: unknown }> = [];
+    const receivedAt = new Date("2026-05-25T22:00:00.000Z");
+    const tx = receiptTransaction({
+      receivedAt,
+      calls,
+      purchaseOrderItem: {
+        id: "poi-1",
+        orderedQty: 10,
+        receivedQty: 0
+      },
+      purchaseOrderItems: [
+        {
+          orderedQty: 10,
+          receivedQty: 4
+        }
+      ]
+    });
+    const service = new GoodsReceiptService({
+      now: () => receivedAt,
+      db: {
+        async $transaction<T>(callback: (transaction: typeof tx) => Promise<T>): Promise<T> {
+          return callback(tx);
+        }
+      }
+    });
+
+    await service.create(
+      {
+        purchaseOrderId: "po-1",
+        items: [
+          {
+            inventoryItemId: "item-1",
+            quantity: 4,
+            unit: "Stück"
+          }
+        ]
+      },
+      {
+        userId: "admin-1",
+        role: "admin"
+      }
+    );
+
+    expect(calls).toContainEqual({
+      model: "purchaseOrder",
+      method: "update",
+      args: {
+        where: {
+          id: "po-1"
+        },
+        data: {
+          status: "partially_received"
+        }
+      }
+    });
+  });
+
+  it("does not refresh snapshots when movement creation fails", async () => {
+    const calls: Array<{ model: string; method: string; args?: unknown }> = [];
+    const receivedAt = new Date("2026-05-25T23:00:00.000Z");
+    const tx = receiptTransaction({
+      receivedAt,
+      calls,
+      failMovementCreate: true
+    });
+    const service = new GoodsReceiptService({
+      now: () => receivedAt,
+      db: {
+        async $transaction<T>(callback: (transaction: typeof tx) => Promise<T>): Promise<T> {
+          return callback(tx);
+        }
+      }
+    });
+
+    await expect(
+      service.create(
+        {
+          items: [
+            {
+              inventoryItemId: "item-1",
+              quantity: 4,
+              unit: "Stück"
+            }
+          ]
+        },
+        {
+          userId: "admin-1",
+          role: "admin"
+        }
+      )
+    ).rejects.toThrow("movement failed");
+    expect(calls.some((call) => call.model === "inventoryStockSnapshot")).toBe(false);
+  });
+
+  it("returns goods receipt read models", async () => {
+    const receivedAt = new Date("2026-05-25T20:00:00.000Z");
+    const service = new GoodsReceiptService({
+      db: {
+        async $transaction() {
+          throw new Error("not used");
+        },
+        goodsReceipt: {
+          async findMany() {
+            return [goodsReceiptReadRecord(receivedAt)];
+          },
+          async findUnique() {
+            return goodsReceiptReadRecord(receivedAt);
+          }
+        }
+      }
+    });
+    const expected = {
+      goodsReceiptId: "gr-1",
+      purchaseOrderId: "po-1",
+      receivedById: "staff-1",
+      receivedAt: receivedAt.toISOString(),
+      note: "delivery",
+      createdAt: receivedAt.toISOString(),
+      items: [
+        {
+          goodsReceiptItemId: "gri-1",
+          inventoryItemId: "item-1",
+          inventoryItemName: "Tomaten passiert 5kg",
+          quantity: 4,
+          unit: "Stück",
+          storageLocationId: "loc-1",
+          storageLocationName: "Küche",
+          note: "case"
+        }
+      ]
+    };
+
+    await expect(service.list()).resolves.toEqual([expected]);
+    await expect(service.get("gr-1")).resolves.toEqual(expected);
+  });
 });
+
+function receiptTransaction(input: {
+  receivedAt: Date;
+  calls: Array<{ model: string; method: string; args?: unknown }>;
+  failMovementCreate?: boolean;
+  purchaseOrderItem?: {
+    id: string;
+    orderedQty: number;
+    receivedQty: number;
+  };
+  purchaseOrderItems?: Array<{
+    orderedQty: number;
+    receivedQty: number;
+  }>;
+}) {
+  return {
+    goodsReceipt: {
+      async create() {
+        return { id: "gr-1", receivedAt: input.receivedAt };
+      }
+    },
+    inventoryItem: {
+      async findUnique() {
+        return {
+          id: "item-1",
+          name: "Tomaten passiert 5kg",
+          defaultUnit: "Stück",
+          minStock: 5
+        };
+      }
+    },
+    goodsReceiptItem: {
+      async create() {
+        return { id: "gri-1" };
+      }
+    },
+    inventoryMovement: {
+      async create() {
+        input.calls.push({ model: "inventoryMovement", method: "create" });
+        if (input.failMovementCreate) {
+          throw new Error("movement failed");
+        }
+        return { id: "move-1" };
+      },
+      async findMany() {
+        return [{ type: "goods_received", quantity: 4, createdAt: input.receivedAt }];
+      }
+    },
+    inventoryStockSnapshot: {
+      async upsert(args: unknown) {
+        input.calls.push({ model: "inventoryStockSnapshot", method: "upsert", args });
+        return { id: "snapshot-1" };
+      }
+    },
+    workflowEvent: {
+      async create() {
+        return { id: "event-1" };
+      }
+    },
+    workflowTask: {
+      async create(args: unknown) {
+        input.calls.push({ model: "workflowTask", method: "create", args });
+        return { id: "task-1" };
+      }
+    },
+    purchaseOrderItem: {
+      async findFirst() {
+        return (
+          input.purchaseOrderItem ?? {
+            id: "poi-1",
+            orderedQty: 10,
+            receivedQty: 0
+          }
+        );
+      },
+      async update(args: unknown) {
+        input.calls.push({ model: "purchaseOrderItem", method: "update", args });
+        return {};
+      }
+    },
+    purchaseOrder: {
+      async findUnique(args: unknown) {
+        input.calls.push({ model: "purchaseOrder", method: "findUnique", args });
+        return {
+          id: "po-1",
+          items:
+            input.purchaseOrderItems ??
+            [
+              {
+                orderedQty: 10,
+                receivedQty: 4
+              }
+            ]
+        };
+      },
+      async update(args: unknown) {
+        input.calls.push({ model: "purchaseOrder", method: "update", args });
+        return {};
+      }
+    }
+  };
+}
+
+function goodsReceiptReadRecord(receivedAt: Date) {
+  return {
+    id: "gr-1",
+    purchaseOrderId: "po-1",
+    receivedById: "staff-1",
+    receivedAt,
+    note: "delivery",
+    createdAt: receivedAt,
+    items: [
+      {
+        id: "gri-1",
+        inventoryItemId: "item-1",
+        inventoryItem: {
+          name: "Tomaten passiert 5kg"
+        },
+        quantity: 4,
+        unit: "Stück",
+        storageLocationId: "loc-1",
+        storageLocation: {
+          name: "Küche"
+        },
+        note: "case"
+      }
+    ]
+  };
+}

@@ -25,7 +25,7 @@ export async function inventoryRoute(
   dependencies: InventoryRouteDependencies
 ): Promise<void> {
   app.get("/admin/inventory/stock", async (request, reply) => {
-    const actor = authenticate(request, reply, ["admin", "shift_lead"]);
+    const actor = authenticate(request, reply, ["admin"]);
 
     if (!actor) {
       return reply;
@@ -37,7 +37,7 @@ export async function inventoryRoute(
   });
 
   app.get("/admin/inventory/movements", async (request, reply) => {
-    const actor = authenticate(request, reply, ["admin", "shift_lead"]);
+    const actor = authenticate(request, reply, ["admin"]);
 
     if (!actor) {
       return reply;
@@ -49,7 +49,7 @@ export async function inventoryRoute(
   });
 
   app.get("/admin/review-tasks", async (request, reply) => {
-    const actor = authenticate(request, reply, ["admin", "shift_lead"]);
+    const actor = authenticate(request, reply, ["admin"]);
 
     if (!actor) {
       return reply;
@@ -97,6 +97,37 @@ export async function inventoryRoute(
     return dependencies.purchaseOrderService.markOrdered(params.id, actor.userId);
   });
 
+  app.get("/admin/purchase-orders", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    return {
+      purchaseOrders: await dependencies.purchaseOrderService.list()
+    };
+  });
+
+  app.get("/admin/purchase-orders/:id", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const params = request.params as { id?: string };
+
+    if (!params.id) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "purchase order id is required"
+      });
+    }
+
+    return dependencies.purchaseOrderService.get(params.id);
+  });
+
   app.post("/goods-receipts", async (request, reply) => {
     const actor = authenticate(request, reply, ["admin", "shift_lead", "staff"]);
 
@@ -113,6 +144,37 @@ export async function inventoryRoute(
     const result = await dependencies.goodsReceiptService.create(input, actor);
 
     return reply.code(201).send(result);
+  });
+
+  app.get("/goods-receipts", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin", "shift_lead", "staff"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    return {
+      goodsReceipts: await dependencies.goodsReceiptService.list()
+    };
+  });
+
+  app.get("/goods-receipts/:id", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin", "shift_lead", "staff"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const params = request.params as { id?: string };
+
+    if (!params.id) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "goods receipt id is required"
+      });
+    }
+
+    return dependencies.goodsReceiptService.get(params.id);
   });
 }
 

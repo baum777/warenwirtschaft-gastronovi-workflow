@@ -29,6 +29,12 @@ describe("PurchaseOrderService", () => {
             throw new Error("not used");
           }
         },
+        inventoryItem: {
+          async findUnique(args: unknown) {
+            calls.push({ model: "inventoryItem", method: "findUnique", args });
+            return { id: "item-1" };
+          }
+        },
         workflowEvent: {
           async create() {
             throw new Error("not used");
@@ -63,6 +69,18 @@ describe("PurchaseOrderService", () => {
     });
     expect(calls).toEqual([
       {
+        model: "inventoryItem",
+        method: "findUnique",
+        args: {
+          where: {
+            id: "item-1"
+          },
+          select: {
+            id: true
+          }
+        }
+      },
+      {
         model: "purchaseOrder",
         method: "create",
         args: {
@@ -87,6 +105,112 @@ describe("PurchaseOrderService", () => {
         }
       }
     ]);
+  });
+
+  it("rejects purchase order items that do not reference an inventory item", async () => {
+    const service = new PurchaseOrderService({
+      db: {
+        purchaseOrder: {
+          async create() {
+            throw new Error("purchase order must not be created");
+          },
+          async findUnique() {
+            throw new Error("not used");
+          },
+          async findMany() {
+            throw new Error("not used");
+          },
+          async update() {
+            throw new Error("not used");
+          }
+        },
+        inventoryItem: {
+          async findUnique() {
+            return null;
+          }
+        },
+        workflowEvent: {
+          async create() {
+            throw new Error("not used");
+          }
+        }
+      }
+    });
+
+    await expect(
+      service.create(
+        {
+          items: [
+            {
+              inventoryItemId: "missing-item",
+              orderedQty: 10,
+              unit: "Stück"
+            }
+          ]
+        },
+        "admin-1"
+      )
+    ).rejects.toThrow("inventory item not found");
+  });
+
+  it("returns purchase order read models with pending quantities", async () => {
+    const createdAt = new Date("2026-05-25T18:00:00.000Z");
+    const orderedAt = new Date("2026-05-25T19:00:00.000Z");
+    const service = new PurchaseOrderService({
+      db: {
+        purchaseOrder: {
+          async create() {
+            throw new Error("not used");
+          },
+          async findMany() {
+            return [purchaseOrderReadRecord(createdAt, orderedAt)];
+          },
+          async findUnique() {
+            return purchaseOrderReadRecord(createdAt, orderedAt);
+          },
+          async update() {
+            throw new Error("not used");
+          }
+        },
+        inventoryItem: {
+          async findUnique() {
+            throw new Error("not used");
+          }
+        },
+        workflowEvent: {
+          async create() {
+            throw new Error("not used");
+          }
+        }
+      }
+    });
+
+    const expected = {
+      purchaseOrderId: "po-1",
+      status: "ordered",
+      supplierId: "supplier-1",
+      supplierName: "Frischemarkt",
+      createdById: "admin-1",
+      orderedAt: orderedAt.toISOString(),
+      note: "weekly order",
+      createdAt: createdAt.toISOString(),
+      updatedAt: orderedAt.toISOString(),
+      items: [
+        {
+          purchaseOrderItemId: "poi-1",
+          inventoryItemId: "item-1",
+          inventoryItemName: "Tomaten passiert 5kg",
+          orderedQty: 10,
+          receivedQty: 4,
+          pendingQty: 6,
+          unit: "Stück",
+          note: "case"
+        }
+      ]
+    };
+
+    await expect(service.list()).resolves.toEqual([expected]);
+    await expect(service.get("po-1")).resolves.toEqual(expected);
   });
 
   it("marks an order as ordered and emits an event without changing stock", async () => {
@@ -120,6 +244,11 @@ describe("PurchaseOrderService", () => {
               updatedAt: orderedAt,
               items: [{ id: "poi-1" }]
             };
+          }
+        },
+        inventoryItem: {
+          async findUnique() {
+            throw new Error("not used");
           }
         },
         workflowEvent: {
@@ -193,3 +322,32 @@ describe("PurchaseOrderService", () => {
     ]);
   });
 });
+
+function purchaseOrderReadRecord(createdAt: Date, orderedAt: Date) {
+  return {
+    id: "po-1",
+    status: "ordered" as const,
+    supplierId: "supplier-1",
+    supplier: {
+      name: "Frischemarkt"
+    },
+    createdById: "admin-1",
+    orderedAt,
+    note: "weekly order",
+    createdAt,
+    updatedAt: orderedAt,
+    items: [
+      {
+        id: "poi-1",
+        inventoryItemId: "item-1",
+        inventoryItem: {
+          name: "Tomaten passiert 5kg"
+        },
+        orderedQty: 10,
+        receivedQty: 4,
+        unit: "Stück",
+        note: "case"
+      }
+    ]
+  };
+}

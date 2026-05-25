@@ -54,6 +54,77 @@ describe("inventory API routes", () => {
     }
   });
 
+  it("prevents staff from calling admin read routes", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "GET",
+        url: "/admin/inventory/movements",
+        headers: {
+          "x-actor-id": "staff-1",
+          "x-actor-role": "staff"
+        }
+      });
+
+      expect(response.statusCode).toBe(403);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("prevents shift leads from calling admin read routes", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "GET",
+        url: "/admin/review-tasks",
+        headers: {
+          "x-actor-id": "shift-1",
+          "x-actor-role": "shift_lead"
+        }
+      });
+
+      expect(response.statusCode).toBe(403);
+    } finally {
+      await app.close();
+    }
+  });
+
+
+  it("rejects invalid actor roles over HTTP", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "GET",
+        url: "/admin/inventory/stock",
+        headers: {
+          "x-actor-id": "owner-1",
+          "x-actor-role": "owner"
+        }
+      });
+
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toEqual({
+        error: "Forbidden",
+        message: "actor role is not allowed"
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
   it("lets admins create purchase orders", async () => {
     const app = buildApp({
       inventory: fakeInventoryServices()
@@ -109,6 +180,41 @@ describe("inventory API routes", () => {
     }
   });
 
+  it("returns admin purchase orders with pending quantities", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      const listResponse = await app.inject({
+        method: "GET",
+        url: "/admin/purchase-orders",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+      const detailResponse = await app.inject({
+        method: "GET",
+        url: "/admin/purchase-orders/po-1",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+
+      expect(listResponse.statusCode).toBe(200);
+      expect(listResponse.json()).toEqual({
+        purchaseOrders: [expectedPurchaseOrderReadModel()]
+      });
+      expect(detailResponse.statusCode).toBe(200);
+      expect(detailResponse.json()).toEqual(expectedPurchaseOrderReadModel());
+    } finally {
+      await app.close();
+    }
+  });
+
   it("lets staff record goods receipts and passes actor context to the service", async () => {
     const calls: Array<{ input: unknown; actor: Actor }> = [];
     const app = buildApp({
@@ -120,6 +226,12 @@ describe("inventory API routes", () => {
               goodsReceiptId: "gr-1",
               movementIds: ["move-1"]
             };
+          },
+          async list() {
+            return [expectedGoodsReceiptReadModel()];
+          },
+          async get() {
+            return expectedGoodsReceiptReadModel();
           }
         }
       })
@@ -160,6 +272,41 @@ describe("inventory API routes", () => {
     }
   });
 
+  it("returns goods receipt read models for allowed actors", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      const listResponse = await app.inject({
+        method: "GET",
+        url: "/goods-receipts",
+        headers: {
+          "x-actor-id": "shift-1",
+          "x-actor-role": "shift_lead"
+        }
+      });
+      const detailResponse = await app.inject({
+        method: "GET",
+        url: "/goods-receipts/gr-1",
+        headers: {
+          "x-actor-id": "staff-1",
+          "x-actor-role": "staff"
+        }
+      });
+
+      expect(listResponse.statusCode).toBe(200);
+      expect(listResponse.json()).toEqual({
+        goodsReceipts: [expectedGoodsReceiptReadModel()]
+      });
+      expect(detailResponse.statusCode).toBe(200);
+      expect(detailResponse.json()).toEqual(expectedGoodsReceiptReadModel());
+    } finally {
+      await app.close();
+    }
+  });
+
   it("returns admin stock rows and open review tasks", async () => {
     const app = buildApp({
       inventory: fakeInventoryServices()
@@ -179,8 +326,8 @@ describe("inventory API routes", () => {
         method: "GET",
         url: "/admin/review-tasks",
         headers: {
-          "x-actor-id": "shift-1",
-          "x-actor-role": "shift_lead"
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
         }
       });
 
@@ -234,13 +381,25 @@ function fakeInventoryServices(
       },
       async markOrdered() {
         return { purchaseOrderId: "po-1", status: "ordered" };
+      },
+      async list() {
+        return [expectedPurchaseOrderReadModel()];
+      },
+      async get() {
+        return expectedPurchaseOrderReadModel();
       }
-    },
+    } as PurchaseOrderServicePort,
     goodsReceiptService: overrides.goodsReceiptService ?? {
       async create() {
         return { goodsReceiptId: "gr-1", movementIds: ["move-1"] };
+      },
+      async list() {
+        return [expectedGoodsReceiptReadModel()];
+      },
+      async get() {
+        return expectedGoodsReceiptReadModel();
       }
-    },
+    } as GoodsReceiptServicePort,
     inventoryReadService: overrides.inventoryReadService ?? {
       async listStock() {
         return [
@@ -274,5 +433,54 @@ function fakeInventoryServices(
         ];
       }
     }
+  };
+}
+
+function expectedPurchaseOrderReadModel() {
+  return {
+    purchaseOrderId: "po-1",
+    status: "ordered",
+    supplierId: "supplier-1",
+    supplierName: "Frischemarkt",
+    createdById: "admin-1",
+    orderedAt: "2026-05-25T19:00:00.000Z",
+    note: "weekly order",
+    createdAt: "2026-05-25T18:00:00.000Z",
+    updatedAt: "2026-05-25T19:00:00.000Z",
+    items: [
+      {
+        purchaseOrderItemId: "poi-1",
+        inventoryItemId: "item-1",
+        inventoryItemName: "Tomaten passiert 5kg",
+        orderedQty: 10,
+        receivedQty: 4,
+        pendingQty: 6,
+        unit: "Stück",
+        note: "case"
+      }
+    ]
+  };
+}
+
+function expectedGoodsReceiptReadModel() {
+  return {
+    goodsReceiptId: "gr-1",
+    purchaseOrderId: "po-1",
+    receivedById: "staff-1",
+    receivedAt: "2026-05-25T20:00:00.000Z",
+    note: "delivery",
+    createdAt: "2026-05-25T20:00:00.000Z",
+    items: [
+      {
+        goodsReceiptItemId: "gri-1",
+        inventoryItemId: "item-1",
+        inventoryItemName: "Tomaten passiert 5kg",
+        quantity: 4,
+        unit: "Stück",
+        storageLocationId: "loc-1",
+        storageLocationName: "Küche",
+        note: "case"
+      }
+    ]
   };
 }

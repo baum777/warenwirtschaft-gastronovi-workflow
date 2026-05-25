@@ -40,9 +40,52 @@ export type PurchaseOrderDto = {
   status: "draft" | "ordered" | "partially_received" | "received" | "cancelled";
 };
 
+export type PurchaseOrderReadDto = PurchaseOrderDto & {
+  supplierId?: string;
+  supplierName?: string;
+  createdById: string;
+  orderedAt?: string;
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+  items: PurchaseOrderItemReadDto[];
+};
+
+export type PurchaseOrderItemReadDto = {
+  purchaseOrderItemId: string;
+  inventoryItemId: string;
+  inventoryItemName?: string;
+  orderedQty: number;
+  receivedQty: number;
+  pendingQty: number;
+  unit: string;
+  note?: string;
+};
+
 export type GoodsReceiptDto = {
   goodsReceiptId: string;
   movementIds: string[];
+};
+
+export type GoodsReceiptReadDto = {
+  goodsReceiptId: string;
+  purchaseOrderId?: string;
+  receivedById: string;
+  receivedAt: string;
+  note?: string;
+  createdAt: string;
+  items: GoodsReceiptItemReadDto[];
+};
+
+export type GoodsReceiptItemReadDto = {
+  goodsReceiptItemId: string;
+  inventoryItemId: string;
+  inventoryItemName?: string;
+  quantity: number;
+  unit: string;
+  storageLocationId?: string;
+  storageLocationName?: string;
+  note?: string;
 };
 
 export type AdminStockRow = {
