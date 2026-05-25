@@ -72,6 +72,176 @@ model WorkflowTask {
   resolvedAt      DateTime?
 }
 
+model InventoryItem {
+  id                String   @id @default(cuid())
+  name              String
+  sku               String?
+  category          String?
+  defaultUnit       String
+  minStock          Float?
+  storageLocationId String?
+  storageLocation   StorageLocation? @relation(fields: [storageLocationId], references: [id])
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  movements          InventoryMovement[]
+  orderItems         PurchaseOrderItem[]
+  receiptItems       GoodsReceiptItem[]
+  stockSnapshots     InventoryStockSnapshot[]
+  correctionRequests InventoryCorrectionRequest[]
+
+  @@index([name])
+  @@index([category])
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchaseOrders PurchaseOrder[]
+}
+
+model StorageLocation {
+  id        String   @id @default(cuid())
+  name      String
+  type      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inventoryItems InventoryItem[]
+  receiptItems   GoodsReceiptItem[]
+  movements      InventoryMovement[]
+  stockSnapshots InventoryStockSnapshot[]
+}
+
+model PurchaseOrder {
+  id          String              @id @default(cuid())
+  supplierId  String?
+  supplier    Supplier?           @relation(fields: [supplierId], references: [id])
+  status      PurchaseOrderStatus @default(draft)
+  createdById String
+  orderedAt   DateTime?
+  note        String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  items     PurchaseOrderItem[]
+  receipts  GoodsReceipt[]
+  movements InventoryMovement[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  orderedQty      Float
+  receivedQty     Float         @default(0)
+  unit            String
+  note            String?
+
+  @@index([purchaseOrderId])
+  @@index([inventoryItemId])
+}
+
+model GoodsReceipt {
+  id              String         @id @default(cuid())
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  receivedById    String
+  receivedAt      DateTime       @default(now())
+  note            String?
+  createdAt       DateTime       @default(now())
+
+  items     GoodsReceiptItem[]
+  movements InventoryMovement[]
+
+  @@index([purchaseOrderId])
+  @@index([receivedAt])
+}
+
+model GoodsReceiptItem {
+  id                String           @id @default(cuid())
+  goodsReceiptId    String
+  goodsReceipt      GoodsReceipt     @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  inventoryItemId   String
+  inventoryItem     InventoryItem    @relation(fields: [inventoryItemId], references: [id])
+  quantity          Float
+  unit              String
+  storageLocationId String?
+  storageLocation   StorageLocation? @relation(fields: [storageLocationId], references: [id])
+  note              String?
+
+  @@index([goodsReceiptId])
+  @@index([inventoryItemId])
+}
+
+model InventoryMovement {
+  id                String                @id @default(cuid())
+  inventoryItemId   String
+  inventoryItem     InventoryItem         @relation(fields: [inventoryItemId], references: [id])
+  type              InventoryMovementType
+  quantity          Float
+  unit              String
+  actorUserId       String
+  storageLocationId String?
+  storageLocation   StorageLocation?      @relation(fields: [storageLocationId], references: [id])
+  purchaseOrderId   String?
+  purchaseOrder     PurchaseOrder?        @relation(fields: [purchaseOrderId], references: [id])
+  goodsReceiptId    String?
+  goodsReceipt      GoodsReceipt?         @relation(fields: [goodsReceiptId], references: [id])
+  relatedMovementId String?
+  note              String?
+  createdAt         DateTime              @default(now())
+
+  @@index([inventoryItemId, createdAt])
+  @@index([type])
+  @@index([actorUserId])
+}
+
+model InventoryStockSnapshot {
+  id                String           @id @default(cuid())
+  inventoryItemId   String
+  inventoryItem     InventoryItem    @relation(fields: [inventoryItemId], references: [id])
+  storageLocationId String?
+  storageLocation   StorageLocation? @relation(fields: [storageLocationId], references: [id])
+  quantity          Float
+  unit              String
+  calculatedAt      DateTime         @default(now())
+
+  @@unique([inventoryItemId, storageLocationId])
+  @@index([calculatedAt])
+}
+
+model InventoryCorrectionRequest {
+  id                String                    @id @default(cuid())
+  inventoryItemId   String
+  inventoryItem     InventoryItem             @relation(fields: [inventoryItemId], references: [id])
+  requestedById     String
+  status            InventoryCorrectionStatus @default(open)
+  expectedDelta     Float
+  unit              String
+  reason            String
+  relatedMovementId String?
+  reviewedById      String?
+  reviewedAt        DateTime?
+  createdAt         DateTime                  @default(now())
+
+  @@index([status])
+  @@index([inventoryItemId])
+}
+
 enum SyncRunStatus {
   running
   succeeded
@@ -84,4 +254,25 @@ enum WorkflowTaskStatus {
   in_review
   resolved
   dismissed
+}
+
+enum PurchaseOrderStatus {
+  draft
+  ordered
+  partially_received
+  received
+  cancelled
+}
+
+enum InventoryMovementType {
+  goods_received
+  item_removed
+  correction_positive
+  correction_negative
+}
+
+enum InventoryCorrectionStatus {
+  open
+  approved
+  rejected
 }

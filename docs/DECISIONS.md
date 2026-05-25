@@ -23,3 +23,9 @@ Ticket 1 creates the service skeleton, health route, env validation, Prisma sche
 Status: accepted
 
 Ticket 2 persists external payloads as raw JSON with a deterministic SHA-256 hash and sync-run linkage. It does not normalize, dispatch workflow events, apply business rules, expose admin lists, or call live Gastronovi endpoints.
+
+## ADR-0005: Inventory-1 adds schema only
+
+Status: accepted
+
+Inventory-1 introduces inventory, supplier, purchase order, goods receipt, movement, stock snapshot, and correction request tables in Prisma. It does not add inventory APIs, stock calculation logic, review-task generation, POS consumption mapping, or automatic stock changes.
