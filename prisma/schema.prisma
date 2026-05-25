@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model SyncRun {
+  id           String        @id @default(cuid())
+  source       String
+  status       SyncRunStatus
+  startedAt    DateTime      @default(now())
+  finishedAt   DateTime?
+  errorCode    String?
+  errorMessage String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  rawPayloads RawPayload[]
+}
+
+model RawPayload {
+  id          String   @id @default(cuid())
+  source      String
+  externalId  String?
+  entityType  String?
+  payloadHash String
+  payloadJson Json
+  syncRunId   String?
+  syncRun     SyncRun? @relation(fields: [syncRunId], references: [id])
+  receivedAt  DateTime @default(now())
+
+  @@index([source, externalId])
+  @@index([payloadHash])
+}
+
+model WorkflowEvent {
+  id             String   @id @default(cuid())
+  type           String
+  version        Int
+  source         String
+  externalId     String?
+  idempotencyKey String   @unique
+  businessDate   DateTime?
+  occurredAt     DateTime
+  importedAt     DateTime @default(now())
+  payloadRef     String?
+  dataJson       Json
+  metadataJson   Json?
+  createdAt      DateTime @default(now())
+
+  tasks WorkflowTask[]
+
+  @@index([type, occurredAt])
+  @@index([source, externalId])
+  @@index([businessDate])
+}
+
+model WorkflowTask {
+  id              String             @id @default(cuid())
+  type            String
+  status          WorkflowTaskStatus
+  severity        String
+  title           String
+  description     String?
+  workflowEventId String?
+  workflowEvent   WorkflowEvent?     @relation(fields: [workflowEventId], references: [id])
+  assignedRole    String?
+  createdAt       DateTime           @default(now())
+  resolvedAt      DateTime?
+}
+
+enum SyncRunStatus {
+  running
+  succeeded
+  failed
+  partially_failed
+}
+
+enum WorkflowTaskStatus {
+  open
+  in_review
+  resolved
+  dismissed
+}
