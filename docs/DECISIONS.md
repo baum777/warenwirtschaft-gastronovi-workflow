@@ -17,3 +17,9 @@ The adapter must not write back to Gastronovi, HOTAPI-adjacent systems, or accou
 Status: accepted
 
 Ticket 1 creates the service skeleton, health route, env validation, Prisma schema, and docs. Live Gastronovi access, ingestion, normalization, rules, scheduled jobs, and admin APIs are deferred until real source access, payload samples, and tenant rules are available.
+
+## ADR-0004: Ticket 2 stores raw payloads only
+
+Status: accepted
+
+Ticket 2 persists external payloads as raw JSON with a deterministic SHA-256 hash and sync-run linkage. It does not normalize, dispatch workflow events, apply business rules, expose admin lists, or call live Gastronovi endpoints.

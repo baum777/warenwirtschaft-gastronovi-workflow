@@ -54,17 +54,21 @@ Testing:        Vitest
 Docs:           Markdown
 ```
 
-## v1 Bootstrap Scope
+## Current v1 Scope
 
-This starter contains the Ticket 1 baseline only:
+This starter contains the Ticket 1 baseline plus the Ticket 2 raw-ingestion core:
 
 - Fastify service bootstrap.
 - `GET /health`.
 - Zod environment validation.
 - Prisma schema draft.
 - Architecture and event contract docs.
+- Deterministic raw payload hashing.
+- Raw payload repository boundary.
+- Sync run repository boundary.
+- Ingestion service that stores raw payloads and detects duplicate hashes.
 
-Live Gastronovi access, ingestion, normalization, rules, queues, scheduled jobs, and admin APIs are intentionally out of scope for this slice.
+Live Gastronovi access, HTTP ingestion routes, normalization, rules, queues, scheduled jobs, and admin APIs are intentionally out of scope for the current slice.
 
 ## Local Commands
 

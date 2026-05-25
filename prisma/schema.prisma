@@ -26,7 +26,7 @@ model RawPayload {
   source      String
   externalId  String?
   entityType  String?
-  payloadHash String
+  payloadHash String   @unique
   payloadJson Json
   syncRunId   String?
   syncRun     SyncRun? @relation(fields: [syncRunId], references: [id])
