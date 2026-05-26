@@ -18,6 +18,10 @@ import {
   type PurchaseOrderDatabaseClient
 } from "./modules/inventory/purchase-order.service.js";
 import {
+  ReviewTaskService,
+  type ReviewTaskDatabaseClient
+} from "./modules/inventory/review-task.service.js";
+import {
   WithdrawalService,
   type WithdrawalDatabaseClient
 } from "./modules/inventory/withdrawal.service.js";
@@ -60,6 +64,9 @@ function buildInventoryDependencies(options: AppOptions): InventoryRouteDependen
     correctionService: new CorrectionService({
       db: prisma as unknown as CorrectionDatabaseClient,
       now: options.now
+    }),
+    reviewTaskService: new ReviewTaskService({
+      db: prisma as unknown as ReviewTaskDatabaseClient
     }),
     inventoryReadService: new InventoryReadService(prisma as unknown as InventoryReadDatabaseClient)
   };

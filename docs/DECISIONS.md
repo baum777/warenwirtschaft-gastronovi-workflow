@@ -41,3 +41,9 @@ Internal withdrawal records are represented as `InventoryMovement` rows with typ
 Status: accepted
 
 Inventory corrections start as `InventoryCorrectionRequest` records and create an admin review task. Open requests do not create movements or refresh stock snapshots. Approval creates one `InventoryMovement` with type `correction_positive` or `correction_negative`, refreshes the derived snapshot in the same transaction, and marks the request approved. Rejection marks the request rejected without creating stock movement.
+
+## ADR-0008: Inventory review tasks are admin-owned
+
+Status: accepted
+
+Inventory review tasks can be moved from `open` to `in_review`, `resolved`, or `dismissed` through admin-only actions. Resolving or dismissing a task sets `resolvedAt`. Closed review tasks cannot be reopened by this slice, and non-inventory workflow tasks remain outside the inventory action API.

@@ -16,6 +16,7 @@ import type { CorrectionServicePort } from "../modules/inventory/correction.serv
 import type { GoodsReceiptServicePort } from "../modules/inventory/goods-receipt.service.js";
 import type { InventoryReadServicePort } from "../modules/inventory/inventory-read.service.js";
 import type { PurchaseOrderServicePort } from "../modules/inventory/purchase-order.service.js";
+import type { ReviewTaskServicePort } from "../modules/inventory/review-task.service.js";
 import type { WithdrawalServicePort } from "../modules/inventory/withdrawal.service.js";
 
 export type InventoryRouteDependencies = {
@@ -23,6 +24,7 @@ export type InventoryRouteDependencies = {
   goodsReceiptService: GoodsReceiptServicePort;
   withdrawalService: WithdrawalServicePort;
   correctionService: CorrectionServicePort;
+  reviewTaskService: ReviewTaskServicePort;
   inventoryReadService: InventoryReadServicePort;
 };
 
@@ -255,6 +257,63 @@ export async function inventoryRoute(
     }
 
     return dependencies.correctionService.reject(params.id, actor);
+  });
+
+  app.post("/admin/review-tasks/:id/start-review", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const params = request.params as { id?: string };
+
+    if (!params.id) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "review task id is required"
+      });
+    }
+
+    return dependencies.reviewTaskService.startReview(params.id, actor);
+  });
+
+  app.post("/admin/review-tasks/:id/resolve", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const params = request.params as { id?: string };
+
+    if (!params.id) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "review task id is required"
+      });
+    }
+
+    return dependencies.reviewTaskService.resolve(params.id, actor);
+  });
+
+  app.post("/admin/review-tasks/:id/dismiss", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const params = request.params as { id?: string };
+
+    if (!params.id) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "review task id is required"
+      });
+    }
+
+    return dependencies.reviewTaskService.dismiss(params.id, actor);
   });
 }
 

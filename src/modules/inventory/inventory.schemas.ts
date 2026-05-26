@@ -110,6 +110,12 @@ export type CorrectionRejectionDto = {
   status: "rejected";
 };
 
+export type ReviewTaskActionDto = {
+  id: string;
+  status: "in_review" | "resolved" | "dismissed";
+  resolvedAt?: string;
+};
+
 export type GoodsReceiptReadDto = {
   goodsReceiptId: string;
   purchaseOrderId?: string;

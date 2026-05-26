@@ -6,6 +6,7 @@ import type { CorrectionServicePort } from "../src/modules/inventory/correction.
 import type { GoodsReceiptServicePort } from "../src/modules/inventory/goods-receipt.service.js";
 import type { InventoryReadServicePort } from "../src/modules/inventory/inventory-read.service.js";
 import type { PurchaseOrderServicePort } from "../src/modules/inventory/purchase-order.service.js";
+import type { ReviewTaskServicePort } from "../src/modules/inventory/review-task.service.js";
 import type { WithdrawalServicePort } from "../src/modules/inventory/withdrawal.service.js";
 
 describe("inventory API routes", () => {
@@ -541,6 +542,145 @@ describe("inventory API routes", () => {
     }
   });
 
+  it("lets admins start reviewing inventory review tasks", async () => {
+    const calls: Array<{ id: string; actor: Actor }> = [];
+    const app = buildApp({
+      inventory: fakeInventoryServices({
+        reviewTaskService: {
+          async startReview(id, actor) {
+            calls.push({ id, actor });
+            return {
+              id: "task-1",
+              status: "in_review",
+              resolvedAt: undefined
+            };
+          },
+          async resolve() {
+            throw new Error("not used");
+          },
+          async dismiss() {
+            throw new Error("not used");
+          }
+        }
+      })
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/admin/review-tasks/task-1/start-review",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        id: "task-1",
+        status: "in_review"
+      });
+      expect(calls).toEqual([
+        {
+          id: "task-1",
+          actor: {
+            userId: "admin-1",
+            role: "admin"
+          }
+        }
+      ]);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("lets admins resolve inventory review tasks", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices({
+        reviewTaskService: {
+          async startReview() {
+            throw new Error("not used");
+          },
+          async resolve() {
+            return {
+              id: "task-1",
+              status: "resolved",
+              resolvedAt: "2026-05-26T12:00:00.000Z"
+            };
+          },
+          async dismiss() {
+            throw new Error("not used");
+          }
+        }
+      })
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/admin/review-tasks/task-1/resolve",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        id: "task-1",
+        status: "resolved",
+        resolvedAt: "2026-05-26T12:00:00.000Z"
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("lets admins dismiss inventory review tasks", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices({
+        reviewTaskService: {
+          async startReview() {
+            throw new Error("not used");
+          },
+          async resolve() {
+            throw new Error("not used");
+          },
+          async dismiss() {
+            return {
+              id: "task-1",
+              status: "dismissed",
+              resolvedAt: "2026-05-26T12:15:00.000Z"
+            };
+          }
+        }
+      })
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/admin/review-tasks/task-1/dismiss",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        id: "task-1",
+        status: "dismissed",
+        resolvedAt: "2026-05-26T12:15:00.000Z"
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
   it("returns admin stock rows and open review tasks", async () => {
     const app = buildApp({
       inventory: fakeInventoryServices()
@@ -608,6 +748,7 @@ function fakeInventoryServices(
     inventoryReadService: InventoryReadServicePort;
     withdrawalService: WithdrawalServicePort;
     correctionService: CorrectionServicePort;
+    reviewTaskService: ReviewTaskServicePort;
   }> = {}
 ) {
   return {
@@ -657,6 +798,25 @@ function fakeInventoryServices(
         return { correctionRequestId: "correction-1", status: "rejected" };
       }
     } as CorrectionServicePort,
+    reviewTaskService: overrides.reviewTaskService ?? {
+      async startReview() {
+        return { id: "task-1", status: "in_review", resolvedAt: undefined };
+      },
+      async resolve() {
+        return {
+          id: "task-1",
+          status: "resolved",
+          resolvedAt: "2026-05-26T12:00:00.000Z"
+        };
+      },
+      async dismiss() {
+        return {
+          id: "task-1",
+          status: "dismissed",
+          resolvedAt: "2026-05-26T12:15:00.000Z"
+        };
+      }
+    } as ReviewTaskServicePort,
     inventoryReadService: overrides.inventoryReadService ?? {
       async listStock() {
         return [
