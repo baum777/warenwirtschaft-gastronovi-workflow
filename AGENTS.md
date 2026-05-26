@@ -43,3 +43,24 @@ A DB-backed browser flow is only runnable when:
 5. The app can create/read/list DB-backed records.
 
 If these are missing, report `blocked` and request valid Supabase credentials instead of attempting local Postgres setup.
+
+## Local DB Test Runs
+
+Supabase is the canonical target database.
+
+For local test/runtime validation, agents may set up a local PostgreSQL database when explicitly approved.
+
+Approved local test defaults:
+
+```env
+DATABASE_URL="postgresql://gastronovi_dev:gastronovi_dev@127.0.0.1:5432/gastronovi_workflow_adapter"
+DIRECT_URL="postgresql://gastronovi_dev:gastronovi_dev@127.0.0.1:5432/gastronovi_workflow_adapter"
+```
+
+Rules:
+
+- Local DB credentials may be written to local `.env`.
+- Never commit `.env`.
+- `.env.example` must only contain placeholders.
+- Local DB is for test runs only.
+- Supabase remains the production/source-of-truth DB target.
