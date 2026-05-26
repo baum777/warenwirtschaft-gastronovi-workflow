@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { buildApp } from "../src/app.js";
 import type { Actor } from "../src/modules/auth/actor.js";
+import type { CorrectionServicePort } from "../src/modules/inventory/correction.service.js";
 import type { GoodsReceiptServicePort } from "../src/modules/inventory/goods-receipt.service.js";
+import type { InventoryItemServicePort } from "../src/modules/inventory/inventory-item.service.js";
 import type { InventoryReadServicePort } from "../src/modules/inventory/inventory-read.service.js";
 import type { PurchaseOrderServicePort } from "../src/modules/inventory/purchase-order.service.js";
+import type { ReviewTaskServicePort } from "../src/modules/inventory/review-task.service.js";
+import type { WithdrawalServicePort } from "../src/modules/inventory/withdrawal.service.js";
 
 describe("inventory API routes", () => {
   it("requires actor headers for protected admin routes", async () => {
@@ -148,6 +152,146 @@ describe("inventory API routes", () => {
       expect(response.json()).toEqual({
         purchaseOrderId: "po-1",
         status: "draft"
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("lets admins create inventory items", async () => {
+    const calls: unknown[] = [];
+    const app = buildApp({
+      inventory: fakeInventoryServices({
+        inventoryItemService: {
+          async create(input) {
+            calls.push(input);
+            return expectedInventoryItemReadModel();
+          },
+          async list() {
+            throw new Error("not used");
+          },
+          async get() {
+            throw new Error("not used");
+          },
+          async update() {
+            throw new Error("not used");
+          },
+          async deactivate() {
+            throw new Error("not used");
+          }
+        }
+      })
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/admin/inventory/items",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        },
+        payload: {
+          name: "Tomaten passiert 5kg",
+          sku: "TOM-5",
+          category: "food",
+          defaultUnit: "Stück",
+          minStock: 4,
+          storageLocationId: "loc-1"
+        }
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.json()).toEqual(expectedInventoryItemReadModel());
+      expect(calls).toEqual([
+        {
+          name: "Tomaten passiert 5kg",
+          sku: "TOM-5",
+          category: "food",
+          defaultUnit: "Stück",
+          minStock: 4,
+          storageLocationId: "loc-1"
+        }
+      ]);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("returns admin inventory item read models", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      const listResponse = await app.inject({
+        method: "GET",
+        url: "/admin/inventory/items",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+      const detailResponse = await app.inject({
+        method: "GET",
+        url: "/admin/inventory/items/item-1",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+
+      expect(listResponse.statusCode).toBe(200);
+      expect(listResponse.json()).toEqual({
+        items: [expectedInventoryItemReadModel()]
+      });
+      expect(detailResponse.statusCode).toBe(200);
+      expect(detailResponse.json()).toEqual(expectedInventoryItemReadModel());
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("lets admins update and deactivate inventory items", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      const updateResponse = await app.inject({
+        method: "PATCH",
+        url: "/admin/inventory/items/item-1",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        },
+        payload: {
+          name: "Tomaten passiert 6kg",
+          minStock: 6
+        }
+      });
+      const deactivateResponse = await app.inject({
+        method: "POST",
+        url: "/admin/inventory/items/item-1/deactivate",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+
+      expect(updateResponse.statusCode).toBe(200);
+      expect(updateResponse.json()).toEqual({
+        ...expectedInventoryItemReadModel(),
+        name: "Tomaten passiert 6kg",
+        minStock: 6
+      });
+      expect(deactivateResponse.statusCode).toBe(200);
+      expect(deactivateResponse.json()).toEqual({
+        ...expectedInventoryItemReadModel(),
+        isActive: false
       });
     } finally {
       await app.close();
@@ -307,6 +451,377 @@ describe("inventory API routes", () => {
     }
   });
 
+  it("lets staff record withdrawals and passes actor context to the service", async () => {
+    const calls: Array<{ input: unknown; actor: Actor }> = [];
+    const app = buildApp({
+      inventory: fakeInventoryServices({
+        withdrawalService: {
+          async create(input, actor) {
+            calls.push({ input, actor });
+            return {
+              movementId: "move-2",
+              stockAfter: 2,
+              reviewTaskIds: []
+            };
+          }
+        }
+      })
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/withdrawals",
+        headers: {
+          "x-actor-id": "staff-1",
+          "x-actor-role": "staff"
+        },
+        payload: {
+          inventoryItemId: "item-1",
+          quantity: 2,
+          unit: "Stück",
+          note: "prep usage"
+        }
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.json()).toEqual({
+        movementId: "move-2",
+        stockAfter: 2,
+        reviewTaskIds: []
+      });
+      expect(calls).toEqual([
+        {
+          input: {
+            inventoryItemId: "item-1",
+            quantity: 2,
+            unit: "Stück",
+            note: "prep usage"
+          },
+          actor: {
+            userId: "staff-1",
+            role: "staff"
+          }
+        }
+      ]);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("lets staff request inventory corrections without applying them", async () => {
+    const calls: Array<{ input: unknown; actor: Actor }> = [];
+    const app = buildApp({
+      inventory: fakeInventoryServices({
+        correctionService: {
+          async createRequest(input, actor) {
+            calls.push({ input, actor });
+            return {
+              correctionRequestId: "correction-1",
+              status: "open",
+              reviewTaskId: "task-2"
+            };
+          },
+          async approve() {
+            throw new Error("not used");
+          },
+          async reject() {
+            throw new Error("not used");
+          }
+        }
+      })
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/correction-requests",
+        headers: {
+          "x-actor-id": "staff-1",
+          "x-actor-role": "staff"
+        },
+        payload: {
+          inventoryItemId: "item-1",
+          expectedDelta: -2,
+          unit: "Stück",
+          reason: "count mismatch"
+        }
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.json()).toEqual({
+        correctionRequestId: "correction-1",
+        status: "open",
+        reviewTaskId: "task-2"
+      });
+      expect(calls).toEqual([
+        {
+          input: {
+            inventoryItemId: "item-1",
+            expectedDelta: -2,
+            unit: "Stück",
+            reason: "count mismatch"
+          },
+          actor: {
+            userId: "staff-1",
+            role: "staff"
+          }
+        }
+      ]);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("lets admins approve correction requests", async () => {
+    const calls: Array<{ id: string; actor: Actor }> = [];
+    const app = buildApp({
+      inventory: fakeInventoryServices({
+        correctionService: {
+          async createRequest() {
+            throw new Error("not used");
+          },
+          async approve(id, actor) {
+            calls.push({ id, actor });
+            return {
+              correctionRequestId: "correction-1",
+              status: "approved",
+              movementId: "move-3",
+              stockAfter: 8
+            };
+          },
+          async reject() {
+            throw new Error("not used");
+          }
+        }
+      })
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/admin/correction-requests/correction-1/approve",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        correctionRequestId: "correction-1",
+        status: "approved",
+        movementId: "move-3",
+        stockAfter: 8
+      });
+      expect(calls).toEqual([
+        {
+          id: "correction-1",
+          actor: {
+            userId: "admin-1",
+            role: "admin"
+          }
+        }
+      ]);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("lets admins reject correction requests", async () => {
+    const calls: Array<{ id: string; actor: Actor }> = [];
+    const app = buildApp({
+      inventory: fakeInventoryServices({
+        correctionService: {
+          async createRequest() {
+            throw new Error("not used");
+          },
+          async approve() {
+            throw new Error("not used");
+          },
+          async reject(id, actor) {
+            calls.push({ id, actor });
+            return {
+              correctionRequestId: "correction-1",
+              status: "rejected"
+            };
+          }
+        }
+      })
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/admin/correction-requests/correction-1/reject",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        correctionRequestId: "correction-1",
+        status: "rejected"
+      });
+      expect(calls).toEqual([
+        {
+          id: "correction-1",
+          actor: {
+            userId: "admin-1",
+            role: "admin"
+          }
+        }
+      ]);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("lets admins start reviewing inventory review tasks", async () => {
+    const calls: Array<{ id: string; actor: Actor }> = [];
+    const app = buildApp({
+      inventory: fakeInventoryServices({
+        reviewTaskService: {
+          async startReview(id, actor) {
+            calls.push({ id, actor });
+            return {
+              id: "task-1",
+              status: "in_review",
+              resolvedAt: undefined
+            };
+          },
+          async resolve() {
+            throw new Error("not used");
+          },
+          async dismiss() {
+            throw new Error("not used");
+          }
+        }
+      })
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/admin/review-tasks/task-1/start-review",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        id: "task-1",
+        status: "in_review"
+      });
+      expect(calls).toEqual([
+        {
+          id: "task-1",
+          actor: {
+            userId: "admin-1",
+            role: "admin"
+          }
+        }
+      ]);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("lets admins resolve inventory review tasks", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices({
+        reviewTaskService: {
+          async startReview() {
+            throw new Error("not used");
+          },
+          async resolve() {
+            return {
+              id: "task-1",
+              status: "resolved",
+              resolvedAt: "2026-05-26T12:00:00.000Z"
+            };
+          },
+          async dismiss() {
+            throw new Error("not used");
+          }
+        }
+      })
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/admin/review-tasks/task-1/resolve",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        id: "task-1",
+        status: "resolved",
+        resolvedAt: "2026-05-26T12:00:00.000Z"
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("lets admins dismiss inventory review tasks", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices({
+        reviewTaskService: {
+          async startReview() {
+            throw new Error("not used");
+          },
+          async resolve() {
+            throw new Error("not used");
+          },
+          async dismiss() {
+            return {
+              id: "task-1",
+              status: "dismissed",
+              resolvedAt: "2026-05-26T12:15:00.000Z"
+            };
+          }
+        }
+      })
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/admin/review-tasks/task-1/dismiss",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        id: "task-1",
+        status: "dismissed",
+        resolvedAt: "2026-05-26T12:15:00.000Z"
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
   it("returns admin stock rows and open review tasks", async () => {
     const app = buildApp({
       inventory: fakeInventoryServices()
@@ -370,8 +885,12 @@ describe("inventory API routes", () => {
 function fakeInventoryServices(
   overrides: Partial<{
     purchaseOrderService: PurchaseOrderServicePort;
+    inventoryItemService: InventoryItemServicePort;
     goodsReceiptService: GoodsReceiptServicePort;
     inventoryReadService: InventoryReadServicePort;
+    withdrawalService: WithdrawalServicePort;
+    correctionService: CorrectionServicePort;
+    reviewTaskService: ReviewTaskServicePort;
   }> = {}
 ) {
   return {
@@ -389,6 +908,30 @@ function fakeInventoryServices(
         return expectedPurchaseOrderReadModel();
       }
     } as PurchaseOrderServicePort,
+    inventoryItemService: overrides.inventoryItemService ?? {
+      async create() {
+        return expectedInventoryItemReadModel();
+      },
+      async list() {
+        return [expectedInventoryItemReadModel()];
+      },
+      async get() {
+        return expectedInventoryItemReadModel();
+      },
+      async update() {
+        return {
+          ...expectedInventoryItemReadModel(),
+          name: "Tomaten passiert 6kg",
+          minStock: 6
+        };
+      },
+      async deactivate() {
+        return {
+          ...expectedInventoryItemReadModel(),
+          isActive: false
+        };
+      }
+    } as InventoryItemServicePort,
     goodsReceiptService: overrides.goodsReceiptService ?? {
       async create() {
         return { goodsReceiptId: "gr-1", movementIds: ["move-1"] };
@@ -400,6 +943,46 @@ function fakeInventoryServices(
         return expectedGoodsReceiptReadModel();
       }
     } as GoodsReceiptServicePort,
+    withdrawalService: overrides.withdrawalService ?? {
+      async create() {
+        return { movementId: "move-2", stockAfter: 2, reviewTaskIds: [] };
+      }
+    } as WithdrawalServicePort,
+    correctionService: overrides.correctionService ?? {
+      async createRequest() {
+        return { correctionRequestId: "correction-1", status: "open", reviewTaskId: "task-2" };
+      },
+      async approve() {
+        return {
+          correctionRequestId: "correction-1",
+          status: "approved",
+          movementId: "move-3",
+          stockAfter: 8
+        };
+      },
+      async reject() {
+        return { correctionRequestId: "correction-1", status: "rejected" };
+      }
+    } as CorrectionServicePort,
+    reviewTaskService: overrides.reviewTaskService ?? {
+      async startReview() {
+        return { id: "task-1", status: "in_review", resolvedAt: undefined };
+      },
+      async resolve() {
+        return {
+          id: "task-1",
+          status: "resolved",
+          resolvedAt: "2026-05-26T12:00:00.000Z"
+        };
+      },
+      async dismiss() {
+        return {
+          id: "task-1",
+          status: "dismissed",
+          resolvedAt: "2026-05-26T12:15:00.000Z"
+        };
+      }
+    } as ReviewTaskServicePort,
     inventoryReadService: overrides.inventoryReadService ?? {
       async listStock() {
         return [
@@ -433,6 +1016,22 @@ function fakeInventoryServices(
         ];
       }
     }
+  };
+}
+
+function expectedInventoryItemReadModel() {
+  return {
+    inventoryItemId: "item-1",
+    name: "Tomaten passiert 5kg",
+    sku: "TOM-5",
+    category: "food",
+    defaultUnit: "Stück",
+    minStock: 4,
+    storageLocationId: "loc-1",
+    storageLocationName: "Küche",
+    isActive: true,
+    createdAt: "2026-05-26T10:00:00.000Z",
+    updatedAt: "2026-05-26T11:00:00.000Z"
   };
 }
 

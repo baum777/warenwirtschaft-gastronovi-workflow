@@ -32,8 +32,45 @@ export const createGoodsReceiptSchema = z.object({
     .min(1)
 });
 
+export const createWithdrawalSchema = z.object({
+  inventoryItemId: z.string().min(1),
+  quantity: z.number().positive(),
+  unit: z.string().min(1),
+  storageLocationId: z.string().min(1).optional(),
+  note: z.string().optional()
+});
+
+export const createCorrectionRequestSchema = z.object({
+  inventoryItemId: z.string().min(1),
+  expectedDelta: z.number().refine((value) => value !== 0, {
+    message: "expectedDelta must not be zero"
+  }),
+  unit: z.string().min(1),
+  reason: z.string().min(1)
+});
+
+export const createInventoryItemSchema = z.object({
+  name: z.string().min(1),
+  sku: z.string().min(1).optional(),
+  category: z.string().min(1).optional(),
+  defaultUnit: z.string().min(1),
+  minStock: z.number().nonnegative().optional(),
+  storageLocationId: z.string().min(1).optional()
+});
+
+export const updateInventoryItemSchema = createInventoryItemSchema.partial().refine(
+  (input) => Object.keys(input).length > 0,
+  {
+    message: "at least one field is required"
+  }
+);
+
 export type CreatePurchaseOrderInput = z.infer<typeof createPurchaseOrderSchema>;
 export type CreateGoodsReceiptInput = z.infer<typeof createGoodsReceiptSchema>;
+export type CreateWithdrawalInput = z.infer<typeof createWithdrawalSchema>;
+export type CreateCorrectionRequestInput = z.infer<typeof createCorrectionRequestSchema>;
+export type CreateInventoryItemInput = z.infer<typeof createInventoryItemSchema>;
+export type UpdateInventoryItemInput = z.infer<typeof updateInventoryItemSchema>;
 
 export type PurchaseOrderDto = {
   purchaseOrderId: string;
@@ -65,6 +102,50 @@ export type PurchaseOrderItemReadDto = {
 export type GoodsReceiptDto = {
   goodsReceiptId: string;
   movementIds: string[];
+};
+
+export type WithdrawalDto = {
+  movementId: string;
+  stockAfter: number;
+  reviewTaskIds: string[];
+};
+
+export type CorrectionRequestDto = {
+  correctionRequestId: string;
+  status: "open" | "approved" | "rejected";
+  reviewTaskId?: string;
+};
+
+export type CorrectionApprovalDto = {
+  correctionRequestId: string;
+  status: "approved";
+  movementId: string;
+  stockAfter: number;
+};
+
+export type CorrectionRejectionDto = {
+  correctionRequestId: string;
+  status: "rejected";
+};
+
+export type ReviewTaskActionDto = {
+  id: string;
+  status: "in_review" | "resolved" | "dismissed";
+  resolvedAt?: string;
+};
+
+export type InventoryItemReadDto = {
+  inventoryItemId: string;
+  name: string;
+  sku?: string;
+  category?: string;
+  defaultUnit: string;
+  minStock?: number;
+  storageLocationId?: string;
+  storageLocationName?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type GoodsReceiptReadDto = {

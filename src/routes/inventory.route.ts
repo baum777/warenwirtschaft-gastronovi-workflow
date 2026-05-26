@@ -7,16 +7,28 @@ import {
   type Role
 } from "../modules/auth/actor.js";
 import {
+  createCorrectionRequestSchema,
   createGoodsReceiptSchema,
-  createPurchaseOrderSchema
+  createInventoryItemSchema,
+  createPurchaseOrderSchema,
+  createWithdrawalSchema,
+  updateInventoryItemSchema
 } from "../modules/inventory/inventory.schemas.js";
+import type { CorrectionServicePort } from "../modules/inventory/correction.service.js";
 import type { GoodsReceiptServicePort } from "../modules/inventory/goods-receipt.service.js";
+import type { InventoryItemServicePort } from "../modules/inventory/inventory-item.service.js";
 import type { InventoryReadServicePort } from "../modules/inventory/inventory-read.service.js";
 import type { PurchaseOrderServicePort } from "../modules/inventory/purchase-order.service.js";
+import type { ReviewTaskServicePort } from "../modules/inventory/review-task.service.js";
+import type { WithdrawalServicePort } from "../modules/inventory/withdrawal.service.js";
 
 export type InventoryRouteDependencies = {
   purchaseOrderService: PurchaseOrderServicePort;
+  inventoryItemService: InventoryItemServicePort;
   goodsReceiptService: GoodsReceiptServicePort;
+  withdrawalService: WithdrawalServicePort;
+  correctionService: CorrectionServicePort;
+  reviewTaskService: ReviewTaskServicePort;
   inventoryReadService: InventoryReadServicePort;
 };
 
@@ -58,6 +70,99 @@ export async function inventoryRoute(
     return {
       tasks: await dependencies.inventoryReadService.listOpenReviewTasks()
     };
+  });
+
+  app.post("/admin/inventory/items", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const input = parseBody(createInventoryItemSchema.safeParse(request.body), reply);
+
+    if (!input) {
+      return reply;
+    }
+
+    const result = await dependencies.inventoryItemService.create(input);
+
+    return reply.code(201).send(result);
+  });
+
+  app.get("/admin/inventory/items", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    return {
+      items: await dependencies.inventoryItemService.list()
+    };
+  });
+
+  app.get("/admin/inventory/items/:id", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const params = request.params as { id?: string };
+
+    if (!params.id) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "inventory item id is required"
+      });
+    }
+
+    return dependencies.inventoryItemService.get(params.id);
+  });
+
+  app.patch("/admin/inventory/items/:id", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const params = request.params as { id?: string };
+
+    if (!params.id) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "inventory item id is required"
+      });
+    }
+
+    const input = parseBody(updateInventoryItemSchema.safeParse(request.body), reply);
+
+    if (!input) {
+      return reply;
+    }
+
+    return dependencies.inventoryItemService.update(params.id, input);
+  });
+
+  app.post("/admin/inventory/items/:id/deactivate", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const params = request.params as { id?: string };
+
+    if (!params.id) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "inventory item id is required"
+      });
+    }
+
+    return dependencies.inventoryItemService.deactivate(params.id);
   });
 
   app.post("/admin/purchase-orders", async (request, reply) => {
@@ -175,6 +280,137 @@ export async function inventoryRoute(
     }
 
     return dependencies.goodsReceiptService.get(params.id);
+  });
+
+  app.post("/withdrawals", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin", "shift_lead", "staff"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const input = parseBody(createWithdrawalSchema.safeParse(request.body), reply);
+
+    if (!input) {
+      return reply;
+    }
+
+    const result = await dependencies.withdrawalService.create(input, actor);
+
+    return reply.code(201).send(result);
+  });
+
+  app.post("/correction-requests", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin", "shift_lead", "staff"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const input = parseBody(createCorrectionRequestSchema.safeParse(request.body), reply);
+
+    if (!input) {
+      return reply;
+    }
+
+    const result = await dependencies.correctionService.createRequest(input, actor);
+
+    return reply.code(201).send(result);
+  });
+
+  app.post("/admin/correction-requests/:id/approve", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const params = request.params as { id?: string };
+
+    if (!params.id) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "correction request id is required"
+      });
+    }
+
+    return dependencies.correctionService.approve(params.id, actor);
+  });
+
+  app.post("/admin/correction-requests/:id/reject", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const params = request.params as { id?: string };
+
+    if (!params.id) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "correction request id is required"
+      });
+    }
+
+    return dependencies.correctionService.reject(params.id, actor);
+  });
+
+  app.post("/admin/review-tasks/:id/start-review", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const params = request.params as { id?: string };
+
+    if (!params.id) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "review task id is required"
+      });
+    }
+
+    return dependencies.reviewTaskService.startReview(params.id, actor);
+  });
+
+  app.post("/admin/review-tasks/:id/resolve", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const params = request.params as { id?: string };
+
+    if (!params.id) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "review task id is required"
+      });
+    }
+
+    return dependencies.reviewTaskService.resolve(params.id, actor);
+  });
+
+  app.post("/admin/review-tasks/:id/dismiss", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const params = request.params as { id?: string };
+
+    if (!params.id) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "review task id is required"
+      });
+    }
+
+    return dependencies.reviewTaskService.dismiss(params.id, actor);
   });
 }
 
