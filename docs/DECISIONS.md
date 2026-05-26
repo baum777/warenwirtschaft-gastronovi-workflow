@@ -53,3 +53,9 @@ Inventory review tasks can be moved from `open` to `in_review`, `resolved`, or `
 Status: accepted
 
 Inventory items are managed through admin-only APIs. Creating and editing item metadata does not create stock movements or stock snapshots. Items are deactivated by setting `isActive` to `false`; this slice does not hard-delete inventory items, preserving movement history and auditability.
+
+## ADR-0010: Web MVP starts as a static app shell
+
+Status: accepted
+
+The first Warenwirtschaft web surface is a static `web/` app shell using browser-native HTML, CSS, and JavaScript. It avoids adding a frontend build dependency before the backend workflows stabilize. API requests send the explicit `x-actor-id` and `x-actor-role` headers, and the UI remains separated from backend domain services.
