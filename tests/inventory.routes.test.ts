@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildApp } from "../src/app.js";
 import type { Actor } from "../src/modules/auth/actor.js";
+import type { CorrectionServicePort } from "../src/modules/inventory/correction.service.js";
 import type { GoodsReceiptServicePort } from "../src/modules/inventory/goods-receipt.service.js";
 import type { InventoryReadServicePort } from "../src/modules/inventory/inventory-read.service.js";
 import type { PurchaseOrderServicePort } from "../src/modules/inventory/purchase-order.service.js";
@@ -367,6 +368,179 @@ describe("inventory API routes", () => {
     }
   });
 
+  it("lets staff request inventory corrections without applying them", async () => {
+    const calls: Array<{ input: unknown; actor: Actor }> = [];
+    const app = buildApp({
+      inventory: fakeInventoryServices({
+        correctionService: {
+          async createRequest(input, actor) {
+            calls.push({ input, actor });
+            return {
+              correctionRequestId: "correction-1",
+              status: "open",
+              reviewTaskId: "task-2"
+            };
+          },
+          async approve() {
+            throw new Error("not used");
+          },
+          async reject() {
+            throw new Error("not used");
+          }
+        }
+      })
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/correction-requests",
+        headers: {
+          "x-actor-id": "staff-1",
+          "x-actor-role": "staff"
+        },
+        payload: {
+          inventoryItemId: "item-1",
+          expectedDelta: -2,
+          unit: "Stück",
+          reason: "count mismatch"
+        }
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.json()).toEqual({
+        correctionRequestId: "correction-1",
+        status: "open",
+        reviewTaskId: "task-2"
+      });
+      expect(calls).toEqual([
+        {
+          input: {
+            inventoryItemId: "item-1",
+            expectedDelta: -2,
+            unit: "Stück",
+            reason: "count mismatch"
+          },
+          actor: {
+            userId: "staff-1",
+            role: "staff"
+          }
+        }
+      ]);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("lets admins approve correction requests", async () => {
+    const calls: Array<{ id: string; actor: Actor }> = [];
+    const app = buildApp({
+      inventory: fakeInventoryServices({
+        correctionService: {
+          async createRequest() {
+            throw new Error("not used");
+          },
+          async approve(id, actor) {
+            calls.push({ id, actor });
+            return {
+              correctionRequestId: "correction-1",
+              status: "approved",
+              movementId: "move-3",
+              stockAfter: 8
+            };
+          },
+          async reject() {
+            throw new Error("not used");
+          }
+        }
+      })
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/admin/correction-requests/correction-1/approve",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        correctionRequestId: "correction-1",
+        status: "approved",
+        movementId: "move-3",
+        stockAfter: 8
+      });
+      expect(calls).toEqual([
+        {
+          id: "correction-1",
+          actor: {
+            userId: "admin-1",
+            role: "admin"
+          }
+        }
+      ]);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("lets admins reject correction requests", async () => {
+    const calls: Array<{ id: string; actor: Actor }> = [];
+    const app = buildApp({
+      inventory: fakeInventoryServices({
+        correctionService: {
+          async createRequest() {
+            throw new Error("not used");
+          },
+          async approve() {
+            throw new Error("not used");
+          },
+          async reject(id, actor) {
+            calls.push({ id, actor });
+            return {
+              correctionRequestId: "correction-1",
+              status: "rejected"
+            };
+          }
+        }
+      })
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/admin/correction-requests/correction-1/reject",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        correctionRequestId: "correction-1",
+        status: "rejected"
+      });
+      expect(calls).toEqual([
+        {
+          id: "correction-1",
+          actor: {
+            userId: "admin-1",
+            role: "admin"
+          }
+        }
+      ]);
+    } finally {
+      await app.close();
+    }
+  });
+
   it("returns admin stock rows and open review tasks", async () => {
     const app = buildApp({
       inventory: fakeInventoryServices()
@@ -433,6 +607,7 @@ function fakeInventoryServices(
     goodsReceiptService: GoodsReceiptServicePort;
     inventoryReadService: InventoryReadServicePort;
     withdrawalService: WithdrawalServicePort;
+    correctionService: CorrectionServicePort;
   }> = {}
 ) {
   return {
@@ -466,6 +641,22 @@ function fakeInventoryServices(
         return { movementId: "move-2", stockAfter: 2, reviewTaskIds: [] };
       }
     } as WithdrawalServicePort,
+    correctionService: overrides.correctionService ?? {
+      async createRequest() {
+        return { correctionRequestId: "correction-1", status: "open", reviewTaskId: "task-2" };
+      },
+      async approve() {
+        return {
+          correctionRequestId: "correction-1",
+          status: "approved",
+          movementId: "move-3",
+          stockAfter: 8
+        };
+      },
+      async reject() {
+        return { correctionRequestId: "correction-1", status: "rejected" };
+      }
+    } as CorrectionServicePort,
     inventoryReadService: overrides.inventoryReadService ?? {
       async listStock() {
         return [

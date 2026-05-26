@@ -7,10 +7,12 @@ import {
   type Role
 } from "../modules/auth/actor.js";
 import {
+  createCorrectionRequestSchema,
   createGoodsReceiptSchema,
   createPurchaseOrderSchema,
   createWithdrawalSchema
 } from "../modules/inventory/inventory.schemas.js";
+import type { CorrectionServicePort } from "../modules/inventory/correction.service.js";
 import type { GoodsReceiptServicePort } from "../modules/inventory/goods-receipt.service.js";
 import type { InventoryReadServicePort } from "../modules/inventory/inventory-read.service.js";
 import type { PurchaseOrderServicePort } from "../modules/inventory/purchase-order.service.js";
@@ -20,6 +22,7 @@ export type InventoryRouteDependencies = {
   purchaseOrderService: PurchaseOrderServicePort;
   goodsReceiptService: GoodsReceiptServicePort;
   withdrawalService: WithdrawalServicePort;
+  correctionService: CorrectionServicePort;
   inventoryReadService: InventoryReadServicePort;
 };
 
@@ -196,6 +199,62 @@ export async function inventoryRoute(
     const result = await dependencies.withdrawalService.create(input, actor);
 
     return reply.code(201).send(result);
+  });
+
+  app.post("/correction-requests", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin", "shift_lead", "staff"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const input = parseBody(createCorrectionRequestSchema.safeParse(request.body), reply);
+
+    if (!input) {
+      return reply;
+    }
+
+    const result = await dependencies.correctionService.createRequest(input, actor);
+
+    return reply.code(201).send(result);
+  });
+
+  app.post("/admin/correction-requests/:id/approve", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const params = request.params as { id?: string };
+
+    if (!params.id) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "correction request id is required"
+      });
+    }
+
+    return dependencies.correctionService.approve(params.id, actor);
+  });
+
+  app.post("/admin/correction-requests/:id/reject", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const params = request.params as { id?: string };
+
+    if (!params.id) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "correction request id is required"
+      });
+    }
+
+    return dependencies.correctionService.reject(params.id, actor);
   });
 }
 

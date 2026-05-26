@@ -2,6 +2,10 @@ import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastif
 
 import { prisma } from "./lib/prisma.js";
 import {
+  CorrectionService,
+  type CorrectionDatabaseClient
+} from "./modules/inventory/correction.service.js";
+import {
   GoodsReceiptService,
   type GoodsReceiptDatabaseClient
 } from "./modules/inventory/goods-receipt.service.js";
@@ -51,6 +55,10 @@ function buildInventoryDependencies(options: AppOptions): InventoryRouteDependen
     }),
     withdrawalService: new WithdrawalService({
       db: prisma as unknown as WithdrawalDatabaseClient,
+      now: options.now
+    }),
+    correctionService: new CorrectionService({
+      db: prisma as unknown as CorrectionDatabaseClient,
       now: options.now
     }),
     inventoryReadService: new InventoryReadService(prisma as unknown as InventoryReadDatabaseClient)

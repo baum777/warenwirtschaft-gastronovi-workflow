@@ -40,9 +40,19 @@ export const createWithdrawalSchema = z.object({
   note: z.string().optional()
 });
 
+export const createCorrectionRequestSchema = z.object({
+  inventoryItemId: z.string().min(1),
+  expectedDelta: z.number().refine((value) => value !== 0, {
+    message: "expectedDelta must not be zero"
+  }),
+  unit: z.string().min(1),
+  reason: z.string().min(1)
+});
+
 export type CreatePurchaseOrderInput = z.infer<typeof createPurchaseOrderSchema>;
 export type CreateGoodsReceiptInput = z.infer<typeof createGoodsReceiptSchema>;
 export type CreateWithdrawalInput = z.infer<typeof createWithdrawalSchema>;
+export type CreateCorrectionRequestInput = z.infer<typeof createCorrectionRequestSchema>;
 
 export type PurchaseOrderDto = {
   purchaseOrderId: string;
@@ -80,6 +90,24 @@ export type WithdrawalDto = {
   movementId: string;
   stockAfter: number;
   reviewTaskIds: string[];
+};
+
+export type CorrectionRequestDto = {
+  correctionRequestId: string;
+  status: "open" | "approved" | "rejected";
+  reviewTaskId?: string;
+};
+
+export type CorrectionApprovalDto = {
+  correctionRequestId: string;
+  status: "approved";
+  movementId: string;
+  stockAfter: number;
+};
+
+export type CorrectionRejectionDto = {
+  correctionRequestId: string;
+  status: "rejected";
 };
 
 export type GoodsReceiptReadDto = {
