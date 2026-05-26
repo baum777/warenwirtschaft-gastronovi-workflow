@@ -57,4 +57,34 @@ describe("parseEnv", () => {
       })
     ).toThrow(/DATABASE_URL.*REDIS_URL/);
   });
+
+  it("syncs development defaults into process.env for runtime clients", () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousDatabaseUrl = process.env.DATABASE_URL;
+    const previousRedisUrl = process.env.REDIS_URL;
+
+    try {
+      process.env.NODE_ENV = "development";
+      delete process.env.DATABASE_URL;
+      delete process.env.REDIS_URL;
+
+      const env = parseEnv();
+
+      expect(process.env.DATABASE_URL).toBe(env.DATABASE_URL);
+      expect(process.env.REDIS_URL).toBe(env.REDIS_URL);
+    } finally {
+      process.env.NODE_ENV = previousNodeEnv;
+      if (previousDatabaseUrl === undefined) {
+        delete process.env.DATABASE_URL;
+      } else {
+        process.env.DATABASE_URL = previousDatabaseUrl;
+      }
+
+      if (previousRedisUrl === undefined) {
+        delete process.env.REDIS_URL;
+      } else {
+        process.env.REDIS_URL = previousRedisUrl;
+      }
+    }
+  });
 });

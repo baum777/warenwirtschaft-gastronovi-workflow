@@ -99,7 +99,7 @@ export function parseEnv(input: NodeJS.ProcessEnv = process.env): Env {
     }
   }
 
-  return {
+  const env = {
     NODE_ENV: data.NODE_ENV,
     PORT: data.PORT,
     DATABASE_URL: data.DATABASE_URL ?? developmentDatabaseUrl,
@@ -111,4 +111,11 @@ export function parseEnv(input: NodeJS.ProcessEnv = process.env): Env {
     SYNC_ENABLE_SCHEDULED_JOBS: data.SYNC_ENABLE_SCHEDULED_JOBS,
     LOG_LEVEL: data.LOG_LEVEL
   };
+
+  if (input === process.env) {
+    process.env.DATABASE_URL ??= env.DATABASE_URL;
+    process.env.REDIS_URL ??= env.REDIS_URL;
+  }
+
+  return env;
 }
