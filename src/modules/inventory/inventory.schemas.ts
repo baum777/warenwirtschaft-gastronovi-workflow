@@ -49,10 +49,28 @@ export const createCorrectionRequestSchema = z.object({
   reason: z.string().min(1)
 });
 
+export const createInventoryItemSchema = z.object({
+  name: z.string().min(1),
+  sku: z.string().min(1).optional(),
+  category: z.string().min(1).optional(),
+  defaultUnit: z.string().min(1),
+  minStock: z.number().nonnegative().optional(),
+  storageLocationId: z.string().min(1).optional()
+});
+
+export const updateInventoryItemSchema = createInventoryItemSchema.partial().refine(
+  (input) => Object.keys(input).length > 0,
+  {
+    message: "at least one field is required"
+  }
+);
+
 export type CreatePurchaseOrderInput = z.infer<typeof createPurchaseOrderSchema>;
 export type CreateGoodsReceiptInput = z.infer<typeof createGoodsReceiptSchema>;
 export type CreateWithdrawalInput = z.infer<typeof createWithdrawalSchema>;
 export type CreateCorrectionRequestInput = z.infer<typeof createCorrectionRequestSchema>;
+export type CreateInventoryItemInput = z.infer<typeof createInventoryItemSchema>;
+export type UpdateInventoryItemInput = z.infer<typeof updateInventoryItemSchema>;
 
 export type PurchaseOrderDto = {
   purchaseOrderId: string;
@@ -114,6 +132,20 @@ export type ReviewTaskActionDto = {
   id: string;
   status: "in_review" | "resolved" | "dismissed";
   resolvedAt?: string;
+};
+
+export type InventoryItemReadDto = {
+  inventoryItemId: string;
+  name: string;
+  sku?: string;
+  category?: string;
+  defaultUnit: string;
+  minStock?: number;
+  storageLocationId?: string;
+  storageLocationName?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type GoodsReceiptReadDto = {

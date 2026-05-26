@@ -47,3 +47,9 @@ Inventory corrections start as `InventoryCorrectionRequest` records and create a
 Status: accepted
 
 Inventory review tasks can be moved from `open` to `in_review`, `resolved`, or `dismissed` through admin-only actions. Resolving or dismissing a task sets `resolvedAt`. Closed review tasks cannot be reopened by this slice, and non-inventory workflow tasks remain outside the inventory action API.
+
+## ADR-0009: Inventory items use admin-managed soft deactivation
+
+Status: accepted
+
+Inventory items are managed through admin-only APIs. Creating and editing item metadata does not create stock movements or stock snapshots. Items are deactivated by setting `isActive` to `false`; this slice does not hard-delete inventory items, preserving movement history and auditability.

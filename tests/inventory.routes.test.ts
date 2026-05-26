@@ -4,6 +4,7 @@ import { buildApp } from "../src/app.js";
 import type { Actor } from "../src/modules/auth/actor.js";
 import type { CorrectionServicePort } from "../src/modules/inventory/correction.service.js";
 import type { GoodsReceiptServicePort } from "../src/modules/inventory/goods-receipt.service.js";
+import type { InventoryItemServicePort } from "../src/modules/inventory/inventory-item.service.js";
 import type { InventoryReadServicePort } from "../src/modules/inventory/inventory-read.service.js";
 import type { PurchaseOrderServicePort } from "../src/modules/inventory/purchase-order.service.js";
 import type { ReviewTaskServicePort } from "../src/modules/inventory/review-task.service.js";
@@ -151,6 +152,146 @@ describe("inventory API routes", () => {
       expect(response.json()).toEqual({
         purchaseOrderId: "po-1",
         status: "draft"
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("lets admins create inventory items", async () => {
+    const calls: unknown[] = [];
+    const app = buildApp({
+      inventory: fakeInventoryServices({
+        inventoryItemService: {
+          async create(input) {
+            calls.push(input);
+            return expectedInventoryItemReadModel();
+          },
+          async list() {
+            throw new Error("not used");
+          },
+          async get() {
+            throw new Error("not used");
+          },
+          async update() {
+            throw new Error("not used");
+          },
+          async deactivate() {
+            throw new Error("not used");
+          }
+        }
+      })
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/admin/inventory/items",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        },
+        payload: {
+          name: "Tomaten passiert 5kg",
+          sku: "TOM-5",
+          category: "food",
+          defaultUnit: "Stück",
+          minStock: 4,
+          storageLocationId: "loc-1"
+        }
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.json()).toEqual(expectedInventoryItemReadModel());
+      expect(calls).toEqual([
+        {
+          name: "Tomaten passiert 5kg",
+          sku: "TOM-5",
+          category: "food",
+          defaultUnit: "Stück",
+          minStock: 4,
+          storageLocationId: "loc-1"
+        }
+      ]);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("returns admin inventory item read models", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      const listResponse = await app.inject({
+        method: "GET",
+        url: "/admin/inventory/items",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+      const detailResponse = await app.inject({
+        method: "GET",
+        url: "/admin/inventory/items/item-1",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+
+      expect(listResponse.statusCode).toBe(200);
+      expect(listResponse.json()).toEqual({
+        items: [expectedInventoryItemReadModel()]
+      });
+      expect(detailResponse.statusCode).toBe(200);
+      expect(detailResponse.json()).toEqual(expectedInventoryItemReadModel());
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("lets admins update and deactivate inventory items", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      const updateResponse = await app.inject({
+        method: "PATCH",
+        url: "/admin/inventory/items/item-1",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        },
+        payload: {
+          name: "Tomaten passiert 6kg",
+          minStock: 6
+        }
+      });
+      const deactivateResponse = await app.inject({
+        method: "POST",
+        url: "/admin/inventory/items/item-1/deactivate",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+
+      expect(updateResponse.statusCode).toBe(200);
+      expect(updateResponse.json()).toEqual({
+        ...expectedInventoryItemReadModel(),
+        name: "Tomaten passiert 6kg",
+        minStock: 6
+      });
+      expect(deactivateResponse.statusCode).toBe(200);
+      expect(deactivateResponse.json()).toEqual({
+        ...expectedInventoryItemReadModel(),
+        isActive: false
       });
     } finally {
       await app.close();
@@ -744,6 +885,7 @@ describe("inventory API routes", () => {
 function fakeInventoryServices(
   overrides: Partial<{
     purchaseOrderService: PurchaseOrderServicePort;
+    inventoryItemService: InventoryItemServicePort;
     goodsReceiptService: GoodsReceiptServicePort;
     inventoryReadService: InventoryReadServicePort;
     withdrawalService: WithdrawalServicePort;
@@ -766,6 +908,30 @@ function fakeInventoryServices(
         return expectedPurchaseOrderReadModel();
       }
     } as PurchaseOrderServicePort,
+    inventoryItemService: overrides.inventoryItemService ?? {
+      async create() {
+        return expectedInventoryItemReadModel();
+      },
+      async list() {
+        return [expectedInventoryItemReadModel()];
+      },
+      async get() {
+        return expectedInventoryItemReadModel();
+      },
+      async update() {
+        return {
+          ...expectedInventoryItemReadModel(),
+          name: "Tomaten passiert 6kg",
+          minStock: 6
+        };
+      },
+      async deactivate() {
+        return {
+          ...expectedInventoryItemReadModel(),
+          isActive: false
+        };
+      }
+    } as InventoryItemServicePort,
     goodsReceiptService: overrides.goodsReceiptService ?? {
       async create() {
         return { goodsReceiptId: "gr-1", movementIds: ["move-1"] };
@@ -850,6 +1016,22 @@ function fakeInventoryServices(
         ];
       }
     }
+  };
+}
+
+function expectedInventoryItemReadModel() {
+  return {
+    inventoryItemId: "item-1",
+    name: "Tomaten passiert 5kg",
+    sku: "TOM-5",
+    category: "food",
+    defaultUnit: "Stück",
+    minStock: 4,
+    storageLocationId: "loc-1",
+    storageLocationName: "Küche",
+    isActive: true,
+    createdAt: "2026-05-26T10:00:00.000Z",
+    updatedAt: "2026-05-26T11:00:00.000Z"
   };
 }
 

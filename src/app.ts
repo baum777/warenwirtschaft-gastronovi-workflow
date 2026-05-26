@@ -10,6 +10,10 @@ import {
   type GoodsReceiptDatabaseClient
 } from "./modules/inventory/goods-receipt.service.js";
 import {
+  InventoryItemService,
+  type InventoryItemDatabaseClient
+} from "./modules/inventory/inventory-item.service.js";
+import {
   InventoryReadService,
   type InventoryReadDatabaseClient
 } from "./modules/inventory/inventory-read.service.js";
@@ -52,6 +56,9 @@ function buildInventoryDependencies(options: AppOptions): InventoryRouteDependen
     purchaseOrderService: new PurchaseOrderService({
       db: prisma as unknown as PurchaseOrderDatabaseClient,
       now: options.now
+    }),
+    inventoryItemService: new InventoryItemService({
+      db: prisma as unknown as InventoryItemDatabaseClient
     }),
     goodsReceiptService: new GoodsReceiptService({
       db: prisma as unknown as GoodsReceiptDatabaseClient,

@@ -9,11 +9,14 @@ import {
 import {
   createCorrectionRequestSchema,
   createGoodsReceiptSchema,
+  createInventoryItemSchema,
   createPurchaseOrderSchema,
-  createWithdrawalSchema
+  createWithdrawalSchema,
+  updateInventoryItemSchema
 } from "../modules/inventory/inventory.schemas.js";
 import type { CorrectionServicePort } from "../modules/inventory/correction.service.js";
 import type { GoodsReceiptServicePort } from "../modules/inventory/goods-receipt.service.js";
+import type { InventoryItemServicePort } from "../modules/inventory/inventory-item.service.js";
 import type { InventoryReadServicePort } from "../modules/inventory/inventory-read.service.js";
 import type { PurchaseOrderServicePort } from "../modules/inventory/purchase-order.service.js";
 import type { ReviewTaskServicePort } from "../modules/inventory/review-task.service.js";
@@ -21,6 +24,7 @@ import type { WithdrawalServicePort } from "../modules/inventory/withdrawal.serv
 
 export type InventoryRouteDependencies = {
   purchaseOrderService: PurchaseOrderServicePort;
+  inventoryItemService: InventoryItemServicePort;
   goodsReceiptService: GoodsReceiptServicePort;
   withdrawalService: WithdrawalServicePort;
   correctionService: CorrectionServicePort;
@@ -66,6 +70,99 @@ export async function inventoryRoute(
     return {
       tasks: await dependencies.inventoryReadService.listOpenReviewTasks()
     };
+  });
+
+  app.post("/admin/inventory/items", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const input = parseBody(createInventoryItemSchema.safeParse(request.body), reply);
+
+    if (!input) {
+      return reply;
+    }
+
+    const result = await dependencies.inventoryItemService.create(input);
+
+    return reply.code(201).send(result);
+  });
+
+  app.get("/admin/inventory/items", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    return {
+      items: await dependencies.inventoryItemService.list()
+    };
+  });
+
+  app.get("/admin/inventory/items/:id", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const params = request.params as { id?: string };
+
+    if (!params.id) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "inventory item id is required"
+      });
+    }
+
+    return dependencies.inventoryItemService.get(params.id);
+  });
+
+  app.patch("/admin/inventory/items/:id", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const params = request.params as { id?: string };
+
+    if (!params.id) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "inventory item id is required"
+      });
+    }
+
+    const input = parseBody(updateInventoryItemSchema.safeParse(request.body), reply);
+
+    if (!input) {
+      return reply;
+    }
+
+    return dependencies.inventoryItemService.update(params.id, input);
+  });
+
+  app.post("/admin/inventory/items/:id/deactivate", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const params = request.params as { id?: string };
+
+    if (!params.id) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "inventory item id is required"
+      });
+    }
+
+    return dependencies.inventoryItemService.deactivate(params.id);
   });
 
   app.post("/admin/purchase-orders", async (request, reply) => {
