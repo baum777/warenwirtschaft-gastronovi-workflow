@@ -59,3 +59,11 @@ Inventory items are managed through admin-only APIs. Creating and editing item m
 Status: accepted
 
 The first Warenwirtschaft web surface is a static `web/` app shell using browser-native HTML, CSS, and JavaScript. It avoids adding a frontend build dependency before the backend workflows stabilize. API requests send the explicit `x-actor-id` and `x-actor-role` headers, and the UI remains separated from backend domain services.
+
+## ADR-0011: Supabase Postgres is the canonical database
+
+Status: accepted
+
+Runtime and browser validation use Supabase Postgres as the canonical persistence target. Local Postgres is only an optional fallback when explicitly approved and configured; agents must not create local Postgres roles, users, or databases by default.
+
+The app/runtime reads `DATABASE_URL`, and Prisma direct workflows read `DIRECT_URL`. Both values must come from the Supabase dashboard and stay in `.env` or another secret-owned environment surface, never in git. DB-backed validation is blocked until the Supabase-backed URLs are present and Prisma can connect.

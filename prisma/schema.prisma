@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model SyncRun {
@@ -37,19 +38,19 @@ model RawPayload {
 }
 
 model WorkflowEvent {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   type           String
   version        Int
   source         String
   externalId     String?
-  idempotencyKey String   @unique
+  idempotencyKey String    @unique
   businessDate   DateTime?
   occurredAt     DateTime
-  importedAt     DateTime @default(now())
+  importedAt     DateTime  @default(now())
   payloadRef     String?
   dataJson       Json
   metadataJson   Json?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
 
   tasks WorkflowTask[]
 
@@ -73,7 +74,7 @@ model WorkflowTask {
 }
 
 model InventoryItem {
-  id                String   @id @default(cuid())
+  id                String           @id @default(cuid())
   name              String
   sku               String?
   category          String?
@@ -81,9 +82,9 @@ model InventoryItem {
   minStock          Float?
   storageLocationId String?
   storageLocation   StorageLocation? @relation(fields: [storageLocationId], references: [id])
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  isActive          Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   movements          InventoryMovement[]
   orderItems         PurchaseOrderItem[]
