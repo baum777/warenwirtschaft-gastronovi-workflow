@@ -24,7 +24,10 @@ function escapeRegExp(value: string): string {
 describe("Inventory Prisma schema presence", () => {
   it("contains the Inventory-1 domain models", () => {
     const expectedModels = [
+      "User",
+      "UserWorkspaceAccess",
       "InventoryItem",
+      "ItemStock",
       "Supplier",
       "StorageLocation",
       "PurchaseOrder",
@@ -43,8 +46,14 @@ describe("Inventory Prisma schema presence", () => {
 
   it("contains the Inventory-1 domain enums", () => {
     const expectedEnums = [
+      "UserRole",
+      "WorkspaceCode",
+      "ItemCategory",
+      "ItemSubcategory",
       "PurchaseOrderStatus",
       "InventoryMovementType",
+      "MovementSyncStatus",
+      "MovementConflictReason",
       "InventoryCorrectionStatus"
     ];
 
@@ -84,6 +93,29 @@ describe("Inventory Prisma schema contract", () => {
     }
   });
 
+  it("defines role and workspace governance enums", () => {
+    const userRoleBlock = getBlock("enum", "UserRole");
+    const workspaceBlock = getBlock("enum", "WorkspaceCode");
+
+    for (const role of ["ADMIN", "AREA_LEAD", "STAFF"]) {
+      expectLine(userRoleBlock, role);
+    }
+
+    for (const workspace of ["SERVICE", "HOTEL", "KITCHEN"]) {
+      expectLine(workspaceBlock, workspace);
+    }
+  });
+
+  it("adds workspace taxonomy to inventory items", () => {
+    const block = getBlock("model", "InventoryItem");
+
+    expectLine(block, "workspace         WorkspaceCode");
+    expectLine(block, "category          ItemCategory");
+    expectLine(block, "subcategory       ItemSubcategory?");
+    expectLine(block, "defaultUnit       String");
+    expectLine(block, "@@index([workspace, category, subcategory])");
+  });
+
   it("keeps InventoryMovement as the inventory source-of-truth log", () => {
     const block = getBlock("model", "InventoryMovement");
 
@@ -91,9 +123,29 @@ describe("Inventory Prisma schema contract", () => {
     expectLine(block, "type              InventoryMovementType");
     expectLine(block, "quantity          Float");
     expectLine(block, "unit              String");
+    expectLine(block, "workspace         WorkspaceCode");
     expectLine(block, "actorUserId       String");
+    expectLine(block, "clientMutationId  String?               @unique");
+    expectLine(block, "baseStockVersion  Int?");
+    expectLine(block, "resultingStockVersion Int?");
+    expectLine(block, "syncStatus        MovementSyncStatus     @default(ACCEPTED)");
+    expectLine(block, "conflictReason    MovementConflictReason?");
     expectLine(block, "createdAt         DateTime              @default(now())");
+    expectLine(block, "syncedAt          DateTime?");
     expectLine(block, "@@index([inventoryItemId, createdAt])");
+    expectLine(block, "@@index([workspace, createdAt])");
+    expectLine(block, "@@index([syncStatus])");
+  });
+
+  it("defines versioned stock rows for server-wins movement processing", () => {
+    const block = getBlock("model", "ItemStock");
+
+    expectLine(block, "inventoryItemId   String");
+    expectLine(block, "storageLocationId String?");
+    expectLine(block, "currentStock      Float");
+    expectLine(block, "unit              String");
+    expectLine(block, "version           Int              @default(1)");
+    expectLine(block, "@@unique([inventoryItemId, storageLocationId])");
   });
 
   it("keeps InventoryStockSnapshot unique per item and location", () => {

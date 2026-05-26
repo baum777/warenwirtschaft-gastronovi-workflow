@@ -67,8 +67,12 @@ This starter contains the Ticket 1 baseline plus the Ticket 2 raw-ingestion core
 - Raw payload repository boundary.
 - Sync run repository boundary.
 - Ingestion service that stores raw payloads and detects duplicate hashes.
+- Phase 0 inventory governance contracts for roles, workspace access, append-only movement attempts, sync status, and conflict handling.
+- A dependency-free static `web/` MVP surface for role-based inventory workflows.
 
 Live Gastronovi access, HTTP ingestion routes, normalization, rules, queues, scheduled jobs, and admin APIs are intentionally out of scope for the current slice.
+
+The current inventory routes use an in-memory local/demo repository. They prove API shape and governance behavior, but require a DB-backed repository before production use.
 
 ## Local Commands
 
@@ -79,6 +83,7 @@ npm run typecheck
 npm test -- --run
 npm run build
 npx prisma validate
+node --check web/app.js
 ```
 
 ## Environment

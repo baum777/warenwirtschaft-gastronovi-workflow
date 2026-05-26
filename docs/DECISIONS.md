@@ -29,3 +29,9 @@ Ticket 2 persists external payloads as raw JSON with a deterministic SHA-256 has
 Status: accepted
 
 Inventory-1 introduces inventory, supplier, purchase order, goods receipt, movement, stock snapshot, and correction request tables in Prisma. It does not add inventory APIs, stock calculation logic, review-task generation, POS consumption mapping, or automatic stock changes.
+
+## ADR-0006: Phase 0 inventory governance before full UI workflow
+
+Status: accepted
+
+Role-based Warenwirtschaft behavior starts with server-side workspace authorization, append-only movement attempts, versioned stock rows, and explicit sync statuses. The static `web/` surface is an MVP operator UI and may cache local queue entries, but server responses remain authoritative. The current implementation uses an in-memory repository for local/demo route behavior; a DB-backed repository is required before production use.
