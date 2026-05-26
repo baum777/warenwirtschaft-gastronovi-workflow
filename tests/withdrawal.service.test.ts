@@ -47,7 +47,8 @@ describe("WithdrawalService", () => {
       "inventoryItem.findUnique",
       "inventoryMovement.create",
       "inventoryMovement.findMany",
-      "inventoryStockSnapshot.upsert"
+      "inventoryStockSnapshot.findFirst",
+      "inventoryStockSnapshot.create"
     ]);
     expect(calls).toContainEqual({
       model: "inventoryMovement",
@@ -189,6 +190,18 @@ function withdrawalTransaction(input: {
       }
     },
     inventoryStockSnapshot: {
+      async findFirst(args: unknown) {
+        input.calls.push({ model: "inventoryStockSnapshot", method: "findFirst", args });
+        return null;
+      },
+      async create(args: unknown) {
+        input.calls.push({ model: "inventoryStockSnapshot", method: "create", args });
+        return { id: "snapshot-1" };
+      },
+      async update(args: unknown) {
+        input.calls.push({ model: "inventoryStockSnapshot", method: "update", args });
+        return { id: "snapshot-1" };
+      },
       async upsert(args: unknown) {
         input.calls.push({ model: "inventoryStockSnapshot", method: "upsert", args });
         return { id: "snapshot-1" };

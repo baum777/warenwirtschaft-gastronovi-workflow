@@ -10,6 +10,10 @@ type StockMovementRecord = {
   createdAt?: Date;
 };
 
+type StockSnapshotRecord = {
+  id: string;
+};
+
 export type InventoryStockDatabaseClient = {
   inventoryMovement: {
     findMany(args: {
@@ -28,21 +32,49 @@ export type InventoryStockDatabaseClient = {
     }): Promise<StockMovementRecord[]>;
   };
   inventoryStockSnapshot: {
+    findFirst(args: {
+      where: {
+        inventoryItemId: string;
+        storageLocationId: null;
+      };
+      select: {
+        id: true;
+      };
+    }): Promise<StockSnapshotRecord | null>;
     upsert(args: {
       where: {
         inventoryItemId_storageLocationId: {
           inventoryItemId: string;
-          storageLocationId?: string | null;
+          storageLocationId: string;
         };
       };
       create: {
         inventoryItemId: string;
-        storageLocationId?: string | null;
+        storageLocationId: string;
         quantity: number;
         unit: string;
         calculatedAt: Date;
       };
       update: {
+        quantity: number;
+        unit: string;
+        calculatedAt: Date;
+      };
+    }): Promise<unknown>;
+    update(args: {
+      where: {
+        id: string;
+      };
+      data: {
+        quantity: number;
+        unit: string;
+        calculatedAt: Date;
+      };
+    }): Promise<unknown>;
+    create(args: {
+      data: {
+        inventoryItemId: string;
+        storageLocationId: null;
         quantity: number;
         unit: string;
         calculatedAt: Date;
@@ -88,16 +120,26 @@ export class InventoryStockService {
     const quantity = await this.calculateStock(input);
     const calculatedAt = this.options.now?.() ?? new Date();
 
+    if (!input.storageLocationId) {
+      await this.refreshUnlocatedSnapshot({
+        inventoryItemId: input.inventoryItemId,
+        quantity,
+        unit: input.unit,
+        calculatedAt
+      });
+      return quantity;
+    }
+
     await this.options.db.inventoryStockSnapshot.upsert({
       where: {
         inventoryItemId_storageLocationId: {
           inventoryItemId: input.inventoryItemId,
-          storageLocationId: input.storageLocationId ?? null
+          storageLocationId: input.storageLocationId
         }
       },
       create: {
         inventoryItemId: input.inventoryItemId,
-        storageLocationId: input.storageLocationId ?? null,
+        storageLocationId: input.storageLocationId,
         quantity,
         unit: input.unit,
         calculatedAt
@@ -110,6 +152,47 @@ export class InventoryStockService {
     });
 
     return quantity;
+  }
+
+  private async refreshUnlocatedSnapshot(input: {
+    inventoryItemId: string;
+    quantity: number;
+    unit: string;
+    calculatedAt: Date;
+  }): Promise<void> {
+    const existingSnapshot = await this.options.db.inventoryStockSnapshot.findFirst({
+      where: {
+        inventoryItemId: input.inventoryItemId,
+        storageLocationId: null
+      },
+      select: {
+        id: true
+      }
+    });
+
+    if (existingSnapshot) {
+      await this.options.db.inventoryStockSnapshot.update({
+        where: {
+          id: existingSnapshot.id
+        },
+        data: {
+          quantity: input.quantity,
+          unit: input.unit,
+          calculatedAt: input.calculatedAt
+        }
+      });
+      return;
+    }
+
+    await this.options.db.inventoryStockSnapshot.create({
+      data: {
+        inventoryItemId: input.inventoryItemId,
+        storageLocationId: null,
+        quantity: input.quantity,
+        unit: input.unit,
+        calculatedAt: input.calculatedAt
+      }
+    });
   }
 }
 

@@ -5,7 +5,10 @@ import type {
   CorrectionRequestDto,
   CreateCorrectionRequestInput
 } from "./inventory.schemas.js";
-import { InventoryStockService } from "./inventory-stock.service.js";
+import {
+  InventoryStockService,
+  type InventoryStockDatabaseClient
+} from "./inventory-stock.service.js";
 
 type CorrectionStatus = "open" | "approved" | "rejected";
 type CorrectionMovementType = "correction_positive" | "correction_negative";
@@ -86,9 +89,7 @@ type CorrectionTransactionClient = {
       }>
     >;
   };
-  inventoryStockSnapshot: {
-    upsert(args: unknown): Promise<unknown>;
-  };
+  inventoryStockSnapshot: InventoryStockDatabaseClient["inventoryStockSnapshot"];
   workflowTask: {
     create(args: {
       data: {

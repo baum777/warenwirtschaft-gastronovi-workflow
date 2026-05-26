@@ -260,6 +260,18 @@ function correctionTransaction(input: {
       }
     },
     inventoryStockSnapshot: {
+      async findFirst(args: unknown) {
+        input.calls.push({ model: "inventoryStockSnapshot", method: "findFirst", args });
+        return null;
+      },
+      async create(args: unknown) {
+        input.calls.push({ model: "inventoryStockSnapshot", method: "create", args });
+        return { id: "snapshot-1" };
+      },
+      async update(args: unknown) {
+        input.calls.push({ model: "inventoryStockSnapshot", method: "update", args });
+        return { id: "snapshot-1" };
+      },
       async upsert(args: unknown) {
         input.calls.push({ model: "inventoryStockSnapshot", method: "upsert", args });
         return { id: "snapshot-1" };

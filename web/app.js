@@ -2,7 +2,8 @@ const WarenwirtschaftApp = {
   state: {
     apiBase: localStorage.getItem("ww.apiBase") || "http://localhost:3000",
     actorId: localStorage.getItem("ww.actorId") || "admin-1",
-    actorRole: localStorage.getItem("ww.actorRole") || "admin"
+    actorRole: localStorage.getItem("ww.actorRole") || "admin",
+    selectedGoodsReceiptId: null
   },
   refs: {}
 };
@@ -11,7 +12,7 @@ const columns = {
   items: ["Name", "SKU", "Kategorie", "Einheit", "Min", "Status"],
   stock: ["Artikel", "Kategorie", "Bestand", "Einheit", "Status", "Letzte Bewegung"],
   orders: ["ID", "Status", "Lieferant", "Positionen"],
-  receipts: ["ID", "Bestellung", "Empfangen von", "Positionen"],
+  receipts: ["ID", "Bestellung", "Empfangen von", "Positionen", "Aktion"],
   tasks: ["Typ", "Status", "Schwere", "Titel", "Aktion"]
 };
 
@@ -31,7 +32,9 @@ function cacheRefs() {
     toast: document.querySelector("#toast"),
     apiBase: document.querySelector("#api-base"),
     actorId: document.querySelector("#actor-id"),
-    actorRole: document.querySelector("#actor-role")
+    actorRole: document.querySelector("#actor-role"),
+    goodsReceiptDetail: document.querySelector("#goods-receipt-detail"),
+    goodsReceiptSelected: document.querySelector("#goods-receipt-selected")
   };
 }
 
@@ -178,14 +181,34 @@ async function loadPurchaseOrders() {
   ]);
 }
 
-async function loadGoodsReceipts() {
+async function loadGoodsReceipts(preferredReceiptId) {
   const payload = await apiFetch("/goods-receipts");
   renderTable("#goods-receipts-table", columns.receipts, payload.goodsReceipts, (receipt) => [
     receipt.goodsReceiptId,
     receipt.purchaseOrderId || "-",
     receipt.receivedById,
-    receipt.items.map((item) => `${item.inventoryItemName || item.inventoryItemId}: ${item.quantity} ${item.unit}`).join(", ")
+    receipt.items.map((item) => `${item.inventoryItemName || item.inventoryItemId}: ${item.quantity} ${item.unit}`).join(", "),
+    `<span class="row-actions"><button data-goods-receipt-id="${escapeHtml(receipt.goodsReceiptId)}">Details</button></span>`
   ]);
+
+  const selectedReceipt = preferredReceiptId
+    ? payload.goodsReceipts.find((receipt) => receipt.goodsReceiptId === preferredReceiptId)
+    : WarenwirtschaftApp.state.selectedGoodsReceiptId
+    ? payload.goodsReceipts.find(
+        (receipt) => receipt.goodsReceiptId === WarenwirtschaftApp.state.selectedGoodsReceiptId
+      )
+    : undefined;
+  const nextReceiptId = selectedReceipt?.goodsReceiptId || payload.goodsReceipts[0]?.goodsReceiptId;
+
+  if (nextReceiptId) {
+    await loadGoodsReceiptDetail(nextReceiptId);
+  } else {
+    renderGoodsReceiptDetail(null);
+  }
+
+  document.querySelectorAll("[data-goods-receipt-id]").forEach((button) => {
+    button.addEventListener("click", () => loadGoodsReceiptDetail(button.dataset.goodsReceiptId));
+  });
 }
 
 async function loadReviewTasks() {
@@ -244,6 +267,8 @@ async function submitGoodsReceipt(event) {
   const data = formData(event.target);
   const body = {
     purchaseOrderId: data.purchaseOrderId || undefined,
+    receivedAt: data.receivedAt ? new Date(data.receivedAt).toISOString() : undefined,
+    note: data.note || undefined,
     items: [
       {
         inventoryItemId: data.inventoryItemId,
@@ -253,8 +278,9 @@ async function submitGoodsReceipt(event) {
       }
     ]
   };
-  await postJson("/goods-receipts", body, "Wareneingang gebucht.");
-  await Promise.allSettled([loadGoodsReceipts(), loadStock()]);
+  const result = await postJson("/goods-receipts", body, "Wareneingang gebucht.");
+  event.target.reset();
+  await Promise.allSettled([loadGoodsReceipts(result.goodsReceiptId), loadStock()]);
 }
 
 async function submitWithdrawal(event) {
@@ -296,11 +322,23 @@ async function submitJson(form, path, successMessage) {
 }
 
 async function postJson(path, body, successMessage) {
-  await apiFetch(path, {
+  const payload = await apiFetch(path, {
     method: "POST",
     body: JSON.stringify(body)
   });
   showToast(successMessage);
+  return payload;
+}
+
+async function loadGoodsReceiptDetail(id) {
+  if (!id) {
+    renderGoodsReceiptDetail(null);
+    return;
+  }
+
+  WarenwirtschaftApp.state.selectedGoodsReceiptId = id;
+  const receipt = await apiFetch(`/goods-receipts/${id}`);
+  renderGoodsReceiptDetail(receipt);
 }
 
 function formData(form) {
@@ -341,6 +379,66 @@ function renderTable(selector, headers, rows, mapRow) {
   container.querySelectorAll("[data-task-action]").forEach((button) => {
     button.addEventListener("click", () => submitTaskAction(button.dataset.taskId, button.dataset.taskAction));
   });
+}
+
+function renderGoodsReceiptDetail(receipt) {
+  if (!receipt) {
+    WarenwirtschaftApp.refs.goodsReceiptSelected.textContent = "Kein Eintrag";
+    WarenwirtschaftApp.refs.goodsReceiptDetail.innerHTML =
+      '<p class="empty-state">Wähle einen Wareneingang aus der Liste.</p>';
+    return;
+  }
+
+  WarenwirtschaftApp.refs.goodsReceiptSelected.textContent = receipt.goodsReceiptId;
+  WarenwirtschaftApp.refs.goodsReceiptDetail.innerHTML = `
+    <div class="detail-grid">
+      <div><span>ID</span><strong>${escapeHtml(receipt.goodsReceiptId)}</strong></div>
+      <div><span>Bestellung</span><strong>${escapeHtml(receipt.purchaseOrderId || "-")}</strong></div>
+      <div><span>Empfangen von</span><strong>${escapeHtml(receipt.receivedById)}</strong></div>
+      <div><span>Empfangen am</span><strong>${escapeHtml(receipt.receivedAt)}</strong></div>
+      <div><span>Angelegt am</span><strong>${escapeHtml(receipt.createdAt)}</strong></div>
+      <div><span>Notiz</span><strong>${escapeHtml(receipt.note || "-")}</strong></div>
+    </div>
+    <div class="detail-section">
+      <h4>Positionen</h4>
+      ${renderGoodsReceiptItems(receipt.items)}
+    </div>
+  `;
+}
+
+function renderGoodsReceiptItems(items) {
+  if (!items.length) {
+    return '<p class="empty-state">Keine Positionen</p>';
+  }
+
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>Artikel</th>
+          <th>Menge</th>
+          <th>Einheit</th>
+          <th>Lagerort</th>
+          <th>Notiz</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${items
+          .map(
+            (item) => `
+              <tr>
+                <td>${escapeHtml(item.inventoryItemName || item.inventoryItemId)}</td>
+                <td>${escapeHtml(String(item.quantity))}</td>
+                <td>${escapeHtml(item.unit)}</td>
+                <td>${escapeHtml(item.storageLocationName || item.storageLocationId || "-")}</td>
+                <td>${escapeHtml(item.note || "-")}</td>
+              </tr>
+            `
+          )
+          .join("")}
+      </tbody>
+    </table>
+  `;
 }
 
 async function submitTaskAction(id, action) {

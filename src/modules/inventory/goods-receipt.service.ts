@@ -4,7 +4,10 @@ import type {
   GoodsReceiptDto,
   GoodsReceiptReadDto
 } from "./inventory.schemas.js";
-import { InventoryStockService } from "./inventory-stock.service.js";
+import {
+  InventoryStockService,
+  type InventoryStockDatabaseClient
+} from "./inventory-stock.service.js";
 
 type PurchaseOrderStatus = "draft" | "ordered" | "partially_received" | "received" | "cancelled";
 
@@ -104,9 +107,7 @@ type ReceiptTransactionClient = {
     }): Promise<{ id: string }>;
     findMany(args: unknown): Promise<Array<{ type: "goods_received" | "item_removed" | "correction_positive" | "correction_negative"; quantity: number; createdAt?: Date }>>;
   };
-  inventoryStockSnapshot: {
-    upsert(args: unknown): Promise<unknown>;
-  };
+  inventoryStockSnapshot: InventoryStockDatabaseClient["inventoryStockSnapshot"];
   workflowEvent: {
     create(args: {
       data: {

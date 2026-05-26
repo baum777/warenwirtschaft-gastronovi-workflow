@@ -337,6 +337,57 @@ th {
   gap: 6px;
 }
 
+.stack-view {
+  display: grid;
+  gap: 16px;
+}
+
+.detail-card {
+  display: grid;
+  gap: 16px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.detail-grid div {
+  display: grid;
+  gap: 4px;
+}
+
+.detail-grid span,
+.detail-section h4,
+.detail-chip {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.detail-grid strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.detail-section {
+  display: grid;
+  gap: 10px;
+}
+
+.detail-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  padding: 0 10px;
+  text-transform: none;
+}
+
 @media (max-width: 980px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -375,5 +426,9 @@ th {
 
   .topbar h2 {
     font-size: 25px;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
   }
 }

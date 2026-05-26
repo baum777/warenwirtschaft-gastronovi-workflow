@@ -1,6 +1,9 @@
 import type { Actor } from "../auth/actor.js";
 import type { CreateWithdrawalInput, WithdrawalDto } from "./inventory.schemas.js";
-import { InventoryStockService } from "./inventory-stock.service.js";
+import {
+  InventoryStockService,
+  type InventoryStockDatabaseClient
+} from "./inventory-stock.service.js";
 
 type InventoryItemRecord = {
   id: string;
@@ -41,9 +44,7 @@ type WithdrawalTransactionClient = {
       }>
     >;
   };
-  inventoryStockSnapshot: {
-    upsert(args: unknown): Promise<unknown>;
-  };
+  inventoryStockSnapshot: InventoryStockDatabaseClient["inventoryStockSnapshot"];
   workflowTask: {
     create(args: {
       data: {

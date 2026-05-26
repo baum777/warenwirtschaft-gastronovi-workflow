@@ -158,15 +158,26 @@
               <label>Menge<input name="quantity" type="number" min="0.01" step="0.01" required /></label>
               <label>Einheit<input name="unit" required value="Stück" /></label>
               <label>Lagerort-ID<input name="storageLocationId" /></label>
+              <label>Empfangen am<input name="receivedAt" type="datetime-local" /></label>
+              <label>Notiz<input name="note" /></label>
               <button type="submit">Buchen</button>
             </form>
-            <article class="panel">
-              <div class="panel-head">
-                <h3>Wareneingänge</h3>
-                <button data-action="load-goods-receipts">Laden</button>
-              </div>
-              <div class="table-wrap" id="goods-receipts-table"></div>
-            </article>
+            <div class="stack-view">
+              <article class="panel">
+                <div class="panel-head">
+                  <h3>Wareneingänge</h3>
+                  <button data-action="load-goods-receipts">Laden</button>
+                </div>
+                <div class="table-wrap" id="goods-receipts-table"></div>
+              </article>
+              <article class="panel">
+                <div class="panel-head">
+                  <h3>Wareneingang Details</h3>
+                  <span class="detail-chip" id="goods-receipt-selected">Kein Eintrag</span>
+                </div>
+                <div class="detail-card" id="goods-receipt-detail"></div>
+              </article>
+            </div>
           </div>
         </section>
 

@@ -47,6 +47,18 @@ describe("GoodsReceiptService", () => {
         }
       },
       inventoryStockSnapshot: {
+        async findFirst(args: unknown) {
+          calls.push({ model: "inventoryStockSnapshot", method: "findFirst", args });
+          return null;
+        },
+        async create(args: unknown) {
+          calls.push({ model: "inventoryStockSnapshot", method: "create", args });
+          return { id: "snapshot-1" };
+        },
+        async update(args: unknown) {
+          calls.push({ model: "inventoryStockSnapshot", method: "update", args });
+          return { id: "snapshot-1" };
+        },
         async upsert(args: unknown) {
           calls.push({ model: "inventoryStockSnapshot", method: "upsert", args });
           return { id: "snapshot-1" };
@@ -120,7 +132,8 @@ describe("GoodsReceiptService", () => {
       "goodsReceiptItem.create",
       "inventoryMovement.create",
       "inventoryMovement.findMany",
-      "inventoryStockSnapshot.upsert",
+      "inventoryStockSnapshot.findFirst",
+      "inventoryStockSnapshot.create",
       "workflowEvent.create",
       "workflowTask.create"
     ]);
@@ -197,6 +210,15 @@ describe("GoodsReceiptService", () => {
         }
       },
       inventoryStockSnapshot: {
+        async findFirst() {
+          return null;
+        },
+        async create() {
+          return { id: "snapshot-2" };
+        },
+        async update() {
+          return { id: "snapshot-2" };
+        },
         async upsert() {
           return { id: "snapshot-2" };
         }
@@ -488,6 +510,18 @@ function receiptTransaction(input: {
       }
     },
     inventoryStockSnapshot: {
+      async findFirst(args: unknown) {
+        input.calls.push({ model: "inventoryStockSnapshot", method: "findFirst", args });
+        return null;
+      },
+      async create(args: unknown) {
+        input.calls.push({ model: "inventoryStockSnapshot", method: "create", args });
+        return { id: "snapshot-1" };
+      },
+      async update(args: unknown) {
+        input.calls.push({ model: "inventoryStockSnapshot", method: "update", args });
+        return { id: "snapshot-1" };
+      },
       async upsert(args: unknown) {
         input.calls.push({ model: "inventoryStockSnapshot", method: "upsert", args });
         return { id: "snapshot-1" };

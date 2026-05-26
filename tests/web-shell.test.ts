@@ -45,11 +45,23 @@ describe("Warenwirtschaft web shell", () => {
       "/admin/inventory/stock",
       "/admin/purchase-orders",
       "/goods-receipts",
+      "/goods-receipts/",
       "/withdrawals",
       "/correction-requests",
       "/admin/review-tasks"
     ]) {
       expect(app).toContain(endpoint);
     }
+  });
+
+  it("renders a goods receipt detail surface in the web shell", () => {
+    const html = readWebFile("index.html");
+    const app = readWebFile("app.js");
+
+    expect(html).toContain("goods-receipt-detail");
+    expect(html).toContain('name="receivedAt"');
+    expect(html).toContain('name="note"');
+    expect(app).toContain("loadGoodsReceiptDetail");
+    expect(app).toContain("data-goods-receipt-id");
   });
 });
