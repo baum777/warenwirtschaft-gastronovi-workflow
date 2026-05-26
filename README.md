@@ -83,6 +83,22 @@ npx prisma validate
 
 ## Environment
 
-Copy `.env.example` to `.env` for local development. `DATABASE_URL` and `REDIS_URL` may use local defaults in development, but production requires explicit values.
+Copy `.env.example` to `.env` for local development and replace every placeholder with values from the Supabase dashboard.
+
+Supabase Postgres is the canonical database for this repo. Do not assume a local Postgres role or database exists, and do not create local DB users, roles, or databases without explicit approval.
+
+Required database variables:
+
+```env
+DATABASE_URL="postgresql://..."
+DIRECT_URL="postgresql://..."
+```
+
+- `DATABASE_URL` is used by the app/runtime. Prefer the Supabase/Supavisor pooled connection string for runtime connections.
+- `DIRECT_URL` is used by Prisma CLI and migration workflows when a direct connection is required.
+- Use dashboard-provided Supabase connection strings. Do not invent credentials.
+- Keep real values in `.env` only. `.env.example` must contain placeholders only.
+
+DB-backed browser/runtime validation is runnable only when `.env` exists, both database URLs point to Supabase, Prisma can connect successfully, and the app can create/read/list DB-backed records. If those inputs are missing, the correct result is `blocked` pending valid Supabase credentials, not local Postgres admin setup.
 
 Secrets must stay backend-owned. API keys, tenant identifiers, tokens, and raw secret-bearing payloads must not be logged or exposed in API responses.

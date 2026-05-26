@@ -3,8 +3,6 @@ import { z } from "zod";
 
 config();
 
-const developmentDatabaseUrl =
-  "postgresql://user:password@localhost:5432/gastronovi_workflow_adapter";
 const developmentRedisUrl = "redis://localhost:6379";
 
 const emptyToUndefined = (value: unknown): unknown => {
@@ -50,6 +48,7 @@ const rawEnvSchema = z
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     PORT: integerEnv("PORT", 1, 65535, 4000),
     DATABASE_URL: optionalNonEmptyString,
+    DIRECT_URL: optionalNonEmptyString,
     REDIS_URL: optionalNonEmptyString,
     GASTRONOVI_API_BASE_URL: optionalUrl,
     GASTRONOVI_API_KEY: optionalNonEmptyString,
@@ -64,6 +63,7 @@ export type Env = {
   NODE_ENV: "development" | "test" | "production";
   PORT: number;
   DATABASE_URL: string;
+  DIRECT_URL: string;
   REDIS_URL: string;
   GASTRONOVI_API_BASE_URL?: string;
   GASTRONOVI_API_KEY?: string;
@@ -86,23 +86,25 @@ export function parseEnv(input: NodeJS.ProcessEnv = process.env): Env {
 
   const data = parsed.data;
 
-  if (data.NODE_ENV === "production") {
-    const missing = [
-      data.DATABASE_URL ? undefined : "DATABASE_URL",
-      data.REDIS_URL ? undefined : "REDIS_URL"
-    ].filter((value): value is string => Boolean(value));
+  const missingRequiredValues = [
+    data.DATABASE_URL ? undefined : "DATABASE_URL",
+    data.DIRECT_URL ? undefined : "DIRECT_URL",
+    data.NODE_ENV === "production" && !data.REDIS_URL ? "REDIS_URL" : undefined
+  ].filter((value): value is string => Boolean(value));
 
-    if (missing.length > 0) {
-      throw new Error(
-        `Invalid environment configuration: ${missing.join(" and ")} required in production`
-      );
-    }
+  if (missingRequiredValues.length > 0) {
+    throw new Error(
+      `Invalid environment configuration: ${missingRequiredValues.join(
+        " and "
+      )} required`
+    );
   }
 
-  return {
+  const env = {
     NODE_ENV: data.NODE_ENV,
     PORT: data.PORT,
-    DATABASE_URL: data.DATABASE_URL ?? developmentDatabaseUrl,
+    DATABASE_URL: data.DATABASE_URL!,
+    DIRECT_URL: data.DIRECT_URL!,
     REDIS_URL: data.REDIS_URL ?? developmentRedisUrl,
     GASTRONOVI_API_BASE_URL: data.GASTRONOVI_API_BASE_URL,
     GASTRONOVI_API_KEY: data.GASTRONOVI_API_KEY,
@@ -111,4 +113,12 @@ export function parseEnv(input: NodeJS.ProcessEnv = process.env): Env {
     SYNC_ENABLE_SCHEDULED_JOBS: data.SYNC_ENABLE_SCHEDULED_JOBS,
     LOG_LEVEL: data.LOG_LEVEL
   };
+
+  if (input === process.env) {
+    process.env.DATABASE_URL ??= env.DATABASE_URL;
+    process.env.DIRECT_URL ??= env.DIRECT_URL;
+    process.env.REDIS_URL ??= env.REDIS_URL;
+  }
+
+  return env;
 }
