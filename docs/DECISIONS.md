@@ -29,3 +29,9 @@ Ticket 2 persists external payloads as raw JSON with a deterministic SHA-256 has
 Status: accepted
 
 Inventory-1 introduces inventory, supplier, purchase order, goods receipt, movement, stock snapshot, and correction request tables in Prisma. It does not add inventory APIs, stock calculation logic, review-task generation, POS consumption mapping, or automatic stock changes.
+
+## ADR-0006: Withdrawals reduce stock through movements
+
+Status: accepted
+
+Internal withdrawal records are represented as `InventoryMovement` rows with type `item_removed`. A withdrawal does not directly overwrite stock snapshots. The write path creates the movement and refreshes the derived `InventoryStockSnapshot` inside the same Prisma transaction. If the resulting stock is negative, the service creates an admin review task.

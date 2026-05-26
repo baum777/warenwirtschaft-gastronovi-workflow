@@ -8,15 +8,18 @@ import {
 } from "../modules/auth/actor.js";
 import {
   createGoodsReceiptSchema,
-  createPurchaseOrderSchema
+  createPurchaseOrderSchema,
+  createWithdrawalSchema
 } from "../modules/inventory/inventory.schemas.js";
 import type { GoodsReceiptServicePort } from "../modules/inventory/goods-receipt.service.js";
 import type { InventoryReadServicePort } from "../modules/inventory/inventory-read.service.js";
 import type { PurchaseOrderServicePort } from "../modules/inventory/purchase-order.service.js";
+import type { WithdrawalServicePort } from "../modules/inventory/withdrawal.service.js";
 
 export type InventoryRouteDependencies = {
   purchaseOrderService: PurchaseOrderServicePort;
   goodsReceiptService: GoodsReceiptServicePort;
+  withdrawalService: WithdrawalServicePort;
   inventoryReadService: InventoryReadServicePort;
 };
 
@@ -175,6 +178,24 @@ export async function inventoryRoute(
     }
 
     return dependencies.goodsReceiptService.get(params.id);
+  });
+
+  app.post("/withdrawals", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin", "shift_lead", "staff"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const input = parseBody(createWithdrawalSchema.safeParse(request.body), reply);
+
+    if (!input) {
+      return reply;
+    }
+
+    const result = await dependencies.withdrawalService.create(input, actor);
+
+    return reply.code(201).send(result);
   });
 }
 

@@ -13,6 +13,10 @@ import {
   PurchaseOrderService,
   type PurchaseOrderDatabaseClient
 } from "./modules/inventory/purchase-order.service.js";
+import {
+  WithdrawalService,
+  type WithdrawalDatabaseClient
+} from "./modules/inventory/withdrawal.service.js";
 import { healthRoute } from "./routes/health.route.js";
 import { inventoryRoute, type InventoryRouteDependencies } from "./routes/inventory.route.js";
 
@@ -43,6 +47,10 @@ function buildInventoryDependencies(options: AppOptions): InventoryRouteDependen
     }),
     goodsReceiptService: new GoodsReceiptService({
       db: prisma as unknown as GoodsReceiptDatabaseClient,
+      now: options.now
+    }),
+    withdrawalService: new WithdrawalService({
+      db: prisma as unknown as WithdrawalDatabaseClient,
       now: options.now
     }),
     inventoryReadService: new InventoryReadService(prisma as unknown as InventoryReadDatabaseClient)

@@ -32,8 +32,17 @@ export const createGoodsReceiptSchema = z.object({
     .min(1)
 });
 
+export const createWithdrawalSchema = z.object({
+  inventoryItemId: z.string().min(1),
+  quantity: z.number().positive(),
+  unit: z.string().min(1),
+  storageLocationId: z.string().min(1).optional(),
+  note: z.string().optional()
+});
+
 export type CreatePurchaseOrderInput = z.infer<typeof createPurchaseOrderSchema>;
 export type CreateGoodsReceiptInput = z.infer<typeof createGoodsReceiptSchema>;
+export type CreateWithdrawalInput = z.infer<typeof createWithdrawalSchema>;
 
 export type PurchaseOrderDto = {
   purchaseOrderId: string;
@@ -65,6 +74,12 @@ export type PurchaseOrderItemReadDto = {
 export type GoodsReceiptDto = {
   goodsReceiptId: string;
   movementIds: string[];
+};
+
+export type WithdrawalDto = {
+  movementId: string;
+  stockAfter: number;
+  reviewTaskIds: string[];
 };
 
 export type GoodsReceiptReadDto = {

@@ -5,6 +5,7 @@ import type { Actor } from "../src/modules/auth/actor.js";
 import type { GoodsReceiptServicePort } from "../src/modules/inventory/goods-receipt.service.js";
 import type { InventoryReadServicePort } from "../src/modules/inventory/inventory-read.service.js";
 import type { PurchaseOrderServicePort } from "../src/modules/inventory/purchase-order.service.js";
+import type { WithdrawalServicePort } from "../src/modules/inventory/withdrawal.service.js";
 
 describe("inventory API routes", () => {
   it("requires actor headers for protected admin routes", async () => {
@@ -307,6 +308,65 @@ describe("inventory API routes", () => {
     }
   });
 
+  it("lets staff record withdrawals and passes actor context to the service", async () => {
+    const calls: Array<{ input: unknown; actor: Actor }> = [];
+    const app = buildApp({
+      inventory: fakeInventoryServices({
+        withdrawalService: {
+          async create(input, actor) {
+            calls.push({ input, actor });
+            return {
+              movementId: "move-2",
+              stockAfter: 2,
+              reviewTaskIds: []
+            };
+          }
+        }
+      })
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/withdrawals",
+        headers: {
+          "x-actor-id": "staff-1",
+          "x-actor-role": "staff"
+        },
+        payload: {
+          inventoryItemId: "item-1",
+          quantity: 2,
+          unit: "Stück",
+          note: "prep usage"
+        }
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.json()).toEqual({
+        movementId: "move-2",
+        stockAfter: 2,
+        reviewTaskIds: []
+      });
+      expect(calls).toEqual([
+        {
+          input: {
+            inventoryItemId: "item-1",
+            quantity: 2,
+            unit: "Stück",
+            note: "prep usage"
+          },
+          actor: {
+            userId: "staff-1",
+            role: "staff"
+          }
+        }
+      ]);
+    } finally {
+      await app.close();
+    }
+  });
+
   it("returns admin stock rows and open review tasks", async () => {
     const app = buildApp({
       inventory: fakeInventoryServices()
@@ -372,6 +432,7 @@ function fakeInventoryServices(
     purchaseOrderService: PurchaseOrderServicePort;
     goodsReceiptService: GoodsReceiptServicePort;
     inventoryReadService: InventoryReadServicePort;
+    withdrawalService: WithdrawalServicePort;
   }> = {}
 ) {
   return {
@@ -400,6 +461,11 @@ function fakeInventoryServices(
         return expectedGoodsReceiptReadModel();
       }
     } as GoodsReceiptServicePort,
+    withdrawalService: overrides.withdrawalService ?? {
+      async create() {
+        return { movementId: "move-2", stockAfter: 2, reviewTaskIds: [] };
+      }
+    } as WithdrawalServicePort,
     inventoryReadService: overrides.inventoryReadService ?? {
       async listStock() {
         return [
