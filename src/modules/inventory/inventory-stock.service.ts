@@ -88,16 +88,20 @@ export class InventoryStockService {
     const quantity = await this.calculateStock(input);
     const calculatedAt = this.options.now?.() ?? new Date();
 
+    if (!input.storageLocationId) {
+      return quantity;
+    }
+
     await this.options.db.inventoryStockSnapshot.upsert({
       where: {
         inventoryItemId_storageLocationId: {
           inventoryItemId: input.inventoryItemId,
-          storageLocationId: input.storageLocationId ?? null
+          storageLocationId: input.storageLocationId
         }
       },
       create: {
         inventoryItemId: input.inventoryItemId,
-        storageLocationId: input.storageLocationId ?? null,
+        storageLocationId: input.storageLocationId,
         quantity,
         unit: input.unit,
         calculatedAt

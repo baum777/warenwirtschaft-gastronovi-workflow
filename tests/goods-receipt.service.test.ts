@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { GoodsReceiptService } from "../src/modules/inventory/goods-receipt.service.js";
 
 describe("GoodsReceiptService", () => {
-  it("creates receipt, movement, snapshot, event, and unlinked staff review in a transaction", async () => {
+  it("creates receipt, movement, event, and unlinked staff review in a transaction", async () => {
     const calls: Array<{ model: string; method: string; args?: unknown }> = [];
     const receivedAt = new Date("2026-05-25T20:00:00.000Z");
     const tx = {
@@ -120,7 +120,6 @@ describe("GoodsReceiptService", () => {
       "goodsReceiptItem.create",
       "inventoryMovement.create",
       "inventoryMovement.findMany",
-      "inventoryStockSnapshot.upsert",
       "workflowEvent.create",
       "workflowTask.create"
     ]);

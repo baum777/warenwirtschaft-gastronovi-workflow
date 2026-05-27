@@ -46,8 +46,7 @@ describe("WithdrawalService", () => {
       "db.$transaction",
       "inventoryItem.findUnique",
       "inventoryMovement.create",
-      "inventoryMovement.findMany",
-      "inventoryStockSnapshot.upsert"
+      "inventoryMovement.findMany"
     ]);
     expect(calls).toContainEqual({
       model: "inventoryMovement",
