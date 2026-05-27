@@ -6,9 +6,9 @@ const exampleEnv = {
   NODE_ENV: "development",
   PORT: "4000",
   DATABASE_URL:
-    "postgresql://prisma.project-ref:replace_me@aws-0-region.pooler.supabase.com:5432/postgres?sslmode=require",
+    "postgresql://postgres.czinchfegtglmrloxlmh:replace_me@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true&sslmode=require",
   DIRECT_URL:
-    "postgresql://postgres:replace_me@db.project-ref.supabase.co:5432/postgres?sslmode=require",
+    "postgresql://postgres:replace_me@db.czinchfegtglmrloxlmh.supabase.co:5432/postgres?sslmode=require",
   REDIS_URL: "redis://localhost:6379",
   GASTRONOVI_API_BASE_URL: "",
   GASTRONOVI_API_KEY: "",
@@ -24,9 +24,9 @@ describe("parseEnv", () => {
       NODE_ENV: "development",
       PORT: 4000,
       DATABASE_URL:
-        "postgresql://prisma.project-ref:replace_me@aws-0-region.pooler.supabase.com:5432/postgres?sslmode=require",
+        "postgresql://postgres.czinchfegtglmrloxlmh:replace_me@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true&sslmode=require",
       DIRECT_URL:
-        "postgresql://postgres:replace_me@db.project-ref.supabase.co:5432/postgres?sslmode=require",
+        "postgresql://postgres:replace_me@db.czinchfegtglmrloxlmh.supabase.co:5432/postgres?sslmode=require",
       REDIS_URL: "redis://localhost:6379",
       GASTRONOVI_API_BASE_URL: undefined,
       GASTRONOVI_API_KEY: undefined,
