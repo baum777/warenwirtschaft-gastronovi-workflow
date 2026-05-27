@@ -67,3 +67,9 @@ Status: accepted
 Runtime and browser validation use Supabase Postgres as the canonical persistence target. Local Postgres is only an optional fallback when explicitly approved and configured; agents must not create local Postgres roles, users, or databases by default.
 
 The app/runtime reads `DATABASE_URL`, and Prisma direct workflows read `DIRECT_URL`. Both values must come from the Supabase dashboard and stay in `.env` or another secret-owned environment surface, never in git. DB-backed validation is blocked until the Supabase-backed URLs are present and Prisma can connect.
+
+## ADR-0012: Role-based UX extends the DB-backed inventory path
+
+Status: accepted
+
+Role-based workspace UX must build on the current DB-backed inventory services and migrations. Separate in-memory movement routes or replacement static UI shells are not canonical once the database-backed Warenwirtschaft slice exists. Future role and workspace changes require explicit Prisma migrations, route-level authorization updates, and web-shell integration on top of the existing admin workflow.
