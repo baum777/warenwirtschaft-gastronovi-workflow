@@ -455,9 +455,10 @@ describe("PurchaseOrderService", () => {
       }
     });
 
-    await expect(service.cancel("po-1", "admin-1")).rejects.toThrow(
-      "received purchase orders cannot be cancelled"
-    );
+    await expect(service.cancel("po-1", "admin-1")).rejects.toMatchObject({
+      message: "received purchase orders cannot be cancelled",
+      statusCode: 409
+    });
   });
 });
 

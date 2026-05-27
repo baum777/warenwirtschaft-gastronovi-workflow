@@ -6,6 +6,10 @@ import type {
 
 type PurchaseOrderStatus = PurchaseOrderDto["status"];
 
+class PurchaseOrderConflictError extends Error {
+  public readonly statusCode = 409;
+}
+
 type PurchaseOrderRecord = {
   id: string;
   status: PurchaseOrderStatus;
@@ -224,7 +228,7 @@ export class PurchaseOrderService implements PurchaseOrderServicePort {
     }
 
     if (existing.items?.some((item) => (item.receivedQty ?? 0) > 0)) {
-      throw new Error("received purchase orders cannot be cancelled");
+      throw new PurchaseOrderConflictError("received purchase orders cannot be cancelled");
     }
 
     const purchaseOrder = await this.options.db.purchaseOrder.update({
