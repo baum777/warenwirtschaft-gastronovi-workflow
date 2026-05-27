@@ -3,6 +3,7 @@ import type {
   InventoryItemReadDto,
   UpdateInventoryItemInput
 } from "./inventory.schemas.js";
+import { InventoryNotFoundError } from "./errors.js";
 
 type InventoryItemRecord = {
   id: string;
@@ -110,7 +111,7 @@ export class InventoryItemService implements InventoryItemServicePort {
     });
 
     if (!item) {
-      throw new Error("inventory item not found");
+      throw new InventoryNotFoundError("inventory item not found");
     }
 
     return mapInventoryItem(item);

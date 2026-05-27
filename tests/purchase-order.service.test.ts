@@ -150,7 +150,11 @@ describe("PurchaseOrderService", () => {
         },
         "admin-1"
       )
-    ).rejects.toThrow("inventory item not found");
+    ).rejects.toMatchObject({
+      name: "InventoryNotFound",
+      message: "inventory item not found",
+      statusCode: 404
+    });
   });
 
   it("returns purchase order read models with pending quantities", async () => {
@@ -456,8 +460,53 @@ describe("PurchaseOrderService", () => {
     });
 
     await expect(service.cancel("po-1", "admin-1")).rejects.toMatchObject({
+      name: "InventoryConflict",
       message: "received purchase orders cannot be cancelled",
       statusCode: 409
+    });
+  });
+
+  it("returns not-found errors for missing purchase orders", async () => {
+    const service = new PurchaseOrderService({
+      db: {
+        purchaseOrder: {
+          async create() {
+            throw new Error("not used");
+          },
+          async findUnique() {
+            return null;
+          },
+          async update() {
+            throw new Error("not used");
+          }
+        },
+        inventoryItem: {
+          async findUnique() {
+            throw new Error("not used");
+          }
+        },
+        workflowEvent: {
+          async create() {
+            throw new Error("not used");
+          }
+        }
+      }
+    });
+
+    await expect(service.markOrdered("missing-po", "admin-1")).rejects.toMatchObject({
+      name: "InventoryNotFound",
+      message: "purchase order not found",
+      statusCode: 404
+    });
+    await expect(service.cancel("missing-po", "admin-1")).rejects.toMatchObject({
+      name: "InventoryNotFound",
+      message: "purchase order not found",
+      statusCode: 404
+    });
+    await expect(service.get("missing-po")).rejects.toMatchObject({
+      name: "InventoryNotFound",
+      message: "purchase order not found",
+      statusCode: 404
     });
   });
 });

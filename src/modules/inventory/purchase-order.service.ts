@@ -3,12 +3,9 @@ import type {
   PurchaseOrderDto,
   PurchaseOrderReadDto
 } from "./inventory.schemas.js";
+import { InventoryConflictError, InventoryNotFoundError } from "./errors.js";
 
 type PurchaseOrderStatus = PurchaseOrderDto["status"];
-
-class PurchaseOrderConflictError extends Error {
-  public readonly statusCode = 409;
-}
 
 type PurchaseOrderRecord = {
   id: string;
@@ -165,15 +162,15 @@ export class PurchaseOrderService implements PurchaseOrderServicePort {
     });
 
     if (!existing) {
-      throw new Error("purchase order not found");
+      throw new InventoryNotFoundError("purchase order not found");
     }
 
     if (!existing.items || existing.items.length === 0) {
-      throw new Error("purchase order requires at least one item");
+      throw new InventoryConflictError("purchase order requires at least one item");
     }
 
     if (existing.status === "cancelled") {
-      throw new Error("cancelled purchase orders cannot be marked ordered");
+      throw new InventoryConflictError("cancelled purchase orders cannot be marked ordered");
     }
 
     const orderedAt = this.options.now?.() ?? new Date();
@@ -220,7 +217,7 @@ export class PurchaseOrderService implements PurchaseOrderServicePort {
     });
 
     if (!existing) {
-      throw new Error("purchase order not found");
+      throw new InventoryNotFoundError("purchase order not found");
     }
 
     if (existing.status === "cancelled") {
@@ -228,7 +225,7 @@ export class PurchaseOrderService implements PurchaseOrderServicePort {
     }
 
     if (existing.items?.some((item) => (item.receivedQty ?? 0) > 0)) {
-      throw new PurchaseOrderConflictError("received purchase orders cannot be cancelled");
+      throw new InventoryConflictError("received purchase orders cannot be cancelled");
     }
 
     const purchaseOrder = await this.options.db.purchaseOrder.update({
@@ -286,7 +283,7 @@ export class PurchaseOrderService implements PurchaseOrderServicePort {
     });
 
     if (!purchaseOrder) {
-      throw new Error("purchase order not found");
+      throw new InventoryNotFoundError("purchase order not found");
     }
 
     return mapPurchaseOrderRead(purchaseOrder as PurchaseOrderReadRecord);
@@ -304,7 +301,7 @@ export class PurchaseOrderService implements PurchaseOrderServicePort {
       });
 
       if (!inventoryItem) {
-        throw new Error("inventory item not found");
+        throw new InventoryNotFoundError("inventory item not found");
       }
     }
   }
