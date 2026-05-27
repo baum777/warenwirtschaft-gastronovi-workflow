@@ -1,11 +1,19 @@
 const WarenwirtschaftApp = {
   state: {
-    apiBase: localStorage.getItem("ww.apiBase") || "http://localhost:3000",
+    apiBase: localStorage.getItem("ww.apiBase") || defaultApiBase(),
     actorId: localStorage.getItem("ww.actorId") || "admin-1",
     actorRole: localStorage.getItem("ww.actorRole") || "admin"
   },
   refs: {}
 };
+
+function defaultApiBase() {
+  if (window.location.protocol === "file:") {
+    return "http://localhost:3000";
+  }
+
+  return window.location.origin;
+}
 
 const columns = {
   items: ["Name", "SKU", "Kategorie", "Einheit", "Min", "Status"],

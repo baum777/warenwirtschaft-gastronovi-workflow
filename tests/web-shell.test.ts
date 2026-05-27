@@ -23,6 +23,13 @@ describe("Warenwirtschaft web shell", () => {
     expect(app).toContain("apiFetch");
   });
 
+  it("uses the deployed origin as the default API base", () => {
+    const app = readWebFile("app.js");
+
+    expect(app).toContain("defaultApiBase");
+    expect(app).toContain("window.location.origin");
+  });
+
   it("covers the first MVP inventory workflows", () => {
     const html = readWebFile("index.html");
     const app = readWebFile("app.js");
