@@ -202,6 +202,25 @@ export async function inventoryRoute(
     return dependencies.purchaseOrderService.markOrdered(params.id, actor.userId);
   });
 
+  app.post("/admin/purchase-orders/:id/cancel", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const params = request.params as { id?: string };
+
+    if (!params.id) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "purchase order id is required"
+      });
+    }
+
+    return dependencies.purchaseOrderService.cancel(params.id, actor.userId);
+  });
+
   app.get("/admin/purchase-orders", async (request, reply) => {
     const actor = authenticate(request, reply, ["admin"]);
 

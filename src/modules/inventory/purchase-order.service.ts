@@ -9,7 +9,7 @@ type PurchaseOrderStatus = PurchaseOrderDto["status"];
 type PurchaseOrderRecord = {
   id: string;
   status: PurchaseOrderStatus;
-  items?: Array<{ id: string }>;
+  items?: Array<{ id: string; receivedQty?: number }>;
 };
 
 type PurchaseOrderReadRecord = {
@@ -109,6 +109,7 @@ export type PurchaseOrderDatabaseClient = {
 export type PurchaseOrderServicePort = {
   create(input: CreatePurchaseOrderInput, actorUserId: string): Promise<PurchaseOrderDto>;
   markOrdered(id: string, actorUserId: string): Promise<PurchaseOrderDto>;
+  cancel(id: string, actorUserId: string): Promise<PurchaseOrderDto>;
   list(): Promise<PurchaseOrderReadDto[]>;
   get(id: string): Promise<PurchaseOrderReadDto>;
 };
@@ -193,6 +194,59 @@ export class PurchaseOrderService implements PurchaseOrderServicePort {
         externalId: id,
         idempotencyKey: `inventory.purchase_order.ordered:${id}`,
         occurredAt: orderedAt,
+        dataJson: {
+          purchaseOrderId: id,
+          actorUserId
+        },
+        metadataJson: undefined
+      }
+    });
+
+    return mapPurchaseOrder(purchaseOrder);
+  }
+
+  public async cancel(id: string, actorUserId: string): Promise<PurchaseOrderDto> {
+    const existing = await this.options.db.purchaseOrder.findUnique({
+      where: {
+        id
+      },
+      include: {
+        items: true
+      }
+    });
+
+    if (!existing) {
+      throw new Error("purchase order not found");
+    }
+
+    if (existing.status === "cancelled") {
+      return mapPurchaseOrder(existing as PurchaseOrderRecord);
+    }
+
+    if (existing.items?.some((item) => (item.receivedQty ?? 0) > 0)) {
+      throw new Error("received purchase orders cannot be cancelled");
+    }
+
+    const purchaseOrder = await this.options.db.purchaseOrder.update({
+      where: {
+        id
+      },
+      data: {
+        status: "cancelled"
+      },
+      include: {
+        items: true
+      }
+    });
+
+    await this.options.db.workflowEvent.create({
+      data: {
+        type: "inventory.purchase_order.cancelled",
+        version: 1,
+        source: "system",
+        externalId: id,
+        idempotencyKey: `inventory.purchase_order.cancelled:${id}`,
+        occurredAt: this.options.now?.() ?? new Date(),
         dataJson: {
           purchaseOrderId: id,
           actorUserId

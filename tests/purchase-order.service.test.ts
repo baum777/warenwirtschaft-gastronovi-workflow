@@ -321,6 +321,144 @@ describe("PurchaseOrderService", () => {
       }
     ]);
   });
+
+  it("cancels orders without received quantities and emits an event", async () => {
+    const calls: Array<{ model: string; method: string; args: unknown }> = [];
+    const cancelledAt = new Date("2026-05-25T20:00:00.000Z");
+    const service = new PurchaseOrderService({
+      now: () => cancelledAt,
+      db: {
+        purchaseOrder: {
+          async create() {
+            throw new Error("not used");
+          },
+          async findUnique(args: unknown) {
+            calls.push({ model: "purchaseOrder", method: "findUnique", args });
+            return {
+              id: "po-1",
+              status: "ordered",
+              items: [{ id: "poi-1", receivedQty: 0 }]
+            };
+          },
+          async update(args: unknown) {
+            calls.push({ model: "purchaseOrder", method: "update", args });
+            return {
+              id: "po-1",
+              status: "cancelled",
+              items: [{ id: "poi-1" }]
+            };
+          }
+        },
+        inventoryItem: {
+          async findUnique() {
+            throw new Error("not used");
+          }
+        },
+        workflowEvent: {
+          async create(args: unknown) {
+            calls.push({ model: "workflowEvent", method: "create", args });
+            return {};
+          }
+        },
+        inventoryMovement: {
+          async create() {
+            throw new Error("cancel must not create inventory movements");
+          }
+        }
+      }
+    });
+
+    const result = await service.cancel("po-1", "admin-1");
+
+    expect(result).toEqual({
+      purchaseOrderId: "po-1",
+      status: "cancelled"
+    });
+    expect(calls).toEqual([
+      {
+        model: "purchaseOrder",
+        method: "findUnique",
+        args: {
+          where: {
+            id: "po-1"
+          },
+          include: {
+            items: true
+          }
+        }
+      },
+      {
+        model: "purchaseOrder",
+        method: "update",
+        args: {
+          where: {
+            id: "po-1"
+          },
+          data: {
+            status: "cancelled"
+          },
+          include: {
+            items: true
+          }
+        }
+      },
+      {
+        model: "workflowEvent",
+        method: "create",
+        args: {
+          data: {
+            type: "inventory.purchase_order.cancelled",
+            version: 1,
+            source: "system",
+            externalId: "po-1",
+            idempotencyKey: "inventory.purchase_order.cancelled:po-1",
+            occurredAt: cancelledAt,
+            dataJson: {
+              purchaseOrderId: "po-1",
+              actorUserId: "admin-1"
+            },
+            metadataJson: undefined
+          }
+        }
+      }
+    ]);
+  });
+
+  it("does not cancel purchase orders that have received quantities", async () => {
+    const service = new PurchaseOrderService({
+      db: {
+        purchaseOrder: {
+          async create() {
+            throw new Error("not used");
+          },
+          async findUnique() {
+            return {
+              id: "po-1",
+              status: "partially_received",
+              items: [{ id: "poi-1", receivedQty: 1 }]
+            };
+          },
+          async update() {
+            throw new Error("purchase order must not be updated");
+          }
+        },
+        inventoryItem: {
+          async findUnique() {
+            throw new Error("not used");
+          }
+        },
+        workflowEvent: {
+          async create() {
+            throw new Error("event must not be created");
+          }
+        }
+      }
+    });
+
+    await expect(service.cancel("po-1", "admin-1")).rejects.toThrow(
+      "received purchase orders cannot be cancelled"
+    );
+  });
 });
 
 function purchaseOrderReadRecord(createdAt: Date, orderedAt: Date) {
