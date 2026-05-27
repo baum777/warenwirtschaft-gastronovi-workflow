@@ -98,6 +98,7 @@ DIRECT_URL="postgresql://..."
 - `DIRECT_URL` is used by Prisma CLI and migration workflows when a direct connection is required.
 - Use dashboard-provided Supabase connection strings. Do not invent credentials.
 - Keep real values in `.env` only. `.env.example` must contain placeholders only.
+- Production Redis must be configured with either `REDIS_URL` or both `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
 
 DB-backed browser/runtime validation is runnable only when `.env` exists, both database URLs point to Supabase, Prisma can connect successfully, and the app can create/read/list DB-backed records. If those inputs are missing, the correct result is `blocked` pending valid Supabase credentials, not local Postgres admin setup.
 

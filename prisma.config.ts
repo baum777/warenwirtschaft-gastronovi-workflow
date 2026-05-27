@@ -8,6 +8,6 @@ export default defineConfig({
   engine: "classic",
   schema: "prisma/schema.prisma",
   datasource: {
-    url: env("DATABASE_URL")
+    url: env("DIRECT_URL")
   }
 });
