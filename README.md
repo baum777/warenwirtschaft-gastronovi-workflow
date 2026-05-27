@@ -67,12 +67,8 @@ This starter contains the Ticket 1 baseline plus the Ticket 2 raw-ingestion core
 - Raw payload repository boundary.
 - Sync run repository boundary.
 - Ingestion service that stores raw payloads and detects duplicate hashes.
-- Phase 0 inventory governance contracts for roles, workspace access, append-only movement attempts, sync status, and conflict handling.
-- A dependency-free static `web/` MVP surface for role-based inventory workflows.
 
 Live Gastronovi access, HTTP ingestion routes, normalization, rules, queues, scheduled jobs, and admin APIs are intentionally out of scope for the current slice.
-
-The current inventory routes use an in-memory local/demo repository. They prove API shape and governance behavior, but require a DB-backed repository before production use.
 
 ## Local Commands
 
@@ -83,11 +79,26 @@ npm run typecheck
 npm test -- --run
 npm run build
 npx prisma validate
-node --check web/app.js
 ```
 
 ## Environment
 
-Copy `.env.example` to `.env` for local development. `DATABASE_URL` and `REDIS_URL` may use local defaults in development, but production requires explicit values.
+Copy `.env.example` to `.env` for local development and replace every placeholder with values from the Supabase dashboard.
+
+Supabase Postgres is the canonical database for this repo. Do not assume a local Postgres role or database exists, and do not create local DB users, roles, or databases without explicit approval.
+
+Required database variables:
+
+```env
+DATABASE_URL="postgresql://..."
+DIRECT_URL="postgresql://..."
+```
+
+- `DATABASE_URL` is used by the app/runtime. Prefer the Supabase/Supavisor pooled connection string for runtime connections.
+- `DIRECT_URL` is used by Prisma CLI and migration workflows when a direct connection is required.
+- Use dashboard-provided Supabase connection strings. Do not invent credentials.
+- Keep real values in `.env` only. `.env.example` must contain placeholders only.
+
+DB-backed browser/runtime validation is runnable only when `.env` exists, both database URLs point to Supabase, Prisma can connect successfully, and the app can create/read/list DB-backed records. If those inputs are missing, the correct result is `blocked` pending valid Supabase credentials, not local Postgres admin setup.
 
 Secrets must stay backend-owned. API keys, tenant identifiers, tokens, and raw secret-bearing payloads must not be logged or exposed in API responses.

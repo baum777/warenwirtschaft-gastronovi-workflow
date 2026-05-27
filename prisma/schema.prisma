@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model SyncRun {
@@ -37,19 +38,19 @@ model RawPayload {
 }
 
 model WorkflowEvent {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   type           String
   version        Int
   source         String
   externalId     String?
-  idempotencyKey String   @unique
+  idempotencyKey String    @unique
   businessDate   DateTime?
   occurredAt     DateTime
-  importedAt     DateTime @default(now())
+  importedAt     DateTime  @default(now())
   payloadRef     String?
   dataJson       Json
   metadataJson   Json?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
 
   tasks WorkflowTask[]
 
@@ -72,68 +73,27 @@ model WorkflowTask {
   resolvedAt      DateTime?
 }
 
-model User {
-  id          String   @id @default(cuid())
-  displayName String
-  role        UserRole
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-
-  workspaceAccess UserWorkspaceAccess[]
-
-  @@index([role, isActive])
-}
-
-model UserWorkspaceAccess {
-  userId      String
-  user        User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspace   WorkspaceCode
-  accessLevel UserWorkspaceAccessLevel @default(MEMBER)
-
-  @@id([userId, workspace])
-  @@index([workspace])
-}
-
 model InventoryItem {
-  id                String   @id @default(cuid())
+  id                String           @id @default(cuid())
   name              String
   sku               String?
-  workspace         WorkspaceCode
-  category          ItemCategory
-  subcategory       ItemSubcategory?
+  category          String?
   defaultUnit       String
   minStock          Float?
   storageLocationId String?
   storageLocation   StorageLocation? @relation(fields: [storageLocationId], references: [id])
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  isActive          Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   movements          InventoryMovement[]
   orderItems         PurchaseOrderItem[]
   receiptItems       GoodsReceiptItem[]
-  itemStocks         ItemStock[]
   stockSnapshots     InventoryStockSnapshot[]
   correctionRequests InventoryCorrectionRequest[]
 
   @@index([name])
   @@index([category])
-  @@index([workspace, category, subcategory])
-}
-
-model ItemStock {
-  id                String           @id @default(cuid())
-  inventoryItemId   String
-  inventoryItem     InventoryItem    @relation(fields: [inventoryItemId], references: [id])
-  storageLocationId String?
-  storageLocation   StorageLocation? @relation(fields: [storageLocationId], references: [id])
-  currentStock      Float
-  unit              String
-  version           Int              @default(1)
-  updatedAt         DateTime         @updatedAt
-
-  @@unique([inventoryItemId, storageLocationId])
-  @@index([updatedAt])
 }
 
 model Supplier {
@@ -159,7 +119,6 @@ model StorageLocation {
   inventoryItems InventoryItem[]
   receiptItems   GoodsReceiptItem[]
   movements      InventoryMovement[]
-  itemStocks     ItemStock[]
   stockSnapshots InventoryStockSnapshot[]
 }
 
@@ -236,13 +195,7 @@ model InventoryMovement {
   type              InventoryMovementType
   quantity          Float
   unit              String
-  workspace         WorkspaceCode
   actorUserId       String
-  clientMutationId  String?               @unique
-  baseStockVersion  Int?
-  resultingStockVersion Int?
-  syncStatus        MovementSyncStatus     @default(ACCEPTED)
-  conflictReason    MovementConflictReason?
   storageLocationId String?
   storageLocation   StorageLocation?      @relation(fields: [storageLocationId], references: [id])
   purchaseOrderId   String?
@@ -252,13 +205,10 @@ model InventoryMovement {
   relatedMovementId String?
   note              String?
   createdAt         DateTime              @default(now())
-  syncedAt          DateTime?
 
   @@index([inventoryItemId, createdAt])
-  @@index([workspace, createdAt])
   @@index([type])
   @@index([actorUserId])
-  @@index([syncStatus])
 }
 
 model InventoryStockSnapshot {
@@ -307,45 +257,6 @@ enum WorkflowTaskStatus {
   dismissed
 }
 
-enum UserRole {
-  ADMIN
-  AREA_LEAD
-  STAFF
-}
-
-enum UserWorkspaceAccessLevel {
-  MEMBER
-  REVIEWER
-}
-
-enum WorkspaceCode {
-  SERVICE
-  HOTEL
-  KITCHEN
-}
-
-enum ItemCategory {
-  BEVERAGES
-  FOOD
-  DEVICES
-  WORK_UTENSILS
-  HYGIENE
-  EQUIPMENT
-}
-
-enum ItemSubcategory {
-  BAR_TAP
-  STORAGE
-  FRESH
-  DRY
-  NAPKINS
-  CLEANING_SUPPLIES
-  CONSUMABLES
-  SEATING
-  LIGHTS
-  OTHER
-}
-
 enum PurchaseOrderStatus {
   draft
   ordered
@@ -359,24 +270,6 @@ enum InventoryMovementType {
   item_removed
   correction_positive
   correction_negative
-}
-
-enum MovementSyncStatus {
-  PENDING
-  SYNCING
-  ACCEPTED
-  CONFLICT
-  REJECTED
-}
-
-enum MovementConflictReason {
-  INSUFFICIENT_STOCK
-  STALE_STOCK_VERSION
-  ITEM_INACTIVE
-  WORKSPACE_FORBIDDEN
-  UNIT_MISMATCH
-  DUPLICATE_CLIENT_MUTATION
-  SERVER_ERROR_RETRYABLE
 }
 
 enum InventoryCorrectionStatus {

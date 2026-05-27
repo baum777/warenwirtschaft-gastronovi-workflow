@@ -1,81 +1,63 @@
-# Role-Based UI/UX and Phase 0 Governance
+# Role-Based UI/UX Phase 0 Notes
 
-## Scope
+## Current Canonical State
 
-This repository implements the Phase 0 governance foundation plus a static MVP web surface for role-based Warenwirtschaft workflows.
+`origin/master` now contains the canonical DB-backed Warenwirtschaft slice:
 
-Implemented surfaces:
+- Static `web/` app shell
+- Admin inventory item management
+- Purchase orders
+- Goods receipts
+- Withdrawals
+- Correction requests
+- Admin review tasks
+- Supabase/Postgres-oriented Prisma migration
 
-- `web/index.html`, `web/app.js`, `web/styles.css`
-- `GET /inventory/items`
-- `POST /movements`
-- `POST /movements/sync`
-- Prisma schema fields for role, workspace, movement sync status, conflict reason, and versioned stock rows
+This document records the remaining role-based UI/UX direction without replacing the current DB-backed implementation.
 
-## Roles
+## Role Direction
 
-| Role | Scope |
-| --- | --- |
-| `ADMIN` | All workspaces, dashboard, conflict and correction overview |
-| `AREA_LEAD` | Assigned workspaces, review and correction workflow |
-| `STAFF` | Assigned workspaces, mobile-first quick actions |
+Target roles:
 
-Staff users must not read or write unassigned workspace inventory. UI filtering is a convenience layer only; backend routes enforce actor and workspace checks.
+- `admin`: full inventory administration and review authority
+- `shift_lead`: operational booking authority for assigned work areas, future review scope
+- `staff`: operational quick actions for assigned work areas
 
-## Workspace Taxonomy
+The current backend authorizes by actor headers and route-level roles. Workspace-specific filtering and assignment are not yet implemented in the DB model.
 
-Canonical workspace codes:
+## Workspace Direction
+
+Target workspaces:
 
 - `SERVICE`
 - `HOTEL`
 - `KITCHEN`
 
-Inventory items carry `workspace`, `category`, and optional `subcategory` so role and workspace filters can be enforced before UI rendering or booking.
+Future workspace support should be added through a migration-backed schema change, not through an in-memory route layer. Required follow-up decisions:
 
-## Movement Semantics
+- Whether workspace is mandatory on `InventoryItem`
+- Whether existing `category` stays free text or becomes a controlled taxonomy
+- How actor-to-workspace assignment is represented
+- Which routes require workspace-scoped reads and writes
 
-Inventory movement requests use client-facing types:
+## Movement Direction
 
-- `IN`
-- `OUT`
-- `CORRECTION_POSITIVE`
-- `CORRECTION_NEGATIVE`
+The current canonical implementation already preserves the key audit rule:
 
-Stored movement types remain compatible with the existing schema naming:
+- Stock-changing operations create `InventoryMovement` rows.
+- Stock snapshots are derived/updated by backend services.
+- Corrections require review before stock-changing movement creation.
 
-- `goods_received`
-- `item_removed`
-- `correction_positive`
-- `correction_negative`
+Future conflict/offline work should extend this DB-backed path with migration-backed fields such as `clientMutationId`, `baseStockVersion`, `syncStatus`, and `conflictReason` only when the persistence and migration plan are explicit.
 
-Accepted movements update versioned stock rows. Conflicts and rejections are recorded as movement attempts with `syncStatus` and `conflictReason`.
+## UI Direction
 
-## Conflict Rules
+The current static UI is admin-focused. Future role-based UX should add:
 
-The current Phase 0 service returns:
+- Workspace-aware navigation
+- Staff mobile quick actions
+- Shift-lead review surface
+- Conflict/offline queue status
+- A clear Post-MVP inventory-counting/inventory-delta path
 
-- `ACCEPTED` when the movement is authorized and stock validation passes
-- `CONFLICT` for stale stock versions, unit mismatch, inactive items, or insufficient staff stock
-- `REJECTED` for forbidden actor/workspace/action combinations
-
-Negative stock from normal `STAFF` removal is not silently accepted.
-
-## Static Web Surface
-
-The web MVP is intentionally dependency-free:
-
-- Role switcher for `ADMIN`, `AREA_LEAD`, `STAFF`
-- Workspace overlay with role-aware options
-- Staff quick actions for goods received, item removed, stock check, recent items, and queue status
-- Admin and area lead cockpit views with KPIs, action center, critical stock, and review panels
-- Governance view marking inventory as Post-MVP
-
-The UI uses local demo data by default. If `ww.apiBase` is set in local storage, the offline queue sync calls `POST /movements/sync` with `x-actor-id` and `x-actor-role`.
-
-## Deferred
-
-- DB-backed movement repository
-- Full inventory module and approval workflow
-- Real authentication replacing header actor simulation
-- Full supplier, purchase order, and inventory count workflows
-- Live Gastronovi synchronization
+These changes should build on the existing `web/` app shell instead of replacing it with a separate demo UI.

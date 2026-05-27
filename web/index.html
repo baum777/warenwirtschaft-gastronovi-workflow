@@ -3,11 +3,207 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Warenwirtschaft Cockpit</title>
+    <title>Warenwirtschaft</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body>
-    <div id="app"></div>
-    <script src="./app.js"></script>
+  <body class="warenwirtschaft-app">
+    <div class="app-shell" id="app">
+      <aside class="sidebar" aria-label="Hauptnavigation">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">W</div>
+          <div>
+            <h1>Warenwirtschaft</h1>
+            <p>Inventory control</p>
+          </div>
+        </div>
+        <nav class="nav-list" aria-label="Bereiche">
+          <button class="nav-item is-active" data-view="dashboard">Übersicht</button>
+          <button class="nav-item" data-view="items">Artikel</button>
+          <button class="nav-item" data-view="stock">Bestand</button>
+          <button class="nav-item" data-view="purchase-orders">Bestellungen</button>
+          <button class="nav-item" data-view="goods-receipts">Wareneingang</button>
+          <button class="nav-item" data-view="withdrawals">Entnahmen</button>
+          <button class="nav-item" data-view="corrections">Korrekturen</button>
+          <button class="nav-item" data-view="review-tasks">Prüfung</button>
+        </nav>
+      </aside>
+
+      <main class="main-panel">
+        <header class="topbar">
+          <div>
+            <p class="section-label">MVP Cockpit</p>
+            <h2 id="view-title">Übersicht</h2>
+          </div>
+          <form class="actor-panel" id="actor-form">
+            <label>
+              API
+              <input id="api-base" name="apiBase" value="http://localhost:3000" />
+            </label>
+            <label>
+              Actor
+              <input id="actor-id" name="actorId" value="admin-1" />
+            </label>
+            <label>
+              Rolle
+              <select id="actor-role" name="actorRole">
+                <option value="admin">admin</option>
+                <option value="shift_lead">shift_lead</option>
+                <option value="staff">staff</option>
+              </select>
+            </label>
+            <button type="submit">Speichern</button>
+          </form>
+        </header>
+
+        <section class="status-strip" aria-live="polite">
+          <div class="status-card">
+            <span>Artikel</span>
+            <strong id="metric-items">-</strong>
+          </div>
+          <div class="status-card">
+            <span>Bestand kritisch</span>
+            <strong id="metric-alerts">-</strong>
+          </div>
+          <div class="status-card">
+            <span>Prüfungen offen</span>
+            <strong id="metric-tasks">-</strong>
+          </div>
+        </section>
+
+        <section class="toast" id="toast" hidden></section>
+
+        <section class="view is-active" id="view-dashboard" data-title="Übersicht">
+          <div class="view-grid">
+            <article class="panel">
+              <div class="panel-head">
+                <h3>Schnellzugriff</h3>
+                <button data-action="refresh-all">Aktualisieren</button>
+              </div>
+              <div class="quick-actions">
+                <button data-view-link="items">Artikel pflegen</button>
+                <button data-view-link="purchase-orders">Bestellung anlegen</button>
+                <button data-view-link="goods-receipts">Wareneingang buchen</button>
+                <button data-view-link="withdrawals">Entnahme erfassen</button>
+              </div>
+            </article>
+            <article class="panel">
+              <div class="panel-head">
+                <h3>Offene Prüfungen</h3>
+                <button data-action="load-review-tasks">Laden</button>
+              </div>
+              <div class="table-wrap" id="dashboard-review-table"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="view-items" data-title="Artikel">
+          <div class="split-view">
+            <form class="panel form-panel" id="item-form">
+              <h3>Artikel anlegen</h3>
+              <label>Name<input name="name" required /></label>
+              <label>SKU<input name="sku" /></label>
+              <label>Kategorie<input name="category" /></label>
+              <label>Einheit<input name="defaultUnit" required value="Stück" /></label>
+              <label>Mindestbestand<input name="minStock" type="number" min="0" step="0.01" /></label>
+              <label>Lagerort-ID<input name="storageLocationId" /></label>
+              <button type="submit">Anlegen</button>
+            </form>
+            <article class="panel">
+              <div class="panel-head">
+                <h3>Artikelbestand</h3>
+                <button data-action="load-items">Laden</button>
+              </div>
+              <div class="table-wrap" id="items-table"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="view-stock" data-title="Bestand">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Live Bestand</h3>
+              <button data-action="load-stock">Laden</button>
+            </div>
+            <div class="table-wrap" id="stock-table"></div>
+          </article>
+        </section>
+
+        <section class="view" id="view-purchase-orders" data-title="Bestellungen">
+          <div class="split-view">
+            <form class="panel form-panel" id="purchase-order-form">
+              <h3>Bestellung anlegen</h3>
+              <label>Lieferant-ID<input name="supplierId" /></label>
+              <label>Artikel-ID<input name="inventoryItemId" required /></label>
+              <label>Menge<input name="orderedQty" type="number" min="0.01" step="0.01" required /></label>
+              <label>Einheit<input name="unit" required value="Stück" /></label>
+              <label>Notiz<input name="note" /></label>
+              <button type="submit">Anlegen</button>
+            </form>
+            <article class="panel">
+              <div class="panel-head">
+                <h3>Bestellungen</h3>
+                <button data-action="load-purchase-orders">Laden</button>
+              </div>
+              <div class="table-wrap" id="purchase-orders-table"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="view-goods-receipts" data-title="Wareneingang">
+          <div class="split-view">
+            <form class="panel form-panel" id="goods-receipt-form">
+              <h3>Wareneingang buchen</h3>
+              <label>Bestellung-ID<input name="purchaseOrderId" /></label>
+              <label>Artikel-ID<input name="inventoryItemId" required /></label>
+              <label>Menge<input name="quantity" type="number" min="0.01" step="0.01" required /></label>
+              <label>Einheit<input name="unit" required value="Stück" /></label>
+              <label>Lagerort-ID<input name="storageLocationId" /></label>
+              <button type="submit">Buchen</button>
+            </form>
+            <article class="panel">
+              <div class="panel-head">
+                <h3>Wareneingänge</h3>
+                <button data-action="load-goods-receipts">Laden</button>
+              </div>
+              <div class="table-wrap" id="goods-receipts-table"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="view-withdrawals" data-title="Entnahmen">
+          <form class="panel form-panel compact-form" id="withdrawal-form">
+            <h3>Entnahme erfassen</h3>
+            <label>Artikel-ID<input name="inventoryItemId" required /></label>
+            <label>Menge<input name="quantity" type="number" min="0.01" step="0.01" required /></label>
+            <label>Einheit<input name="unit" required value="Stück" /></label>
+            <label>Lagerort-ID<input name="storageLocationId" /></label>
+            <label>Notiz<input name="note" /></label>
+            <button type="submit">Erfassen</button>
+          </form>
+        </section>
+
+        <section class="view" id="view-corrections" data-title="Korrekturen">
+          <form class="panel form-panel compact-form" id="correction-form">
+            <h3>Korrektur beantragen</h3>
+            <label>Artikel-ID<input name="inventoryItemId" required /></label>
+            <label>Differenz<input name="expectedDelta" type="number" step="0.01" required /></label>
+            <label>Einheit<input name="unit" required value="Stück" /></label>
+            <label>Grund<input name="reason" required /></label>
+            <button type="submit">Beantragen</button>
+          </form>
+        </section>
+
+        <section class="view" id="view-review-tasks" data-title="Prüfung">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Review Tasks</h3>
+              <button data-action="load-review-tasks">Laden</button>
+            </div>
+            <div class="table-wrap" id="review-tasks-table"></div>
+          </article>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="./app.js"></script>
   </body>
 </html>
