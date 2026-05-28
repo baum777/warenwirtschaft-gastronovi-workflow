@@ -221,6 +221,99 @@ describe("inventory API routes", () => {
     }
   });
 
+  it("rejects empty actor ids over HTTP", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/withdrawals",
+        headers: {
+          "x-actor-id": "   ",
+          "x-actor-role": "staff"
+        },
+        payload: {
+          inventoryItemId: "item-1",
+          quantity: 2,
+          unit: "Stück"
+        }
+      });
+
+      expect(response.statusCode).toBe(401);
+      expect(response.json()).toEqual({
+        error: "Unauthorized",
+        message: "actor headers are required"
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("lets admin, shift lead, and staff read operational inventory master data", async () => {
+    for (const role of ["admin", "shift_lead", "staff"] as const) {
+      const app = buildApp({
+        inventory: fakeInventoryServices()
+      });
+
+      try {
+        await app.ready();
+        const response = await app.inject({
+          method: "GET",
+          url: "/inventory/master-data",
+          headers: {
+            "x-actor-id": `${role}-1`,
+            "x-actor-role": role
+          }
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toEqual(expectedMasterData());
+      } finally {
+        await app.close();
+      }
+    }
+  });
+
+  it("lets staff read operational stock for booking workflows", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "GET",
+        url: "/admin/inventory/stock",
+        headers: {
+          "x-actor-id": "staff-1",
+          "x-actor-role": "staff"
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        items: [
+          {
+            inventoryItemId: "item-1",
+            name: "Tomaten passiert 5kg",
+            category: "food",
+            storageLocationName: "Küche",
+            currentStock: 4,
+            unit: "Stück",
+            minStock: 5,
+            status: "low",
+            lastMovementAt: "2026-05-25T20:00:00.000Z"
+          }
+        ]
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
   it("lets admins create purchase orders", async () => {
     const app = buildApp({
       inventory: fakeInventoryServices()
@@ -234,6 +327,35 @@ describe("inventory API routes", () => {
         headers: {
           "x-actor-id": "admin-1",
           "x-actor-role": "admin"
+        },
+        payload: {
+          items: [{ inventoryItemId: "item-1", orderedQty: 10, unit: "Stück" }]
+        }
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.json()).toEqual({
+        purchaseOrderId: "po-1",
+        status: "draft"
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("lets shift leads create purchase orders", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/admin/purchase-orders",
+        headers: {
+          "x-actor-id": "shift-1",
+          "x-actor-role": "shift_lead"
         },
         payload: {
           items: [{ inventoryItemId: "item-1", orderedQty: 10, unit: "Stück" }]
@@ -308,6 +430,34 @@ describe("inventory API routes", () => {
       ]);
     } finally {
       await app.close();
+    }
+  });
+
+  it("prevents shift leads and staff from creating inventory items", async () => {
+    for (const role of ["shift_lead", "staff"] as const) {
+      const app = buildApp({
+        inventory: fakeInventoryServices()
+      });
+
+      try {
+        await app.ready();
+        const response = await app.inject({
+          method: "POST",
+          url: "/admin/inventory/items",
+          headers: {
+            "x-actor-id": `${role}-1`,
+            "x-actor-role": role
+          },
+          payload: {
+            name: "Tomaten passiert 5kg",
+            defaultUnit: "Stück"
+          }
+        });
+
+        expect(response.statusCode).toBe(403);
+      } finally {
+        await app.close();
+      }
     }
   });
 
@@ -503,6 +653,72 @@ describe("inventory API routes", () => {
     }
   });
 
+  it("returns purchase orders with pending quantities for shift leads", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      const listResponse = await app.inject({
+        method: "GET",
+        url: "/admin/purchase-orders",
+        headers: {
+          "x-actor-id": "shift-1",
+          "x-actor-role": "shift_lead"
+        }
+      });
+      const detailResponse = await app.inject({
+        method: "GET",
+        url: "/admin/purchase-orders/po-1",
+        headers: {
+          "x-actor-id": "shift-1",
+          "x-actor-role": "shift_lead"
+        }
+      });
+
+      expect(listResponse.statusCode).toBe(200);
+      expect(listResponse.json()).toEqual({
+        purchaseOrders: [expectedPurchaseOrderReadModel()]
+      });
+      expect(detailResponse.statusCode).toBe(200);
+      expect(detailResponse.json()).toEqual(expectedPurchaseOrderReadModel());
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("prevents staff from reading purchase orders", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      const listResponse = await app.inject({
+        method: "GET",
+        url: "/admin/purchase-orders",
+        headers: {
+          "x-actor-id": "staff-1",
+          "x-actor-role": "staff"
+        }
+      });
+      const detailResponse = await app.inject({
+        method: "GET",
+        url: "/admin/purchase-orders/po-1",
+        headers: {
+          "x-actor-id": "staff-1",
+          "x-actor-role": "staff"
+        }
+      });
+
+      expect(listResponse.statusCode).toBe(403);
+      expect(detailResponse.statusCode).toBe(403);
+    } finally {
+      await app.close();
+    }
+  });
+
   it("lets shift leads record goods receipts and passes actor context to the service", async () => {
     const calls: Array<{ input: unknown; actor: Actor }> = [];
     const app = buildApp({
@@ -620,6 +836,49 @@ describe("inventory API routes", () => {
     }
   });
 
+  it("prevents staff from booking or reading goods receipts", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      const createResponse = await app.inject({
+        method: "POST",
+        url: "/goods-receipts",
+        headers: {
+          "x-actor-id": "staff-1",
+          "x-actor-role": "staff"
+        },
+        payload: {
+          items: [{ inventoryItemId: "item-1", quantity: 8, unit: "Stück" }]
+        }
+      });
+      const listResponse = await app.inject({
+        method: "GET",
+        url: "/goods-receipts",
+        headers: {
+          "x-actor-id": "staff-1",
+          "x-actor-role": "staff"
+        }
+      });
+      const detailResponse = await app.inject({
+        method: "GET",
+        url: "/goods-receipts/gr-1",
+        headers: {
+          "x-actor-id": "staff-1",
+          "x-actor-role": "staff"
+        }
+      });
+
+      expect(createResponse.statusCode).toBe(403);
+      expect(listResponse.statusCode).toBe(403);
+      expect(detailResponse.statusCode).toBe(403);
+    } finally {
+      await app.close();
+    }
+  });
+
   it("lets staff record withdrawals and passes actor context to the service", async () => {
     const calls: Array<{ input: unknown; actor: Actor }> = [];
     const app = buildApp({
@@ -676,6 +935,41 @@ describe("inventory API routes", () => {
       ]);
     } finally {
       await app.close();
+    }
+  });
+
+  it("lets admins and shift leads record withdrawals", async () => {
+    for (const role of ["admin", "shift_lead"] as const) {
+      const app = buildApp({
+        inventory: fakeInventoryServices()
+      });
+
+      try {
+        await app.ready();
+        const response = await app.inject({
+          method: "POST",
+          url: "/withdrawals",
+          headers: {
+            "x-actor-id": `${role}-1`,
+            "x-actor-role": role
+          },
+          payload: {
+            inventoryItemId: "item-1",
+            quantity: 2,
+            unit: "Stück",
+            note: "prep usage"
+          }
+        });
+
+        expect(response.statusCode).toBe(201);
+        expect(response.json()).toEqual({
+          movementId: "move-2",
+          stockAfter: 2,
+          reviewTaskIds: []
+        });
+      } finally {
+        await app.close();
+      }
     }
   });
 
@@ -744,6 +1038,41 @@ describe("inventory API routes", () => {
     }
   });
 
+  it("lets admins and shift leads request inventory corrections", async () => {
+    for (const role of ["admin", "shift_lead"] as const) {
+      const app = buildApp({
+        inventory: fakeInventoryServices()
+      });
+
+      try {
+        await app.ready();
+        const response = await app.inject({
+          method: "POST",
+          url: "/correction-requests",
+          headers: {
+            "x-actor-id": `${role}-1`,
+            "x-actor-role": role
+          },
+          payload: {
+            inventoryItemId: "item-1",
+            expectedDelta: -2,
+            unit: "Stück",
+            reason: "count mismatch"
+          }
+        });
+
+        expect(response.statusCode).toBe(201);
+        expect(response.json()).toEqual({
+          correctionRequestId: "correction-1",
+          status: "open",
+          reviewTaskId: "task-2"
+        });
+      } finally {
+        await app.close();
+      }
+    }
+  });
+
   it("lets admins approve correction requests", async () => {
     const calls: Array<{ id: string; actor: Actor }> = [];
     const app = buildApp({
@@ -800,7 +1129,7 @@ describe("inventory API routes", () => {
     }
   });
 
-  it("lets shift leads approve correction requests", async () => {
+  it("prevents shift leads from approving correction requests", async () => {
     const calls: Array<{ id: string; actor: Actor }> = [];
     const app = buildApp({
       inventory: fakeInventoryServices({
@@ -835,16 +1164,8 @@ describe("inventory API routes", () => {
         }
       });
 
-      expect(response.statusCode).toBe(200);
-      expect(calls).toEqual([
-        {
-          id: "correction-1",
-          actor: {
-            userId: "shift-1",
-            role: "shift_lead"
-          }
-        }
-      ]);
+      expect(response.statusCode).toBe(403);
+      expect(calls).toEqual([]);
     } finally {
       await app.close();
     }
@@ -1038,6 +1359,57 @@ describe("inventory API routes", () => {
       });
     } finally {
       await app.close();
+    }
+  });
+
+  it("prevents shift leads and staff from reading or changing review tasks", async () => {
+    for (const role of ["shift_lead", "staff"] as const) {
+      const app = buildApp({
+        inventory: fakeInventoryServices()
+      });
+
+      try {
+        await app.ready();
+        const readResponse = await app.inject({
+          method: "GET",
+          url: "/admin/review-tasks",
+          headers: {
+            "x-actor-id": `${role}-1`,
+            "x-actor-role": role
+          }
+        });
+        const startResponse = await app.inject({
+          method: "POST",
+          url: "/admin/review-tasks/task-1/start-review",
+          headers: {
+            "x-actor-id": `${role}-1`,
+            "x-actor-role": role
+          }
+        });
+        const resolveResponse = await app.inject({
+          method: "POST",
+          url: "/admin/review-tasks/task-1/resolve",
+          headers: {
+            "x-actor-id": `${role}-1`,
+            "x-actor-role": role
+          }
+        });
+        const dismissResponse = await app.inject({
+          method: "POST",
+          url: "/admin/review-tasks/task-1/dismiss",
+          headers: {
+            "x-actor-id": `${role}-1`,
+            "x-actor-role": role
+          }
+        });
+
+        expect(readResponse.statusCode).toBe(403);
+        expect(startResponse.statusCode).toBe(403);
+        expect(resolveResponse.statusCode).toBe(403);
+        expect(dismissResponse.statusCode).toBe(403);
+      } finally {
+        await app.close();
+      }
     }
   });
 
