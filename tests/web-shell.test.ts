@@ -224,4 +224,22 @@ describe("Warenwirtschaft web shell", () => {
     expect(app).toContain('form.elements.movementType?.value === "goods-receipt"');
     expect(app).toContain("Wareneingang erhöht den Bestand.");
   });
+
+  it("binds CSV import, export, and reset controls to admin inventory endpoints", () => {
+    const html = readWebFile("index.html");
+    const app = readWebFile("app.js");
+    const styles = readWebFile("styles.css");
+
+    expect(html).toContain('id="csv-import-file"');
+    expect(html).toContain('data-action="export-csv"');
+    expect(html).toContain('data-action="import-csv"');
+    expect(html).toContain('data-action="reset-inventory"');
+    expect(app).toContain("function exportInventoryCsv");
+    expect(app).toContain("/admin/inventory/csv");
+    expect(app).toContain("/admin/inventory/csv-import");
+    expect(app).toContain("/admin/inventory/reset");
+    expect(app).toContain("apiTextFetch");
+    expect(styles).toContain(".data-actions");
+    expect(styles).toContain(".danger-action");
+  });
 });

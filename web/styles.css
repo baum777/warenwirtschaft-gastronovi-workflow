@@ -333,6 +333,34 @@ select {
   gap: 10px;
 }
 
+.data-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.data-actions input[type="file"] {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 7px 9px;
+}
+
+.inline-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.danger-action {
+  border-color: #e0b7af;
+  color: var(--danger);
+}
+
 .form-panel {
   align-content: start;
   display: grid;

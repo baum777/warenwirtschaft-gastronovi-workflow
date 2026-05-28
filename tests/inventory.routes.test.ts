@@ -4,6 +4,7 @@ import { buildApp } from "../src/app.js";
 import type { Actor } from "../src/modules/auth/actor.js";
 import type { CorrectionServicePort } from "../src/modules/inventory/correction.service.js";
 import type { GoodsReceiptServicePort } from "../src/modules/inventory/goods-receipt.service.js";
+import type { InventoryCsvServicePort } from "../src/modules/inventory/inventory-csv.service.js";
 import type { InventoryItemServicePort } from "../src/modules/inventory/inventory-item.service.js";
 import type { InventoryMasterDataServicePort } from "../src/modules/inventory/inventory-master-data.service.js";
 import type { InventoryReadServicePort } from "../src/modules/inventory/inventory-read.service.js";
@@ -1472,6 +1473,131 @@ describe("inventory API routes", () => {
     }
   });
 
+  it("lets admins export, import, and reset inventory CSV data", async () => {
+    const calls: Array<{ csv: string; reset?: boolean; actorUserId: string } | "reset"> = [];
+    const app = buildApp({
+      inventory: fakeInventoryServices({
+        inventoryCsvService: {
+          async exportCsv() {
+            return "name,sku,category,defaultUnit,minStock,storageLocationName,currentStock\nTomaten,TOM,food,kg,1,Kueche,3";
+          },
+          async importCsv(input) {
+            calls.push(input);
+
+            return {
+              importedItems: 1,
+              importedMovements: 1,
+              reset: input.reset ?? false
+            };
+          },
+          async reset() {
+            calls.push("reset");
+
+            return {
+              deletedWorkflowTasks: 1,
+              deletedWorkflowEvents: 1,
+              deletedCorrectionRequests: 1,
+              deletedStockSnapshots: 1,
+              deletedMovements: 1,
+              deletedReceiptItems: 1,
+              deletedReceipts: 1,
+              deletedOrderItems: 1,
+              deletedOrders: 1,
+              deletedItems: 1,
+              deletedSuppliers: 1,
+              deletedStorageLocations: 1
+            };
+          }
+        }
+      })
+    });
+
+    try {
+      await app.ready();
+
+      const exportResponse = await app.inject({
+        method: "GET",
+        url: "/admin/inventory/csv",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+      const importResponse = await app.inject({
+        method: "POST",
+        url: "/admin/inventory/csv-import",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        },
+        payload: {
+          csv: "name,sku,category,defaultUnit,minStock,storageLocationName,currentStock\nTomaten,TOM,food,kg,1,Kueche,3",
+          reset: true
+        }
+      });
+      const resetResponse = await app.inject({
+        method: "POST",
+        url: "/admin/inventory/reset",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        },
+        payload: {}
+      });
+
+      expect(exportResponse.statusCode).toBe(200);
+      expect(exportResponse.headers["content-type"]).toContain("text/csv");
+      expect(exportResponse.body).toContain("Tomaten,TOM,food,kg,1,Kueche,3");
+      expect(importResponse.statusCode).toBe(200);
+      expect(importResponse.json()).toEqual({
+        importedItems: 1,
+        importedMovements: 1,
+        reset: true
+      });
+      expect(resetResponse.statusCode).toBe(200);
+      expect(resetResponse.json()).toMatchObject({
+        deletedItems: 1,
+        deletedStorageLocations: 1
+      });
+      expect(calls).toEqual([
+        {
+          csv: "name,sku,category,defaultUnit,minStock,storageLocationName,currentStock\nTomaten,TOM,food,kg,1,Kueche,3",
+          reset: true,
+          actorUserId: "admin-1"
+        },
+        "reset"
+      ]);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("prevents non-admin roles from CSV and reset endpoints", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+
+      for (const route of ["/admin/inventory/csv", "/admin/inventory/csv-import", "/admin/inventory/reset"]) {
+        const response = await app.inject({
+          method: route === "/admin/inventory/csv" ? "GET" : "POST",
+          url: route,
+          headers: {
+            "x-actor-id": "staff-1",
+            "x-actor-role": "staff"
+          },
+          payload: route === "/admin/inventory/csv-import" ? { csv: "name" } : {}
+        });
+
+        expect(response.statusCode).toBe(403);
+      }
+    } finally {
+      await app.close();
+    }
+  });
+
   it("returns operational master data for workflow controls", async () => {
     const app = buildApp({
       inventory: fakeInventoryServices()
@@ -1506,6 +1632,7 @@ function fakeInventoryServices(
     withdrawalService: WithdrawalServicePort;
     correctionService: CorrectionServicePort;
     reviewTaskService: ReviewTaskServicePort;
+    inventoryCsvService: InventoryCsvServicePort;
   }> = {}
 ) {
   return {
@@ -1606,6 +1733,34 @@ function fakeInventoryServices(
         };
       }
     } as ReviewTaskServicePort,
+    inventoryCsvService: overrides.inventoryCsvService ?? {
+      async exportCsv() {
+        return "name,sku,category,defaultUnit,minStock,storageLocationName,currentStock\n";
+      },
+      async importCsv() {
+        return {
+          importedItems: 0,
+          importedMovements: 0,
+          reset: false
+        };
+      },
+      async reset() {
+        return {
+          deletedWorkflowTasks: 0,
+          deletedWorkflowEvents: 0,
+          deletedCorrectionRequests: 0,
+          deletedStockSnapshots: 0,
+          deletedMovements: 0,
+          deletedReceiptItems: 0,
+          deletedReceipts: 0,
+          deletedOrderItems: 0,
+          deletedOrders: 0,
+          deletedItems: 0,
+          deletedSuppliers: 0,
+          deletedStorageLocations: 0
+        };
+      }
+    } as InventoryCsvServicePort,
     inventoryReadService: overrides.inventoryReadService ?? {
       async listStock() {
         return [

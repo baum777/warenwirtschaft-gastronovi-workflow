@@ -15,6 +15,10 @@ import {
   type GoodsReceiptDatabaseClient
 } from "./modules/inventory/goods-receipt.service.js";
 import {
+  InventoryCsvService,
+  type InventoryCsvDatabaseClient
+} from "./modules/inventory/inventory-csv.service.js";
+import {
   InventoryItemService,
   type InventoryItemDatabaseClient
 } from "./modules/inventory/inventory-item.service.js";
@@ -188,6 +192,10 @@ function buildInventoryDependencies(options: AppOptions): InventoryRouteDependen
     reviewTaskService: new ReviewTaskService({
       db: prisma as unknown as ReviewTaskDatabaseClient
     }),
-    inventoryReadService
+    inventoryReadService,
+    inventoryCsvService: new InventoryCsvService({
+      db: prisma as unknown as InventoryCsvDatabaseClient,
+      now: options.now
+    })
   };
 }

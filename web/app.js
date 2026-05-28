@@ -164,7 +164,9 @@ function cacheRefs() {
     workspaceContext: document.querySelector("#workspace-context"),
     workspaceTabs: document.querySelector("#workspace-tabs"),
     workspaceBody: document.querySelector("#workspace-body"),
-    quickBookingResult: document.querySelector("#quick-booking-result")
+    quickBookingResult: document.querySelector("#quick-booking-result"),
+    csvImportFile: document.querySelector("#csv-import-file"),
+    csvImportReset: document.querySelector("#csv-import-reset")
   };
 }
 
@@ -536,6 +538,29 @@ async function apiFetch(path, options = {}) {
   return payload;
 }
 
+async function apiTextFetch(path, options = {}) {
+  const { includeActor = true, ...fetchOptions } = options;
+  const response = await fetch(`${WarenwirtschaftApp.state.apiBase}${path}`, {
+    ...fetchOptions,
+    headers: {
+      ...(includeActor
+        ? {
+            "x-actor-id": WarenwirtschaftApp.state.actorId,
+            "x-actor-role": WarenwirtschaftApp.state.actorRole
+          }
+        : {}),
+      ...(fetchOptions.headers || {})
+    }
+  });
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(text || `HTTP ${response.status}`);
+  }
+
+  return text;
+}
+
 async function refreshDashboard() {
   const results = await Promise.allSettled([
     loadMasterData(),
@@ -572,9 +597,73 @@ async function runAction(action) {
     if (action === "load-review-tasks") {
       await loadReviewTasks();
     }
+    if (action === "export-csv") {
+      await exportInventoryCsv();
+    }
+    if (action === "import-csv") {
+      await importInventoryCsv();
+    }
+    if (action === "reset-inventory") {
+      await resetInventoryData();
+    }
   } catch (error) {
     showToast(error.message, true);
   }
+}
+
+async function exportInventoryCsv() {
+  const csv = await apiTextFetch("/admin/inventory/csv");
+  const blob = new Blob([csv], {
+    type: "text/csv;charset=utf-8"
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "warenwirtschaft.csv";
+  link.click();
+  URL.revokeObjectURL(url);
+  showToast("CSV exportiert.");
+}
+
+async function importInventoryCsv() {
+  const file = WarenwirtschaftApp.refs.csvImportFile.files[0];
+
+  if (!file) {
+    showToast("CSV-Datei auswählen.", true);
+    return;
+  }
+
+  const reset = WarenwirtschaftApp.refs.csvImportReset.checked;
+
+  if (reset && !window.confirm("Alle bestehenden Warenwirtschaft-Einträge vor dem Import löschen?")) {
+    return;
+  }
+
+  const result = await apiFetch("/admin/inventory/csv-import", {
+    method: "POST",
+    body: JSON.stringify({
+      csv: await file.text(),
+      reset
+    })
+  });
+
+  WarenwirtschaftApp.refs.csvImportFile.value = "";
+  WarenwirtschaftApp.refs.csvImportReset.checked = false;
+  showToast(`CSV importiert: ${result.importedItems} Artikel.`);
+  await refreshDashboard();
+}
+
+async function resetInventoryData() {
+  if (!window.confirm("Alle Warenwirtschaft-Einträge löschen?")) {
+    return;
+  }
+
+  await apiFetch("/admin/inventory/reset", {
+    method: "POST",
+    body: JSON.stringify({})
+  });
+  showToast("Alle Einträge gelöscht.");
+  await refreshDashboard();
 }
 
 async function loadMasterData() {
