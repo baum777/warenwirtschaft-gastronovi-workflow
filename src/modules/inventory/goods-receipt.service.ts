@@ -5,6 +5,7 @@ import type {
   GoodsReceiptReadDto
 } from "./inventory.schemas.js";
 import { InventoryNotFoundError } from "./errors.js";
+import type { InventoryMovementRecord } from "./inventory-movement.types.js";
 import { InventoryStockService } from "./inventory-stock.service.js";
 
 type PurchaseOrderStatus = "draft" | "ordered" | "partially_received" | "received" | "cancelled";
@@ -103,7 +104,7 @@ type ReceiptTransactionClient = {
         note?: string;
       };
     }): Promise<{ id: string }>;
-    findMany(args: unknown): Promise<Array<{ type: "goods_received" | "item_removed" | "correction_positive" | "correction_negative"; quantity: number; createdAt?: Date }>>;
+    findMany(args: unknown): Promise<InventoryMovementRecord[]>;
   };
   inventoryStockSnapshot: {
     upsert(args: unknown): Promise<unknown>;

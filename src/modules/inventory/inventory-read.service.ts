@@ -3,6 +3,7 @@ import type {
   InventoryMovementRow,
   ReviewTaskRow
 } from "./inventory.schemas.js";
+import type { InventoryMovementType } from "./inventory-movement.types.js";
 import { signedQuantity } from "./inventory-stock.service.js";
 
 type InventoryItemWithReadRelations = {
@@ -15,7 +16,7 @@ type InventoryItemWithReadRelations = {
     name: string;
   } | null;
   movements: Array<{
-    type: "goods_received" | "item_removed" | "correction_positive" | "correction_negative";
+    type: InventoryMovementType;
     quantity: number;
     unit: string;
     createdAt: Date;

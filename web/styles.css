@@ -1,16 +1,54 @@
 :root {
   color-scheme: light;
-  --bg: #f5f6f2;
-  --surface: #ffffff;
-  --surface-2: #eef2ec;
-  --text: #20251f;
-  --muted: #687066;
-  --border: #d8ded4;
-  --accent: #1d6b4f;
-  --accent-strong: #15543e;
-  --danger: #a63d32;
-  --warning: #a56b1f;
-  --shadow: 0 18px 45px rgba(31, 45, 35, 0.12);
+  --color-neutral: #687066;
+  --color-neutral-strong: #4d564d;
+  --color-ok: #1d6b4f;
+  --color-ok-strong: #15543e;
+  --color-info: #1f5b8f;
+  --color-info-strong: #194a74;
+  --color-warning: #a56b1f;
+  --color-warning-strong: #845619;
+  --color-danger: #a63d32;
+  --color-danger-strong: #7f2f27;
+
+  --color-bg-canvas: #f5f6f2;
+  --color-bg-surface: #ffffff;
+  --color-bg-surface-muted: #eef2ec;
+  --color-bg-input: #fbfcfa;
+  --color-text-primary: #20251f;
+  --color-border-default: #d8ded4;
+
+  --token-space-2: 8px;
+  --token-space-3: 12px;
+  --token-space-4: 16px;
+  --token-space-6: 24px;
+  --token-radius-sm: 6px;
+  --token-radius-md: 8px;
+  --token-radius-full: 999px;
+  --token-shadow-panel: 0 18px 45px rgba(31, 45, 35, 0.12);
+
+  --token-badge-neutral-bg: #edf0eb;
+  --token-badge-neutral-border: #cfd5cb;
+  --token-badge-ok-bg: #d9efe1;
+  --token-badge-ok-border: #b7dcc8;
+  --token-badge-info-bg: #deebf7;
+  --token-badge-info-border: #bcd5eb;
+  --token-badge-warning-bg: #f8ead4;
+  --token-badge-warning-border: #e8c88e;
+  --token-badge-danger-bg: #f7dedb;
+  --token-badge-danger-border: #e9bbb4;
+
+  --bg: var(--color-bg-canvas);
+  --surface: var(--color-bg-surface);
+  --surface-2: var(--color-bg-surface-muted);
+  --text: var(--color-text-primary);
+  --muted: var(--color-neutral);
+  --border: var(--color-border-default);
+  --accent: var(--color-ok);
+  --accent-strong: var(--color-ok-strong);
+  --danger: var(--color-danger);
+  --warning: var(--color-warning);
+  --shadow: var(--token-shadow-panel);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -184,7 +222,7 @@ select {
   min-height: 36px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #fbfcfa;
+  background: var(--color-bg-input);
   color: var(--text);
   padding: 0 10px;
   font-size: 13px;
@@ -210,6 +248,9 @@ select {
   gap: 7px;
   padding: 16px;
   text-align: left;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .status-card span {
@@ -228,6 +269,27 @@ select {
   color: var(--accent-strong);
   font-size: 12px;
   font-weight: 800;
+}
+
+.status-card--tone-neutral {
+  border-color: var(--token-badge-neutral-border);
+}
+
+.status-card--tone-ok {
+  border-color: var(--token-badge-ok-border);
+}
+
+.status-card--tone-info {
+  border-color: var(--token-badge-info-border);
+}
+
+.status-card--tone-warning {
+  border-color: var(--token-badge-warning-border);
+}
+
+.status-card--tone-danger {
+  border-color: var(--token-badge-danger-border);
+  box-shadow: 0 18px 45px rgba(166, 61, 50, 0.17);
 }
 
 .status-card.is-clickable {
@@ -388,22 +450,46 @@ th {
   display: inline-flex;
   min-height: 24px;
   align-items: center;
-  border-radius: 999px;
-  background: var(--surface-2);
-  color: var(--accent-strong);
+  gap: 6px;
+  border: 1px solid var(--token-badge-neutral-border);
+  border-radius: var(--token-radius-full);
+  background: var(--token-badge-neutral-bg);
+  color: var(--color-neutral-strong);
   padding: 0 8px;
   font-size: 12px;
   font-weight: 800;
 }
 
-.badge.is-danger {
-  background: #f7dedb;
-  color: var(--danger);
+.badge-icon {
+  display: inline-grid;
+  width: 12px;
+  place-items: center;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.badge.is-ok {
+  border-color: var(--token-badge-ok-border);
+  background: var(--token-badge-ok-bg);
+  color: var(--color-ok-strong);
+}
+
+.badge.is-info {
+  border-color: var(--token-badge-info-border);
+  background: var(--token-badge-info-bg);
+  color: var(--color-info-strong);
 }
 
 .badge.is-warning {
-  background: #f8ead4;
-  color: var(--warning);
+  border-color: var(--token-badge-warning-border);
+  background: var(--token-badge-warning-bg);
+  color: var(--color-warning-strong);
+}
+
+.badge.is-danger {
+  border-color: var(--token-badge-danger-border);
+  background: var(--token-badge-danger-bg);
+  color: var(--color-danger-strong);
 }
 
 .row-actions {
@@ -610,7 +696,7 @@ th {
   font-weight: 800;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1023px) {
   .app-shell {
     grid-template-columns: 1fr;
   }
@@ -639,7 +725,7 @@ th {
   }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 479px) {
   .main-panel,
   .sidebar {
     padding: 16px;

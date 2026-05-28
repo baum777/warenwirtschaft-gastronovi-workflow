@@ -3,23 +3,12 @@ import type {
   InventoryItemReadDto,
   UpdateInventoryItemInput
 } from "./inventory.schemas.js";
+import {
+  inventoryItemReadInclude,
+  mapInventoryItemRead,
+  type InventoryItemReadRecord
+} from "./inventory-item.read-model.js";
 import { InventoryNotFoundError } from "./errors.js";
-
-type InventoryItemRecord = {
-  id: string;
-  name: string;
-  sku: string | null;
-  category: string | null;
-  defaultUnit: string;
-  minStock: number | null;
-  storageLocationId: string | null;
-  storageLocation?: {
-    name: string;
-  } | null;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-};
 
 export type InventoryItemDatabaseClient = {
   inventoryItem: {
@@ -33,19 +22,19 @@ export type InventoryItemDatabaseClient = {
         storageLocationId?: string;
       };
       include: typeof inventoryItemReadInclude;
-    }): Promise<InventoryItemRecord>;
+    }): Promise<InventoryItemReadRecord>;
     findMany(args: {
       include: typeof inventoryItemReadInclude;
       orderBy: {
         name: "asc";
       };
-    }): Promise<InventoryItemRecord[]>;
+    }): Promise<InventoryItemReadRecord[]>;
     findUnique(args: {
       where: {
         id: string;
       };
       include: typeof inventoryItemReadInclude;
-    }): Promise<InventoryItemRecord | null>;
+    }): Promise<InventoryItemReadRecord | null>;
     update(args: {
       where: {
         id: string;
@@ -60,7 +49,7 @@ export type InventoryItemDatabaseClient = {
         isActive: boolean;
       }>;
       include: typeof inventoryItemReadInclude;
-    }): Promise<InventoryItemRecord>;
+    }): Promise<InventoryItemReadRecord>;
   };
 };
 
@@ -88,7 +77,7 @@ export class InventoryItemService implements InventoryItemServicePort {
       include: inventoryItemReadInclude
     });
 
-    return mapInventoryItem(item);
+    return mapInventoryItemRead(item);
   }
 
   public async list(): Promise<InventoryItemReadDto[]> {
@@ -99,7 +88,7 @@ export class InventoryItemService implements InventoryItemServicePort {
       }
     });
 
-    return items.map(mapInventoryItem);
+    return items.map(mapInventoryItemRead);
   }
 
   public async get(id: string): Promise<InventoryItemReadDto> {
@@ -114,7 +103,7 @@ export class InventoryItemService implements InventoryItemServicePort {
       throw new InventoryNotFoundError("inventory item not found");
     }
 
-    return mapInventoryItem(item);
+    return mapInventoryItemRead(item);
   }
 
   public async update(
@@ -129,7 +118,7 @@ export class InventoryItemService implements InventoryItemServicePort {
       include: inventoryItemReadInclude
     });
 
-    return mapInventoryItem(item);
+    return mapInventoryItemRead(item);
   }
 
   public async deactivate(id: string): Promise<InventoryItemReadDto> {
@@ -143,30 +132,6 @@ export class InventoryItemService implements InventoryItemServicePort {
       include: inventoryItemReadInclude
     });
 
-    return mapInventoryItem(item);
+    return mapInventoryItemRead(item);
   }
-}
-
-const inventoryItemReadInclude = {
-  storageLocation: {
-    select: {
-      name: true
-    }
-  }
-};
-
-function mapInventoryItem(record: InventoryItemRecord): InventoryItemReadDto {
-  return {
-    inventoryItemId: record.id,
-    name: record.name,
-    sku: record.sku ?? undefined,
-    category: record.category ?? undefined,
-    defaultUnit: record.defaultUnit,
-    minStock: record.minStock ?? undefined,
-    storageLocationId: record.storageLocationId ?? undefined,
-    storageLocationName: record.storageLocation?.name,
-    isActive: record.isActive,
-    createdAt: record.createdAt.toISOString(),
-    updatedAt: record.updatedAt.toISOString()
-  };
 }

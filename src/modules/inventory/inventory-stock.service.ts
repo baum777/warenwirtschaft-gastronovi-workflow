@@ -1,14 +1,4 @@
-type MovementType =
-  | "goods_received"
-  | "item_removed"
-  | "correction_positive"
-  | "correction_negative";
-
-type StockMovementRecord = {
-  type: MovementType;
-  quantity: number;
-  createdAt?: Date;
-};
+import type { InventoryMovementRecord } from "./inventory-movement.types.js";
 
 export type InventoryStockDatabaseClient = {
   inventoryMovement: {
@@ -25,7 +15,7 @@ export type InventoryStockDatabaseClient = {
       orderBy?: {
         createdAt: "asc" | "desc";
       };
-    }): Promise<StockMovementRecord[]>;
+    }): Promise<InventoryMovementRecord[]>;
   };
   inventoryStockSnapshot: {
     upsert(args: {
@@ -117,7 +107,9 @@ export class InventoryStockService {
   }
 }
 
-export function signedQuantity(movement: Pick<StockMovementRecord, "type" | "quantity">): number {
+export function signedQuantity(
+  movement: Pick<InventoryMovementRecord, "type" | "quantity">
+): number {
   if (movement.type === "goods_received" || movement.type === "correction_positive") {
     return movement.quantity;
   }

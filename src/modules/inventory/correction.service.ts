@@ -6,6 +6,7 @@ import type {
   CreateCorrectionRequestInput
 } from "./inventory.schemas.js";
 import { InventoryConflictError, InventoryNotFoundError } from "./errors.js";
+import type { InventoryMovementRecord } from "./inventory-movement.types.js";
 import { InventoryStockService } from "./inventory-stock.service.js";
 
 type CorrectionStatus = "open" | "approved" | "rejected";
@@ -79,13 +80,7 @@ type CorrectionTransactionClient = {
         note: string;
       };
     }): Promise<{ id: string }>;
-    findMany(args: unknown): Promise<
-      Array<{
-        type: "goods_received" | "item_removed" | "correction_positive" | "correction_negative";
-        quantity: number;
-        createdAt?: Date;
-      }>
-    >;
+    findMany(args: unknown): Promise<InventoryMovementRecord[]>;
   };
   inventoryStockSnapshot: {
     upsert(args: unknown): Promise<unknown>;

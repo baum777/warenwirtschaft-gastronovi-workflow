@@ -67,6 +67,35 @@ const emptyStates = {
   reviewTasks: "Keine offenen Prüfaufgaben. Korrekturen und Auffälligkeiten erscheinen hier."
 };
 
+const stockStatusPresentation = {
+  unknown: { label: "Unbekannt", tone: "neutral", icon: "?" },
+  ok: { label: "OK", tone: "ok", icon: "✓" },
+  low: { label: "Niedrig", tone: "warning", icon: "⚠" },
+  negative: { label: "Negativ", tone: "danger", icon: "!" }
+};
+
+const reviewSeverityPresentation = {
+  low: { label: "Niedrig", tone: "info", icon: "i" },
+  medium: { label: "Mittel", tone: "warning", icon: "⚠" },
+  high: { label: "Hoch", tone: "danger", icon: "!" }
+};
+
+const reviewStatusPresentation = {
+  open: { label: "Offen", tone: "warning", icon: "◔" },
+  in_review: { label: "In Prüfung", tone: "info", icon: "◑" },
+  resolved: { label: "Gelöst", tone: "ok", icon: "✓" },
+  dismissed: { label: "Verworfen", tone: "neutral", icon: "–" }
+};
+
+const purchaseOrderStatusPresentation = {
+  draft: { label: "Entwurf", tone: "neutral", icon: "•" },
+  ordered: { label: "Bestellt", tone: "info", icon: "↗" },
+  partially_received: { label: "Teillieferung", tone: "warning", icon: "◑" },
+  received: { label: "Geliefert", tone: "ok", icon: "✓" },
+  cancelled: { label: "Storniert", tone: "neutral", icon: "×" },
+  closed_with_difference: { label: "Abgeschlossen (Diff.)", tone: "warning", icon: "!" }
+};
+
 const workspaces = {
   items: {
     title: "Artikel",
@@ -156,6 +185,9 @@ function cacheRefs() {
     apiBase: document.querySelector("#api-base"),
     actorId: document.querySelector("#actor-id"),
     actorRole: document.querySelector("#actor-role"),
+    metricItemsCard: document.querySelector("#metric-items-card"),
+    metricAlertsCard: document.querySelector("#metric-alerts-card"),
+    metricTasksCard: document.querySelector("#metric-tasks-card"),
     withdrawalStockHint: document.querySelector("#withdrawal-stock-hint"),
     quickBookingStockHint: document.querySelector("#quick-booking-stock-hint"),
     overlay: document.querySelector("#workspace-overlay"),
@@ -719,8 +751,9 @@ function renderItems() {
     item.category || "-",
     item.defaultUnit,
     item.minStock ?? "-",
-    statusBadge(item.isActive ? "aktiv" : "inaktiv", item.isActive ? "" : "is-warning")
+    inventoryItemActivityBadge(item.isActive)
   ], emptyStates.items);
+  updateMetricCardTones();
 }
 
 async function loadStock() {
@@ -739,6 +772,7 @@ function renderStockViews() {
   document.querySelector("#metric-alerts").textContent = criticalRows.length;
   renderStockTable("#stock-table", stockRows, emptyStates.stock);
   renderStockTable("#critical-stock-table", criticalRows, emptyStates.criticalStock);
+  updateMetricCardTones();
 }
 
 function renderStockTable(selector, rows, emptyMessage) {
@@ -747,7 +781,7 @@ function renderStockTable(selector, rows, emptyMessage) {
     item.category || "-",
     item.currentStock,
     item.unit,
-    statusBadge(item.status, item.status === "negative" ? "is-danger" : item.status === "low" ? "is-warning" : ""),
+    stockStatusBadge(item.status),
     item.lastMovementAt || "-"
   ], emptyMessage);
 }
@@ -765,7 +799,7 @@ async function loadPurchaseOrders() {
 function renderPurchaseOrders() {
   renderTable("#purchase-orders-table", columns.orders, getOpenPurchaseOrders(), (order) => [
     order.purchaseOrderId,
-    statusBadge(order.status),
+    purchaseOrderStatusBadge(order.status),
     order.supplierName || order.supplierId || "-",
     order.items.map((item) => `${item.inventoryItemName || item.inventoryItemId}: ${item.pendingQty} ${item.unit}`).join(", ")
   ], emptyStates.purchaseOrders);
@@ -791,14 +825,15 @@ async function loadReviewTasks() {
   document.querySelector("#metric-tasks").textContent = payload.tasks.length;
   renderReviewTasks("#review-tasks-table", payload.tasks);
   renderReviewTasks("#dashboard-review-table", payload.tasks.slice(0, 5));
+  updateMetricCardTones();
   renderActiveWorkspaceContext();
 }
 
 function renderReviewTasks(selector, tasks) {
   renderTable(selector, columns.tasks, tasks, (task) => [
     task.type,
-    statusBadge(task.status, task.status === "open" ? "is-warning" : ""),
-    task.severity,
+    reviewTaskStatusBadge(task.status),
+    reviewSeverityBadge(task.severity),
     task.title,
     actionButtons(task.id)
   ], emptyStates.reviewTasks);
@@ -939,14 +974,6 @@ async function postJson(path, body, successMessage) {
   showToast(successMessage);
 }
 
-function refreshStockIfAllowed() {
-  if (!canOpenWorkspace("stock")) {
-    return Promise.resolve();
-  }
-
-  return loadMasterData();
-}
-
 function refreshReviewTasksIfAllowed() {
   if (!canOpenWorkspace("review-tasks")) {
     return Promise.resolve();
@@ -965,6 +992,59 @@ function getOpenPurchaseOrders() {
   return WarenwirtschaftApp.state.masterData.purchaseOrders.filter(
     (order) => !["delivered", "complete", "completed", "cancelled", "canceled"].includes(String(order.status).toLowerCase())
   );
+}
+
+function updateMetricCardTones() {
+  const criticalRows = getCriticalStockRows();
+  const hasNegativeStock = criticalRows.some((row) => row.status === "negative");
+  const highestSeverity = getHighestReviewSeverity();
+
+  setCardTone(WarenwirtschaftApp.refs.metricItemsCard, "info");
+  setCardTone(
+    WarenwirtschaftApp.refs.metricAlertsCard,
+    hasNegativeStock ? "danger" : criticalRows.length > 0 ? "warning" : "ok"
+  );
+  setCardTone(
+    WarenwirtschaftApp.refs.metricTasksCard,
+    highestSeverity === "high"
+      ? "danger"
+      : highestSeverity === "medium"
+        ? "warning"
+        : highestSeverity === "low"
+          ? "info"
+          : "ok"
+  );
+}
+
+function setCardTone(card, tone) {
+  if (!card) {
+    return;
+  }
+
+  card.classList.remove(
+    "status-card--tone-neutral",
+    "status-card--tone-ok",
+    "status-card--tone-info",
+    "status-card--tone-warning",
+    "status-card--tone-danger"
+  );
+  card.classList.add(`status-card--tone-${tone}`);
+}
+
+function getHighestReviewSeverity() {
+  const tasks = WarenwirtschaftApp.state.masterData.reviewTasks;
+
+  if (tasks.some((task) => String(task.severity).toLowerCase() === "high")) {
+    return "high";
+  }
+  if (tasks.some((task) => String(task.severity).toLowerCase() === "medium")) {
+    return "medium";
+  }
+  if (tasks.some((task) => String(task.severity).toLowerCase() === "low")) {
+    return "low";
+  }
+
+  return null;
 }
 
 function renderActiveWorkspaceContext() {
@@ -1072,8 +1152,74 @@ async function submitTaskAction(id, action) {
   }
 }
 
-function statusBadge(label, className = "") {
-  return `<span class="badge ${className}">${escapeHtml(String(label))}</span>`;
+function semanticBadge(input) {
+  const label = escapeHtml(String(input.label));
+  const icon = escapeHtml(input.icon || "•");
+  const tone = escapeHtml(input.tone || "neutral");
+  const ariaLabel = input.ariaLabel ? ` aria-label="${escapeHtml(input.ariaLabel)}"` : "";
+
+  return `<span class="badge is-${tone}"${ariaLabel}><span class="badge-icon" aria-hidden="true">${icon}</span><span class="badge-label">${label}</span></span>`;
+}
+
+function stockStatusBadge(rawStatus) {
+  const status = String(rawStatus || "unknown").toLowerCase();
+  const presentation = stockStatusPresentation[status] ?? stockStatusPresentation.unknown;
+
+  return semanticBadge({
+    label: presentation.label,
+    tone: presentation.tone,
+    icon: presentation.icon,
+    ariaLabel: `Bestandsstatus: ${presentation.label}`
+  });
+}
+
+function reviewSeverityBadge(rawSeverity) {
+  const severity = String(rawSeverity || "low").toLowerCase();
+  const presentation = reviewSeverityPresentation[severity] ?? reviewSeverityPresentation.low;
+
+  return semanticBadge({
+    label: presentation.label,
+    tone: presentation.tone,
+    icon: presentation.icon,
+    ariaLabel: `Review-Schwere: ${presentation.label}`
+  });
+}
+
+function reviewTaskStatusBadge(rawStatus) {
+  const status = String(rawStatus || "open").toLowerCase();
+  const presentation = reviewStatusPresentation[status] ?? reviewStatusPresentation.open;
+
+  return semanticBadge({
+    label: presentation.label,
+    tone: presentation.tone,
+    icon: presentation.icon,
+    ariaLabel: `Review-Status: ${presentation.label}`
+  });
+}
+
+function purchaseOrderStatusBadge(rawStatus) {
+  const status = String(rawStatus || "draft").toLowerCase();
+  const presentation = purchaseOrderStatusPresentation[status] ?? {
+    label: rawStatus,
+    tone: "neutral",
+    icon: "•"
+  };
+
+  return semanticBadge({
+    label: presentation.label,
+    tone: presentation.tone,
+    icon: presentation.icon,
+    ariaLabel: `Bestellstatus: ${presentation.label}`
+  });
+}
+
+function inventoryItemActivityBadge(isActive) {
+  return semanticBadge({
+    label: isActive ? "Aktiv" : "Inaktiv",
+    tone: isActive ? "ok" : "warning",
+    icon: isActive ? "✓" : "◔",
+    ariaLabel: `Artikelstatus: ${isActive ? "Aktiv" : "Inaktiv"}`
+  });
 }
 
 function showToast(message, isError = false) {

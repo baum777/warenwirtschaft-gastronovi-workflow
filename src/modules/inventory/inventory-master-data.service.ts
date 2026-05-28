@@ -3,6 +3,10 @@ import type {
   InventoryItemReadDto,
   PurchaseOrderReadDto
 } from "./inventory.schemas.js";
+import {
+  mapInventoryItemRead,
+  type InventoryItemReadRecord
+} from "./inventory-item.read-model.js";
 import type { InventoryReadServicePort } from "./inventory-read.service.js";
 
 export type SupplierReadDto = {
@@ -43,22 +47,6 @@ type StorageLocationRecord = {
   isActive: boolean;
 };
 
-type InventoryItemRecord = {
-  id: string;
-  name: string;
-  sku: string | null;
-  category: string | null;
-  defaultUnit: string;
-  minStock: number | null;
-  storageLocationId: string | null;
-  storageLocation?: {
-    name: string;
-  } | null;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
 type PurchaseOrderRecord = {
   id: string;
   status: PurchaseOrderReadDto["status"];
@@ -92,7 +80,7 @@ export type InventoryMasterDataDatabaseClient = {
     findMany(args: unknown): Promise<StorageLocationRecord[]>;
   };
   inventoryItem: {
-    findMany(args: unknown): Promise<InventoryItemRecord[]>;
+    findMany(args: unknown): Promise<InventoryItemReadRecord[]>;
   };
   purchaseOrder: {
     findMany(args: unknown): Promise<PurchaseOrderRecord[]>;
@@ -179,7 +167,7 @@ export class InventoryMasterDataService implements InventoryMasterDataServicePor
     return {
       suppliers: suppliers.map(mapSupplier),
       storageLocations: storageLocations.map(mapStorageLocation),
-      items: items.map(mapInventoryItem),
+      items: items.map(mapInventoryItemRead),
       stock,
       openPurchaseOrders: openPurchaseOrders.map(mapPurchaseOrder)
     };
@@ -202,22 +190,6 @@ function mapStorageLocation(record: StorageLocationRecord): StorageLocationReadD
     name: record.name,
     type: record.type ?? undefined,
     isActive: record.isActive
-  };
-}
-
-function mapInventoryItem(record: InventoryItemRecord): InventoryItemReadDto {
-  return {
-    inventoryItemId: record.id,
-    name: record.name,
-    sku: record.sku ?? undefined,
-    category: record.category ?? undefined,
-    defaultUnit: record.defaultUnit,
-    minStock: record.minStock ?? undefined,
-    storageLocationId: record.storageLocationId ?? undefined,
-    storageLocationName: record.storageLocation?.name,
-    isActive: record.isActive,
-    createdAt: record.createdAt.toISOString(),
-    updatedAt: record.updatedAt.toISOString()
   };
 }
 

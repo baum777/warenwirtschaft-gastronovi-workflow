@@ -59,12 +59,13 @@
         <section class="dev-panel" id="dev-panel" hidden></section>
 
         <section class="status-strip" aria-live="polite">
-          <div class="status-card">
+          <div class="status-card status-card--tone-info" id="metric-items-card">
             <span>Artikel</span>
             <strong id="metric-items">-</strong>
           </div>
           <button
-            class="status-card is-clickable"
+            class="status-card status-card--tone-neutral is-clickable"
+            id="metric-alerts-card"
             type="button"
             data-workspace="stock"
             data-workspace-tab="critical"
@@ -74,13 +75,13 @@
             <strong id="metric-alerts">-</strong>
             <small>Anzeigen</small>
           </button>
-          <div class="status-card">
+          <div class="status-card status-card--tone-neutral" id="metric-tasks-card">
             <span>Prüfungen offen</span>
             <strong id="metric-tasks">-</strong>
           </div>
         </section>
 
-        <section class="toast" id="toast" hidden></section>
+        <section class="toast" id="toast" role="status" aria-live="polite" hidden></section>
 
         <section class="view is-active" id="view-dashboard" data-title="Übersicht">
           <article class="panel dashboard-workspaces">
