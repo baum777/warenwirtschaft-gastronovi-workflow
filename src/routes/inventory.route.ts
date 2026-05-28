@@ -10,11 +10,13 @@ import {
   createCorrectionRequestSchema,
   createGoodsReceiptSchema,
   createInventoryItemSchema,
+  importInventoryCsvSchema,
   createPurchaseOrderSchema,
   createWithdrawalSchema,
   updateInventoryItemSchema
 } from "../modules/inventory/inventory.schemas.js";
 import type { CorrectionServicePort } from "../modules/inventory/correction.service.js";
+import type { InventoryCsvServicePort } from "../modules/inventory/inventory-csv.service.js";
 import type { GoodsReceiptServicePort } from "../modules/inventory/goods-receipt.service.js";
 import type { InventoryItemServicePort } from "../modules/inventory/inventory-item.service.js";
 import type { InventoryMasterDataServicePort } from "../modules/inventory/inventory-master-data.service.js";
@@ -32,6 +34,7 @@ export type InventoryRouteDependencies = {
   correctionService: CorrectionServicePort;
   reviewTaskService: ReviewTaskServicePort;
   inventoryReadService: InventoryReadServicePort;
+  inventoryCsvService: InventoryCsvServicePort;
 };
 
 const adminOnlyRoles = ["admin"] as const satisfies readonly Role[];
@@ -74,6 +77,50 @@ export async function inventoryRoute(
     return {
       movements: await dependencies.inventoryReadService.listMovements()
     };
+  });
+
+  app.get("/admin/inventory/csv", async (request, reply) => {
+    const actor = authenticate(request, reply, adminOnlyRoles);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const csv = await dependencies.inventoryCsvService.exportCsv();
+
+    return reply
+      .header("content-type", "text/csv; charset=utf-8")
+      .header("content-disposition", 'attachment; filename="warenwirtschaft.csv"')
+      .send(csv);
+  });
+
+  app.post("/admin/inventory/csv-import", async (request, reply) => {
+    const actor = authenticate(request, reply, adminOnlyRoles);
+
+    if (!actor) {
+      return reply;
+    }
+
+    const input = parseBody(importInventoryCsvSchema.safeParse(request.body), reply);
+
+    if (!input) {
+      return reply;
+    }
+
+    return dependencies.inventoryCsvService.importCsv({
+      ...input,
+      actorUserId: actor.userId
+    });
+  });
+
+  app.post("/admin/inventory/reset", async (request, reply) => {
+    const actor = authenticate(request, reply, adminOnlyRoles);
+
+    if (!actor) {
+      return reply;
+    }
+
+    return dependencies.inventoryCsvService.reset();
   });
 
   app.get("/admin/review-tasks", async (request, reply) => {
