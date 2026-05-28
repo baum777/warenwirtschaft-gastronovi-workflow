@@ -97,4 +97,88 @@ describe("Warenwirtschaft web shell", () => {
       expect(app).toContain(endpoint);
     }
   });
+
+  it("defines the workspace overlay shell and workspace entry points", () => {
+    const html = readWebFile("index.html");
+    const styles = readWebFile("styles.css");
+
+    for (const selector of ["workspace-overlay", "workspace-backdrop", "workspace-panel"]) {
+      expect(html).toContain(selector);
+      expect(styles).toContain(`.${selector}`);
+    }
+
+    for (const workspace of [
+      "items",
+      "stock",
+      "purchase-orders",
+      "goods-receipts",
+      "withdrawals",
+      "quick-booking",
+      "corrections",
+      "review-tasks"
+    ]) {
+      expect(html).toContain(`data-workspace="${workspace}"`);
+    }
+  });
+
+  it("exposes workspace state helpers and keeps role-gated workspace access explicit", () => {
+    const app = readWebFile("app.js");
+
+    for (const stateKey of ["activeWorkspace", "activeWorkspaceTab", "activeWorkspaceFilter"]) {
+      expect(app).toContain(stateKey);
+    }
+
+    for (const helper of ["openWorkspace", "closeWorkspace", "setWorkspaceTab", "setWorkspaceFilter"]) {
+      expect(app).toContain(`function ${helper}`);
+    }
+
+    expect(app).toContain("getCriticalStockRows");
+    expect(app).toContain('roles: ["admin"]');
+    expect(app).toContain('roles: ["admin", "shift_lead", "staff"]');
+    expect(app).toContain('roles: ["admin", "shift_lead"]');
+    expect(app).toContain("canOpenWorkspace");
+  });
+
+  it("defines guided dashboard workspace cards and critical-stock KPI drilldown", () => {
+    const html = readWebFile("index.html");
+    const styles = readWebFile("styles.css");
+
+    expect(html).toContain("workspace-card-grid");
+    expect(html).toContain("Bestand prüfen");
+    expect(html).toContain("Kritische Bestände");
+    expect(html).toContain('data-workspace-tab="critical"');
+    expect(html).toContain('data-workspace-filter="critical"');
+    expect(html).toContain("Touch-optimierte Sofortbuchung");
+    expect(styles).toContain(".workspace-card-grid");
+    expect(styles).toContain(".status-card.is-clickable");
+  });
+
+  it("keeps staff workspace access restricted while allowing stock, quick booking, and corrections", () => {
+    const html = readWebFile("index.html");
+    const app = readWebFile("app.js");
+
+    expect(html).toContain('data-workspace="quick-booking"');
+    expect(app).toContain('stock: {\n    title: "Bestand",\n    roles: ["admin", "shift_lead", "staff"]');
+    expect(app).toContain('"quick-booking": {\n    title: "Schnellbuchen",\n    roles: ["admin", "shift_lead", "staff"]');
+    expect(app).toContain('"goods-receipts": {\n    title: "Wareneingang",\n    roles: ["admin", "shift_lead"]');
+    expect(app).toContain('"purchase-orders": {\n    title: "Bestellungen",\n    roles: ["admin", "shift_lead"]');
+    expect(app).toContain('"review-tasks": {\n    title: "Prüfung",\n    roles: ["admin"]');
+  });
+
+  it("defines guided workspace context, critical empty states, and quick-booking reason chips", () => {
+    const html = readWebFile("index.html");
+    const app = readWebFile("app.js");
+    const styles = readWebFile("styles.css");
+
+    expect(html).toContain("workspace-context");
+    expect(html).toContain("critical-stock-table");
+    expect(html).toContain("Keine kritischen Bestände. Alle Artikel liegen aktuell über Mindestbestand.");
+    expect(html).toContain('select name="reason"');
+    expect(html).toContain('data-reason-chip="Verbrauch Küche"');
+    expect(html).toContain("Zuletzt gebucht");
+    expect(app).toContain("bindReasonChips");
+    expect(app).toContain("lastQuickBooking");
+    expect(styles).toContain(".workspace-context");
+    expect(styles).toContain(".reason-chip");
+  });
 });

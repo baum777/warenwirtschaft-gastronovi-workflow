@@ -11,62 +11,25 @@ const WarenwirtschaftApp = {
         role: "admin"
       }
     },
-    masterData: emptyMasterData(),
-    reviewTasks: []
+    activeWorkspace: null,
+    activeWorkspaceTab: null,
+    activeWorkspaceFilter: null,
+    lastWorkspaceTrigger: null,
+    lastQuickBooking: null,
+    masterData: {
+      suppliers: [],
+      storageLocations: [],
+      items: [],
+      stock: [],
+      purchaseOrders: [],
+      openPurchaseOrders: [],
+      goodsReceipts: [],
+      reviewTasks: []
+    },
+    lastUpdatedAt: null
   },
   refs: {}
 };
-
-const columns = {
-  items: ["Name", "SKU", "Kategorie", "Einheit", "Mindestbestand", "Lagerort"],
-  stock: ["Artikel", "Kategorie", "Bestand", "Einheit", "Status", "Letzte Bewegung"],
-  orders: ["Status", "Lieferant", "Positionen"],
-  receipts: ["Bestellung", "Empfangen von", "Positionen"],
-  tasks: ["Typ", "Status", "Schwere", "Titel", "Aktion"]
-};
-
-const roleViews = {
-  admin: new Set([
-    "dashboard",
-    "items",
-    "stock",
-    "purchase-orders",
-    "goods-receipts",
-    "withdrawals",
-    "quick-booking",
-    "corrections",
-    "review-tasks"
-  ]),
-  shift_lead: new Set([
-    "dashboard",
-    "stock",
-    "purchase-orders",
-    "goods-receipts",
-    "withdrawals",
-    "quick-booking",
-    "corrections"
-  ]),
-  staff: new Set(["dashboard", "stock", "withdrawals", "quick-booking", "corrections"])
-};
-
-document.addEventListener("DOMContentLoaded", () => {
-  void boot();
-});
-
-async function boot() {
-  cacheRefs();
-  bindNavigation();
-  bindDevForm();
-  bindForms();
-  bindActions();
-  bindMasterDataEvents();
-
-  await loadAppContext();
-  applyAppContext();
-  syncDevForm();
-  applyRoleVisibility();
-  await refreshDashboard();
-}
 
 function defaultApiBase() {
   if (window.location.protocol === "file:") {
@@ -83,14 +46,106 @@ function defaultApiBase() {
   return window.location.origin;
 }
 
-function emptyMasterData() {
-  return {
-    suppliers: [],
-    storageLocations: [],
-    items: [],
-    stock: [],
-    openPurchaseOrders: []
-  };
+const columns = {
+  items: ["Name", "SKU", "Kategorie", "Einheit", "Min", "Status"],
+  stock: ["Artikel", "Kategorie", "Bestand", "Einheit", "Status", "Letzte Bewegung"],
+  orders: ["ID", "Status", "Lieferant", "Positionen"],
+  receipts: ["ID", "Bestellung", "Empfangen von", "Positionen"],
+  tasks: ["Typ", "Status", "Schwere", "Titel", "Aktion"]
+};
+
+const emptyStates = {
+  items:
+    "Noch keine Artikel vorhanden. Lege den ersten Artikel an, damit Bestand, Bestellungen und Buchungen möglich werden.",
+  stock:
+    "Noch keine Bestandsbewegungen vorhanden. Buche einen Wareneingang oder lege Startbestände über Korrekturen an.",
+  criticalStock: "Keine kritischen Bestände. Alle Artikel liegen aktuell über Mindestbestand.",
+  purchaseOrders:
+    "Keine offenen Bestellungen. Erfasse eine neue Bestellung oder prüfe, ob alle Lieferungen bereits gebucht wurden.",
+  goodsReceipts:
+    "Noch keine Wareneingänge gebucht. Wähle eine offene Bestellung oder buche einen freien Wareneingang.",
+  reviewTasks: "Keine offenen Prüfaufgaben. Korrekturen und Auffälligkeiten erscheinen hier."
+};
+
+const workspaces = {
+  items: {
+    title: "Artikel",
+    roles: ["admin"],
+    tabs: [
+      { name: "create", label: "Anlegen" },
+      { name: "stock", label: "Bestand", load: loadItems }
+    ],
+    load: loadItems
+  },
+  stock: {
+    title: "Bestand",
+    roles: ["admin", "shift_lead", "staff"],
+    tabs: [
+      { name: "live", label: "Live Bestand", load: loadStock },
+      { name: "critical", label: "Kritisch", filter: "critical", load: loadStock }
+    ],
+    load: loadStock
+  },
+  "purchase-orders": {
+    title: "Bestellungen",
+    roles: ["admin", "shift_lead"],
+    tabs: [
+      { name: "create", label: "Erfassen" },
+      { name: "open", label: "Offen", load: loadPurchaseOrders }
+    ],
+    load: loadPurchaseOrders
+  },
+  "goods-receipts": {
+    title: "Wareneingang",
+    roles: ["admin", "shift_lead"],
+    tabs: [
+      { name: "book", label: "Buchen" },
+      { name: "receipts", label: "Verlauf", load: loadGoodsReceipts }
+    ],
+    load: loadGoodsReceipts
+  },
+  withdrawals: {
+    title: "Entnahmen",
+    roles: ["admin", "shift_lead", "staff"],
+    tabs: [{ name: "book", label: "Buchen" }]
+  },
+  "quick-booking": {
+    title: "Schnellbuchen",
+    roles: ["admin", "shift_lead", "staff"],
+    tabs: [{ name: "book", label: "Sofort buchen" }]
+  },
+  corrections: {
+    title: "Korrekturen",
+    roles: ["admin", "shift_lead", "staff"],
+    tabs: [{ name: "request", label: "Beantragen" }]
+  },
+  "review-tasks": {
+    title: "Prüfung",
+    roles: ["admin"],
+    tabs: [{ name: "tasks", label: "Offen", load: loadReviewTasks }],
+    load: loadReviewTasks
+  }
+};
+
+document.addEventListener("DOMContentLoaded", () => {
+  void boot();
+});
+
+async function boot() {
+  cacheRefs();
+  bindNavigation();
+  bindDevForm();
+  bindForms();
+  bindActions();
+  bindMasterDataEvents();
+  bindWorkspaceShell();
+  bindReasonChips();
+
+  await loadAppContext();
+  applyAppContext();
+  syncDevForm();
+  updateWorkspaceAccess();
+  await refreshDashboard();
 }
 
 function cacheRefs() {
@@ -102,16 +157,32 @@ function cacheRefs() {
     actorId: document.querySelector("#actor-id"),
     actorRole: document.querySelector("#actor-role"),
     withdrawalStockHint: document.querySelector("#withdrawal-stock-hint"),
-    quickBookingStockHint: document.querySelector("#quick-booking-stock-hint")
+    quickBookingStockHint: document.querySelector("#quick-booking-stock-hint"),
+    overlay: document.querySelector("#workspace-overlay"),
+    backdrop: document.querySelector("#workspace-backdrop"),
+    workspaceTitle: document.querySelector("#workspace-title"),
+    workspaceContext: document.querySelector("#workspace-context"),
+    workspaceTabs: document.querySelector("#workspace-tabs"),
+    workspaceBody: document.querySelector("#workspace-body"),
+    quickBookingResult: document.querySelector("#quick-booking-result")
   };
 }
 
 function bindNavigation() {
-  document.querySelectorAll("[data-view], [data-view-link]").forEach((element) => {
+  document.querySelectorAll("[data-view], [data-view-link], [data-workspace]").forEach((element) => {
     element.addEventListener("click", () => {
       const view = element.dataset.view || element.dataset.viewLink;
+      const workspace = element.dataset.workspace;
+
       if (view) {
         showView(view);
+      }
+      if (workspace) {
+        openWorkspace(workspace, {
+          tab: element.dataset.workspaceTab,
+          filter: element.dataset.workspaceFilter,
+          trigger: element
+        });
       }
     });
   });
@@ -126,8 +197,13 @@ function bindDevForm() {
     localStorage.setItem("ww.apiBase", WarenwirtschaftApp.state.apiBase);
     localStorage.setItem("ww.actorId", WarenwirtschaftApp.state.actorId);
     localStorage.setItem("ww.actorRole", WarenwirtschaftApp.state.actorRole);
-    applyRoleVisibility();
-    showToast("Dev-Kontext gespeichert.");
+    updateWorkspaceAccess();
+
+    if (WarenwirtschaftApp.state.activeWorkspace && !canOpenWorkspace(WarenwirtschaftApp.state.activeWorkspace)) {
+      closeWorkspace();
+    }
+
+    showToast("Actor-Kontext gespeichert.");
     await refreshDashboard();
   });
 }
@@ -137,18 +213,39 @@ function bindForms() {
   document.querySelector("#purchase-order-form").addEventListener("submit", submitPurchaseOrder);
   document.querySelector("#goods-receipt-form").addEventListener("submit", submitGoodsReceipt);
   document.querySelector("#withdrawal-form").addEventListener("submit", submitWithdrawal);
-  document.querySelector("#quick-booking-form").addEventListener("submit", submitQuickBooking);
+  document.querySelector("#quick-booking-form").addEventListener("submit", submitQuickBook);
   document.querySelector("#correction-form").addEventListener("submit", submitCorrection);
 }
 
 function bindActions() {
-  document.addEventListener("click", (event) => {
-    const target = event.target.closest("[data-action]");
-    if (!target) {
-      return;
-    }
+  document.querySelectorAll("[data-action]").forEach((button) => {
+    button.addEventListener("click", () => runAction(button.dataset.action));
+  });
+}
 
-    void runAction(target.dataset.action, target);
+function bindWorkspaceShell() {
+  WarenwirtschaftApp.refs.backdrop.addEventListener("click", closeWorkspace);
+  WarenwirtschaftApp.refs.workspaceTabs.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-workspace-tab]");
+    if (button) {
+      setWorkspaceTab(button.dataset.workspaceTab);
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && WarenwirtschaftApp.state.activeWorkspace) {
+      closeWorkspace();
+    }
+  });
+}
+
+function bindReasonChips() {
+  document.querySelectorAll("[data-reason-chip]").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const form = document.querySelector("#quick-booking-form");
+      const select = form.elements.reason;
+      select.value = chip.dataset.reasonChip;
+      updateReasonChips(select.value);
+    });
   });
 }
 
@@ -213,60 +310,200 @@ function syncDevForm() {
   WarenwirtschaftApp.refs.actorRole.value = WarenwirtschaftApp.state.actorRole;
 }
 
-function applyRoleVisibility() {
-  const role = WarenwirtschaftApp.state.actorRole;
-  document.querySelectorAll("[data-roles]").forEach((element) => {
-    const roles = element.dataset.roles.split(" ");
-    element.hidden = !roles.includes(role);
-  });
-
-  document.querySelectorAll("[data-view]").forEach((element) => {
-    const view = element.dataset.view;
-    if (!view) {
-      return;
-    }
-    element.hidden = !roleViews[role]?.has(view);
-  });
-
-  const active = document.querySelector(".view.is-active");
-  const activeName = active?.id.replace("view-", "");
-  if (activeName && !roleViews[role]?.has(activeName)) {
-    showView("dashboard");
+function showView(viewName) {
+  if (viewName === "dashboard") {
+    closeWorkspace();
+  } else {
+    openWorkspace(viewName);
   }
 }
 
-function showView(viewName) {
-  if (!roleViews[WarenwirtschaftApp.state.actorRole]?.has(viewName)) {
-    viewName = "dashboard";
+function openWorkspace(workspaceName, options = {}) {
+  const normalizedWorkspaceName = normalizeWorkspaceName(workspaceName);
+  const workspace = workspaces[normalizedWorkspaceName];
+  if (!workspace) {
+    return false;
   }
 
-  document.querySelectorAll(".view").forEach((view) => {
-    view.classList.toggle("is-active", view.id === `view-${viewName}`);
-    if (view.id === `view-${viewName}`) {
-      WarenwirtschaftApp.refs.title.textContent = view.dataset.title;
+  if (!canOpenWorkspace(normalizedWorkspaceName)) {
+    showToast("Keine Berechtigung für diesen Arbeitsbereich.", true);
+    return false;
+  }
+
+  const requestedTab = options.tab || (options.filter === "critical" ? "critical" : workspace.tabs[0].name);
+  const nextTab = workspace.tabs.some((tab) => tab.name === requestedTab) ? requestedTab : workspace.tabs[0].name;
+  WarenwirtschaftApp.state.activeWorkspace = normalizedWorkspaceName;
+  WarenwirtschaftApp.state.activeWorkspaceTab = nextTab;
+  WarenwirtschaftApp.state.activeWorkspaceFilter =
+    options.filter || workspace.tabs.find((tab) => tab.name === nextTab)?.filter || null;
+  WarenwirtschaftApp.state.lastWorkspaceTrigger = options.trigger || null;
+  WarenwirtschaftApp.refs.overlay.hidden = false;
+  WarenwirtschaftApp.refs.overlay.setAttribute("aria-hidden", "false");
+  document.body.classList.add("has-workspace-open");
+  renderWorkspaceShell(normalizedWorkspaceName);
+  updateWorkspaceNavigation();
+  loadWorkspace(normalizedWorkspaceName);
+  document.querySelector("[data-action='close-workspace']").focus();
+  return true;
+}
+
+function closeWorkspace() {
+  const trigger = WarenwirtschaftApp.state.lastWorkspaceTrigger;
+  WarenwirtschaftApp.state.activeWorkspace = null;
+  WarenwirtschaftApp.state.activeWorkspaceTab = null;
+  WarenwirtschaftApp.state.activeWorkspaceFilter = null;
+  WarenwirtschaftApp.state.lastWorkspaceTrigger = null;
+
+  if (WarenwirtschaftApp.refs.overlay) {
+    WarenwirtschaftApp.refs.overlay.hidden = true;
+    WarenwirtschaftApp.refs.overlay.setAttribute("aria-hidden", "true");
+  }
+
+  document.body.classList.remove("has-workspace-open");
+  document.querySelectorAll(".workspace-view, [data-workspace-tab-panel]").forEach((element) => {
+    element.classList.remove("is-active");
+  });
+  updateWorkspaceNavigation();
+  WarenwirtschaftApp.refs.title.textContent = "Übersicht";
+
+  if (trigger && trigger.isConnected) {
+    trigger.focus();
+  }
+}
+
+function setWorkspaceTab(tabName) {
+  const workspaceName = WarenwirtschaftApp.state.activeWorkspace;
+  const workspace = workspaces[workspaceName];
+  if (!workspace || !workspace.tabs.some((tab) => tab.name === tabName)) {
+    return false;
+  }
+
+  const tab = workspace.tabs.find((candidate) => candidate.name === tabName);
+  WarenwirtschaftApp.state.activeWorkspaceTab = tabName;
+  setWorkspaceFilter(tab.filter || null);
+  renderWorkspaceShell(workspaceName);
+
+  if (tab.load) {
+    tab.load().catch((error) => showToast(error.message, true));
+  }
+
+  return true;
+}
+
+function setWorkspaceFilter(filterName) {
+  WarenwirtschaftApp.state.activeWorkspaceFilter = filterName || null;
+  return true;
+}
+
+function renderWorkspaceShell(workspaceName) {
+  const workspace = workspaces[workspaceName];
+  WarenwirtschaftApp.refs.workspaceTitle.textContent = workspace.title;
+  renderWorkspaceContext(workspaceName);
+
+  WarenwirtschaftApp.refs.workspaceTabs.hidden = workspace.tabs.length <= 1;
+  WarenwirtschaftApp.refs.workspaceTabs.innerHTML = workspace.tabs
+    .map(
+      (tab) => `
+        <button
+          type="button"
+          role="tab"
+          class="workspace-tab ${tab.name === WarenwirtschaftApp.state.activeWorkspaceTab ? "is-active" : ""}"
+          aria-selected="${tab.name === WarenwirtschaftApp.state.activeWorkspaceTab ? "true" : "false"}"
+          data-workspace-tab="${escapeHtml(tab.name)}"
+        >
+          ${escapeHtml(tab.label)}
+        </button>
+      `
+    )
+    .join("");
+
+  document.querySelectorAll(".workspace-view").forEach((view) => {
+    const isActiveWorkspace = view.dataset.workspace === workspaceName;
+    view.classList.toggle("is-active", isActiveWorkspace);
+    view.querySelectorAll("[data-workspace-tab-panel]").forEach((panel) => {
+      panel.classList.toggle(
+        "is-active",
+        isActiveWorkspace && panel.dataset.workspaceTabPanel === WarenwirtschaftApp.state.activeWorkspaceTab
+      );
+    });
+  });
+
+  document.body.classList.toggle("has-critical-filter", WarenwirtschaftApp.state.activeWorkspaceFilter === "critical");
+}
+
+function renderWorkspaceContext(workspaceName) {
+  const data = WarenwirtschaftApp.state.masterData;
+  const criticalCount = getCriticalStockRows().length;
+  const openOrders = getOpenPurchaseOrders();
+  const context = {
+    items: "Artikelstammdaten, Einheiten, Mindestbestand und Lagerort",
+    stock: `${data.stock.length} Artikel · ${criticalCount} kritisch · letzte Aktualisierung lokal`,
+    "purchase-orders": `${openOrders.length} offene Bestellungen · Lieferantenbestellungen erfassen und verfolgen`,
+    "goods-receipts": `${openOrders.length} offene Bestellungen · Wareneingänge erhöhen den Bestand automatisch`,
+    withdrawals: "Entnahmen reduzieren den Bestand · Bestand wird vor Buchung geprüft",
+    "quick-booking": "Für Touch-Bedienung optimiert · ideal für Küche/Bar",
+    corrections: "Korrekturen erzeugen Prüfaufgaben und ändern Bestand nicht sofort",
+    "review-tasks": `${data.reviewTasks.length} offene Prüfaufgaben · nur Admin`
+  };
+  WarenwirtschaftApp.refs.workspaceContext.textContent = context[workspaceName] || "";
+}
+
+function updateWorkspaceNavigation() {
+  document.querySelectorAll(".nav-item").forEach((item) => {
+    const isDashboard = item.dataset.view === "dashboard";
+    const isActiveWorkspace = normalizeWorkspaceName(item.dataset.workspace) === WarenwirtschaftApp.state.activeWorkspace;
+    item.classList.toggle("is-active", isDashboard ? !WarenwirtschaftApp.state.activeWorkspace : isActiveWorkspace);
+  });
+}
+
+function updateWorkspaceAccess() {
+  document.querySelectorAll("[data-workspace]").forEach((element) => {
+    const isAllowed = canOpenWorkspace(element.dataset.workspace);
+    element.disabled = !isAllowed;
+    element.setAttribute("aria-disabled", String(!isAllowed));
+
+    if (element.matches("[data-dashboard-card]")) {
+      element.hidden = !isAllowed;
     }
   });
-  document.querySelectorAll(".nav-item").forEach((item) => {
-    item.classList.toggle("is-active", item.dataset.view === viewName);
-  });
+  updateWorkspaceNavigation();
+}
+
+function canOpenWorkspace(workspaceName) {
+  const workspace = workspaces[normalizeWorkspaceName(workspaceName)];
+  return Boolean(workspace && workspace.roles.includes(WarenwirtschaftApp.state.actorRole));
+}
+
+function normalizeWorkspaceName(workspaceName) {
+  return workspaceName === "quick-book" ? "quick-booking" : workspaceName;
+}
+
+function loadWorkspace(workspaceName) {
+  const workspace = workspaces[workspaceName];
+  if (!workspace || !workspace.load) {
+    renderWorkspaceContext(workspaceName);
+    return Promise.resolve();
+  }
+
+  return workspace.load().catch((error) => showToast(error.message, true));
 }
 
 async function apiFetch(path, options = {}) {
   const { includeActor = true, ...fetchOptions } = options;
-  const headers = {
-    "content-type": "application/json",
-    ...(includeActor
-      ? {
-          "x-actor-id": WarenwirtschaftApp.state.actorId,
-          "x-actor-role": WarenwirtschaftApp.state.actorRole
-        }
-      : {}),
-    ...(fetchOptions.headers || {})
-  };
   const response = await fetch(`${WarenwirtschaftApp.state.apiBase}${path}`, {
     ...fetchOptions,
-    headers
+    headers: {
+      "content-type": "application/json",
+      ...(includeActor
+        ? {
+            "x-actor-id": WarenwirtschaftApp.state.actorId,
+            "x-actor-role": WarenwirtschaftApp.state.actorRole
+          }
+        : {}),
+      ...(fetchOptions.headers || {})
+    }
   });
+
   const text = await response.text();
   const payload = text ? JSON.parse(text) : {};
 
@@ -280,7 +517,8 @@ async function apiFetch(path, options = {}) {
 async function refreshDashboard() {
   const results = await Promise.allSettled([
     loadMasterData(),
-    canUseAdminReviewTasks() ? loadReviewTasks() : Promise.resolve()
+    canOpenWorkspace("goods-receipts") ? loadGoodsReceipts() : Promise.resolve(),
+    canOpenWorkspace("review-tasks") ? loadReviewTasks() : Promise.resolve()
   ]);
   const failed = results.find((result) => result.status === "rejected");
 
@@ -289,19 +527,22 @@ async function refreshDashboard() {
   }
 }
 
-async function runAction(action, button) {
-  await withButtonState(button, async () => {
+async function runAction(action) {
+  try {
+    if (action === "close-workspace") {
+      closeWorkspace();
+    }
     if (action === "refresh-all") {
       await refreshDashboard();
     }
     if (action === "load-items") {
-      renderItems();
+      await loadItems();
     }
     if (action === "load-stock") {
-      renderStock();
+      await loadStock();
     }
     if (action === "load-purchase-orders") {
-      renderPurchaseOrders();
+      await loadPurchaseOrders();
     }
     if (action === "load-goods-receipts") {
       await loadGoodsReceipts();
@@ -309,16 +550,26 @@ async function runAction(action, button) {
     if (action === "load-review-tasks") {
       await loadReviewTasks();
     }
-  });
+  } catch (error) {
+    showToast(error.message, true);
+  }
 }
 
 async function loadMasterData() {
-  WarenwirtschaftApp.state.masterData = await apiFetch("/inventory/master-data");
+  const data = await apiFetch("/inventory/master-data");
+  WarenwirtschaftApp.state.masterData = {
+    ...WarenwirtschaftApp.state.masterData,
+    ...data,
+    purchaseOrders: data.openPurchaseOrders || data.purchaseOrders || [],
+    reviewTasks: WarenwirtschaftApp.state.masterData.reviewTasks,
+    goodsReceipts: WarenwirtschaftApp.state.masterData.goodsReceipts
+  };
+  markUpdated();
   renderMasterDataControls();
   renderItems();
-  renderStock();
+  renderStockViews();
   renderPurchaseOrders();
-  updateMetrics();
+  renderActiveWorkspaceContext();
 }
 
 function renderMasterDataControls() {
@@ -333,12 +584,17 @@ function renderMasterDataControls() {
   fillSelect("#withdrawal-location", data.storageLocations, "storageLocationId", "name", "Kein Lagerort");
   fillSelect("#correction-item", data.items, "inventoryItemId", itemOptionText, "Artikel wählen");
   fillSelect("#quick-booking-item", data.items, "inventoryItemId", itemOptionText, "Artikel wählen");
+  fillSelect("#quick-booking-location", data.storageLocations, "storageLocationId", "name", "Kein Lagerort");
   syncWithdrawalDefaults("#withdrawal-form", WarenwirtschaftApp.refs.withdrawalStockHint);
   syncWithdrawalDefaults("#quick-booking-form", WarenwirtschaftApp.refs.quickBookingStockHint);
 }
 
 function fillSelect(selector, rows, valueKey, label, emptyLabel) {
   const select = document.querySelector(selector);
+  if (!select) {
+    return;
+  }
+
   const currentValue = select.value;
   const labelFn = typeof label === "function" ? label : (row) => row[label];
   select.innerHTML = [`<option value="">${escapeHtml(emptyLabel)}</option>`]
@@ -444,6 +700,16 @@ function validateWithdrawalStock(formSelector, hint) {
   return true;
 }
 
+async function loadItems() {
+  if (!WarenwirtschaftApp.state.masterData.items.length) {
+    await loadMasterData();
+    return;
+  }
+
+  renderItems();
+  renderActiveWorkspaceContext();
+}
+
 function renderItems() {
   const rows = WarenwirtschaftApp.state.masterData.items;
   document.querySelector("#metric-items").textContent = rows.length;
@@ -453,57 +719,79 @@ function renderItems() {
     item.category || "-",
     item.defaultUnit,
     item.minStock ?? "-",
-    item.storageLocationName || "-"
-  ], "Noch keine Artikel vorhanden.", "load-items");
+    statusBadge(item.isActive ? "aktiv" : "inaktiv", item.isActive ? "" : "is-warning")
+  ], emptyStates.items);
 }
 
-function renderStock() {
-  const rows = WarenwirtschaftApp.state.masterData.stock;
-  const alerts = rows.filter((item) => item.status === "low" || item.status === "negative");
-  document.querySelector("#metric-alerts").textContent = alerts.length;
-  renderTable("#stock-table", columns.stock, rows, (item) => [
+async function loadStock() {
+  if (!WarenwirtschaftApp.state.masterData.stock.length) {
+    await loadMasterData();
+    return;
+  }
+
+  renderStockViews();
+  renderActiveWorkspaceContext();
+}
+
+function renderStockViews() {
+  const stockRows = WarenwirtschaftApp.state.masterData.stock;
+  const criticalRows = getCriticalStockRows();
+  document.querySelector("#metric-alerts").textContent = criticalRows.length;
+  renderStockTable("#stock-table", stockRows, emptyStates.stock);
+  renderStockTable("#critical-stock-table", criticalRows, emptyStates.criticalStock);
+}
+
+function renderStockTable(selector, rows, emptyMessage) {
+  renderTable(selector, columns.stock, rows, (item) => [
     item.name,
     item.category || "-",
     item.currentStock,
     item.unit,
     statusBadge(item.status, item.status === "negative" ? "is-danger" : item.status === "low" ? "is-warning" : ""),
-    item.lastMovementAt ? new Date(item.lastMovementAt).toLocaleString("de-DE") : "-"
-  ], "Noch keine Bestandsbewegungen vorhanden.", "load-stock");
+    item.lastMovementAt || "-"
+  ], emptyMessage);
+}
+
+async function loadPurchaseOrders() {
+  if (!WarenwirtschaftApp.state.masterData.purchaseOrders.length) {
+    await loadMasterData();
+    return;
+  }
+
+  renderPurchaseOrders();
+  renderActiveWorkspaceContext();
 }
 
 function renderPurchaseOrders() {
-  const rows = WarenwirtschaftApp.state.masterData.openPurchaseOrders;
-  document.querySelector("#metric-orders").textContent = rows.length;
-  renderTable("#purchase-orders-table", columns.orders, rows, (order) => [
+  renderTable("#purchase-orders-table", columns.orders, getOpenPurchaseOrders(), (order) => [
+    order.purchaseOrderId,
     statusBadge(order.status),
     order.supplierName || order.supplierId || "-",
     order.items.map((item) => `${item.inventoryItemName || item.inventoryItemId}: ${item.pendingQty} ${item.unit}`).join(", ")
-  ], "Keine offenen Bestellungen.", "load-purchase-orders");
+  ], emptyStates.purchaseOrders);
 }
 
 async function loadGoodsReceipts() {
   const payload = await apiFetch("/goods-receipts");
+  WarenwirtschaftApp.state.masterData.goodsReceipts = payload.goodsReceipts;
+  markUpdated();
   renderTable("#goods-receipts-table", columns.receipts, payload.goodsReceipts, (receipt) => [
+    receipt.goodsReceiptId,
     receipt.purchaseOrderId || "-",
     receipt.receivedById,
     receipt.items.map((item) => `${item.inventoryItemName || item.inventoryItemId}: ${item.quantity} ${item.unit}`).join(", ")
-  ], "Noch keine Wareneingänge gebucht.", "load-goods-receipts");
+  ], emptyStates.goodsReceipts);
+  renderActiveWorkspaceContext();
 }
 
 async function loadReviewTasks() {
-  if (!canUseAdminReviewTasks()) {
-    WarenwirtschaftApp.state.reviewTasks = [];
-    renderReviewTasks("#dashboard-review-table", []);
-    renderReviewTasks("#review-tasks-table", []);
-    updateMetrics();
-    return;
-  }
-
   const payload = await apiFetch("/admin/review-tasks");
-  WarenwirtschaftApp.state.reviewTasks = payload.tasks;
+  WarenwirtschaftApp.state.masterData.reviewTasks = payload.tasks;
+  markUpdated();
+  document.querySelector("#metric-tasks").textContent = payload.tasks.length;
   renderReviewTasks("#review-tasks-table", payload.tasks);
   renderReviewTasks("#dashboard-review-table", payload.tasks.slice(0, 5));
-  updateMetrics();
+  renderActiveWorkspaceContext();
 }
 
 function renderReviewTasks(selector, tasks) {
@@ -512,8 +800,8 @@ function renderReviewTasks(selector, tasks) {
     statusBadge(task.status, task.status === "open" ? "is-warning" : ""),
     task.severity,
     task.title,
-    canUseAdminReviewTasks() ? actionButtons(task.id) : "-"
-  ], "Keine offenen Prüfaufgaben.", "load-review-tasks");
+    actionButtons(task.id)
+  ], emptyStates.reviewTasks);
 }
 
 function actionButtons(id) {
@@ -526,39 +814,16 @@ function actionButtons(id) {
   `;
 }
 
-function updateMetrics() {
-  const data = WarenwirtschaftApp.state.masterData;
-  const alerts = data.stock.filter((item) => item.status === "low" || item.status === "negative");
-  document.querySelector("#metric-items").textContent = data.items.length;
-  document.querySelector("#metric-alerts").textContent = alerts.length;
-  document.querySelector("#metric-orders").textContent = data.openPurchaseOrders.length;
-  document.querySelector("#metric-tasks").textContent = WarenwirtschaftApp.state.reviewTasks.length;
-}
-
 async function submitItem(event) {
   event.preventDefault();
-  const form = event.target;
-  clearFormErrors(form);
-  if (!validateRequired(form)) {
-    return;
-  }
-
-  await withSubmitState(form, async () => {
-    await postJson("/admin/inventory/items", normalizeFormValues(formData(form)), "Artikel angelegt.");
-    form.reset();
-    await loadMasterData();
-  });
+  await submitJson(event.target, "/admin/inventory/items", "Artikel angelegt.");
+  await loadMasterData();
+  setWorkspaceTab("stock");
 }
 
 async function submitPurchaseOrder(event) {
   event.preventDefault();
-  const form = event.target;
-  clearFormErrors(form);
-  if (!validateRequired(form)) {
-    return;
-  }
-
-  const data = formData(form);
+  const data = formData(event.target);
   const body = {
     supplierId: data.supplierId || undefined,
     note: data.note || undefined,
@@ -570,23 +835,69 @@ async function submitPurchaseOrder(event) {
       }
     ]
   };
-
-  await withSubmitState(form, async () => {
-    await postJson("/admin/purchase-orders", body, "Bestellung angelegt.");
-    form.reset();
-    await loadMasterData();
-  });
+  await postJson("/admin/purchase-orders", body, "Bestellung angelegt.");
+  await loadMasterData();
+  setWorkspaceTab("open");
 }
 
 async function submitGoodsReceipt(event) {
   event.preventDefault();
+  const data = formData(event.target);
+  await createGoodsReceipt(data, "Wareneingang gebucht.");
+  await Promise.allSettled([loadGoodsReceipts(), loadMasterData()]);
+  setWorkspaceTab("receipts");
+}
+
+async function submitWithdrawal(event) {
+  event.preventDefault();
+  const data = formData(event.target);
+  await createWithdrawal(data, "Entnahme erfasst.");
+  await loadMasterData();
+}
+
+async function submitQuickBook(event) {
+  event.preventDefault();
   const form = event.target;
-  clearFormErrors(form);
-  if (!validateRequired(form)) {
-    return;
+  const data = formData(form);
+
+  if (data.movementType === "goods-receipt") {
+    await createGoodsReceipt(data, "Wareneingang gebucht.");
+    await Promise.allSettled([loadGoodsReceipts(), loadMasterData()]);
+  } else {
+    await createWithdrawal(data, "Entnahme erfasst.");
+    await loadMasterData();
   }
 
-  const data = formData(form);
+  WarenwirtschaftApp.state.lastQuickBooking = {
+    quantity: data.quantity,
+    unit: data.unit,
+    inventoryItemId: data.inventoryItemId,
+    reason: data.reason || data.note || "-"
+  };
+  renderLastQuickBooking();
+  form.reset();
+  form.elements.reason.value = "Verbrauch Küche";
+  updateReasonChips("Verbrauch Küche");
+  form.elements.inventoryItemId.focus();
+}
+
+async function submitCorrection(event) {
+  event.preventDefault();
+  const data = formData(event.target);
+  await postJson(
+    "/correction-requests",
+    {
+      inventoryItemId: data.inventoryItemId,
+      expectedDelta: Number(data.expectedDelta),
+      unit: data.unit,
+      reason: data.reason
+    },
+    "Korrektur beantragt."
+  );
+  await refreshReviewTasksIfAllowed();
+}
+
+async function createGoodsReceipt(data, successMessage) {
   const body = {
     purchaseOrderId: data.purchaseOrderId || undefined,
     items: [
@@ -598,46 +909,10 @@ async function submitGoodsReceipt(event) {
       }
     ]
   };
-
-  await withSubmitState(form, async () => {
-    await postJson("/goods-receipts", body, "Wareneingang gebucht.");
-    form.reset();
-    await Promise.allSettled([loadMasterData(), loadGoodsReceipts()]);
-  });
+  await postJson("/goods-receipts", body, successMessage);
 }
 
-async function submitWithdrawal(event) {
-  event.preventDefault();
-  const form = event.target;
-  clearFormErrors(form);
-  if (!validateRequired(form) || !validateWithdrawalStock("#withdrawal-form", WarenwirtschaftApp.refs.withdrawalStockHint)) {
-    return;
-  }
-
-  await withSubmitState(form, async () => {
-    await postWithdrawal(form, "Entnahme gebucht.");
-    form.reset();
-    await loadMasterData();
-  });
-}
-
-async function submitQuickBooking(event) {
-  event.preventDefault();
-  const form = event.target;
-  clearFormErrors(form);
-  if (!validateRequired(form) || !validateWithdrawalStock("#quick-booking-form", WarenwirtschaftApp.refs.quickBookingStockHint)) {
-    return;
-  }
-
-  await withSubmitState(form, async () => {
-    await postWithdrawal(form, "Schnellbuchung abgeschlossen.");
-    form.reset();
-    await loadMasterData();
-  });
-}
-
-async function postWithdrawal(form, successMessage) {
-  const data = formData(form);
+async function createWithdrawal(data, successMessage) {
   await postJson(
     "/withdrawals",
     {
@@ -645,35 +920,15 @@ async function postWithdrawal(form, successMessage) {
       quantity: Number(data.quantity),
       unit: data.unit,
       storageLocationId: data.storageLocationId || undefined,
-      note: data.reason || data.note || undefined
+      note: data.note || data.reason || undefined
     },
     successMessage
   );
 }
 
-async function submitCorrection(event) {
-  event.preventDefault();
-  const form = event.target;
-  clearFormErrors(form);
-  if (!validateRequired(form)) {
-    return;
-  }
-
-  const data = formData(form);
-  await withSubmitState(form, async () => {
-    await postJson(
-      "/correction-requests",
-      {
-        inventoryItemId: data.inventoryItemId,
-        expectedDelta: Number(data.expectedDelta),
-        unit: data.unit,
-        reason: data.reason
-      },
-      "Korrektur beantragt. Prüfaufgabe wurde angelegt."
-    );
-    form.reset();
-    await Promise.allSettled([loadMasterData(), canUseAdminReviewTasks() ? loadReviewTasks() : Promise.resolve()]);
-  });
+async function submitJson(form, path, successMessage) {
+  await postJson(path, normalizeFormValues(formData(form)), successMessage);
+  form.reset();
 }
 
 async function postJson(path, body, successMessage) {
@@ -684,56 +939,70 @@ async function postJson(path, body, successMessage) {
   showToast(successMessage);
 }
 
-async function submitTaskAction(id, action) {
-  try {
-    await apiFetch(`/admin/review-tasks/${id}/${action}`, {
-      method: "POST"
-    });
-    showToast("Prüfaufgabe aktualisiert.");
-    await loadReviewTasks();
-  } catch (error) {
-    showToast(error.message, true);
+function refreshStockIfAllowed() {
+  if (!canOpenWorkspace("stock")) {
+    return Promise.resolve();
+  }
+
+  return loadMasterData();
+}
+
+function refreshReviewTasksIfAllowed() {
+  if (!canOpenWorkspace("review-tasks")) {
+    return Promise.resolve();
+  }
+
+  return loadReviewTasks();
+}
+
+function getCriticalStockRows() {
+  return WarenwirtschaftApp.state.masterData.stock.filter(
+    (item) => item.status === "low" || item.status === "negative"
+  );
+}
+
+function getOpenPurchaseOrders() {
+  return WarenwirtschaftApp.state.masterData.purchaseOrders.filter(
+    (order) => !["delivered", "complete", "completed", "cancelled", "canceled"].includes(String(order.status).toLowerCase())
+  );
+}
+
+function renderActiveWorkspaceContext() {
+  if (WarenwirtschaftApp.state.activeWorkspace) {
+    renderWorkspaceContext(WarenwirtschaftApp.state.activeWorkspace);
   }
 }
 
-async function withSubmitState(form, callback) {
-  const button = form.querySelector("button[type='submit']");
-  await withButtonState(button, callback);
+function markUpdated() {
+  WarenwirtschaftApp.state.lastUpdatedAt = new Date();
 }
 
-async function withButtonState(button, callback) {
-  const original = button?.textContent;
-  if (button) {
-    button.disabled = true;
-    button.textContent = "Bitte warten...";
+function renderLastQuickBooking() {
+  const booking = WarenwirtschaftApp.state.lastQuickBooking;
+  if (!booking) {
+    return;
   }
 
-  try {
-    await callback();
-  } catch (error) {
-    showToast(error.message, true);
-  } finally {
-    if (button) {
-      button.disabled = false;
-      button.textContent = original;
-    }
-  }
+  WarenwirtschaftApp.refs.quickBookingResult.hidden = false;
+  WarenwirtschaftApp.refs.quickBookingResult.textContent = `Zuletzt gebucht: ${booking.quantity} ${booking.unit} ${booking.inventoryItemId} · ${booking.reason}`;
 }
 
-function validateRequired(form) {
-  let valid = true;
-  form.querySelectorAll("[required]").forEach((field) => {
-    if (!field.value) {
-      setFieldError(form, field.name, "Bitte ausfüllen.");
-      valid = false;
-    }
+function updateReasonChips(activeReason) {
+  document.querySelectorAll("[data-reason-chip]").forEach((chip) => {
+    chip.classList.toggle("is-active", chip.dataset.reasonChip === activeReason);
   });
+}
 
-  if (!valid) {
-    showToast("Bitte Formularfelder prüfen.", true);
-  }
+function findItem(id) {
+  return WarenwirtschaftApp.state.masterData.items.find((item) => item.inventoryItemId === id);
+}
 
-  return valid;
+function findStock(id) {
+  return WarenwirtschaftApp.state.masterData.stock.find((item) => item.inventoryItemId === id);
+}
+
+function findOrder(id) {
+  return WarenwirtschaftApp.state.masterData.openPurchaseOrders.find((order) => order.purchaseOrderId === id);
 }
 
 function setFieldError(form, name, message) {
@@ -745,12 +1014,6 @@ function setFieldError(form, name, message) {
 
 function clearFieldError(form, name) {
   setFieldError(form, name, "");
-}
-
-function clearFormErrors(form) {
-  form.querySelectorAll(".field-error").forEach((element) => {
-    element.textContent = "";
-  });
 }
 
 function formData(form) {
@@ -768,15 +1031,14 @@ function normalizeFormValues(data) {
   return normalized;
 }
 
-function renderTable(selector, headers, rows, mapRow, emptyMessage, retryAction) {
+function renderTable(selector, headers, rows, mapRow, emptyMessage = "Keine Einträge") {
   const container = document.querySelector(selector);
+  if (!container) {
+    return;
+  }
+
   if (!rows.length) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <p>${escapeHtml(emptyMessage)}</p>
-        <button data-action="${escapeHtml(retryAction)}">Erneut laden</button>
-      </div>
-    `;
+    container.innerHTML = `<p class="empty-state">${escapeHtml(container.dataset.emptyState || emptyMessage)}</p>`;
     return;
   }
 
@@ -798,20 +1060,16 @@ function renderTable(selector, headers, rows, mapRow, emptyMessage, retryAction)
   });
 }
 
-function findItem(id) {
-  return WarenwirtschaftApp.state.masterData.items.find((item) => item.inventoryItemId === id);
-}
-
-function findStock(id) {
-  return WarenwirtschaftApp.state.masterData.stock.find((item) => item.inventoryItemId === id);
-}
-
-function findOrder(id) {
-  return WarenwirtschaftApp.state.masterData.openPurchaseOrders.find((order) => order.purchaseOrderId === id);
-}
-
-function canUseAdminReviewTasks() {
-  return WarenwirtschaftApp.state.actorRole === "admin";
+async function submitTaskAction(id, action) {
+  try {
+    await apiFetch(`/admin/review-tasks/${id}/${action}`, {
+      method: "POST"
+    });
+    showToast("Review Task aktualisiert.");
+    await loadReviewTasks();
+  } catch (error) {
+    showToast(error.message, true);
+  }
 }
 
 function statusBadge(label, className = "") {
@@ -832,6 +1090,10 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
+WarenwirtschaftApp.openWorkspace = openWorkspace;
+WarenwirtschaftApp.closeWorkspace = closeWorkspace;
+WarenwirtschaftApp.setWorkspaceTab = setWorkspaceTab;
+WarenwirtschaftApp.setWorkspaceFilter = setWorkspaceFilter;
+WarenwirtschaftApp.canOpenWorkspace = canOpenWorkspace;
+WarenwirtschaftApp.getCriticalStockRows = getCriticalStockRows;
 window.WarenwirtschaftApp = WarenwirtschaftApp;
-window.renderMasterDataControls = renderMasterDataControls;
-window.validateWithdrawalStock = validateWithdrawalStock;
