@@ -166,6 +166,10 @@ export class CorrectionService implements CorrectionServicePort {
         throw new InventoryConflictError("staff cannot approve correction requests");
       }
 
+      if (actor.role === "shift_lead" && correctionRequest.requestedById === actor.userId) {
+        throw new InventoryConflictError("actor cannot approve own correction request");
+      }
+
       const movementType = correctionMovementType(correctionRequest.expectedDelta);
       const movement = await tx.inventoryMovement.create({
         data: {

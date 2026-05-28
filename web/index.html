@@ -17,31 +17,37 @@
           </div>
         </div>
         <nav class="nav-list" aria-label="Bereiche">
-          <button class="nav-item is-active" data-view="dashboard">Übersicht</button>
-          <button class="nav-item" data-view="items">Artikel</button>
+          <button class="nav-item is-active" data-view="dashboard">Dashboard</button>
+          <button class="nav-item" data-view="items" data-roles="admin">Artikel</button>
           <button class="nav-item" data-view="stock">Bestand</button>
-          <button class="nav-item" data-view="purchase-orders">Bestellungen</button>
-          <button class="nav-item" data-view="goods-receipts">Wareneingang</button>
+          <button class="nav-item" data-view="purchase-orders" data-roles="admin shift_lead">Bestellungen</button>
+          <button class="nav-item" data-view="goods-receipts" data-roles="admin shift_lead">Wareneingang</button>
           <button class="nav-item" data-view="withdrawals">Entnahmen</button>
+          <button class="nav-item" data-view="quick-booking">Schnellbuchen</button>
           <button class="nav-item" data-view="corrections">Korrekturen</button>
-          <button class="nav-item" data-view="review-tasks">Prüfung</button>
+          <button class="nav-item" data-view="review-tasks" data-roles="admin">Prüfung</button>
         </nav>
       </aside>
 
       <main class="main-panel">
         <header class="topbar">
           <div>
-            <p class="section-label">MVP Cockpit</p>
-            <h2 id="view-title">Übersicht</h2>
+            <p class="section-label">Betriebsübersicht</p>
+            <h2 id="view-title">Dashboard</h2>
           </div>
-          <form class="actor-panel" id="actor-form">
+          <button data-action="refresh-all">Aktualisieren</button>
+        </header>
+
+        <section class="dev-panel" id="dev-panel" hidden>
+          <form id="dev-form" class="dev-form">
+            <strong>DevPanel</strong>
             <label>
-              API
-              <input id="api-base" name="apiBase" value="http://localhost:3000" />
+              API-Basis
+              <input id="api-base" name="apiBase" value="http://localhost:4000" />
             </label>
             <label>
               Actor
-              <input id="actor-id" name="actorId" value="admin-1" />
+              <input id="actor-id" name="actorId" value="demo-admin" />
             </label>
             <label>
               Rolle
@@ -53,7 +59,7 @@
             </label>
             <button type="submit">Speichern</button>
           </form>
-        </header>
+        </section>
 
         <section class="status-strip" aria-live="polite">
           <div class="status-card">
@@ -65,6 +71,10 @@
             <strong id="metric-alerts">-</strong>
           </div>
           <div class="status-card">
+            <span>Bestellungen offen</span>
+            <strong id="metric-orders">-</strong>
+          </div>
+          <div class="status-card">
             <span>Prüfungen offen</span>
             <strong id="metric-tasks">-</strong>
           </div>
@@ -72,24 +82,24 @@
 
         <section class="toast" id="toast" hidden></section>
 
-        <section class="view is-active" id="view-dashboard" data-title="Übersicht">
+        <section class="view is-active" id="view-dashboard" data-title="Dashboard">
           <div class="view-grid">
             <article class="panel">
               <div class="panel-head">
-                <h3>Schnellzugriff</h3>
-                <button data-action="refresh-all">Aktualisieren</button>
+                <h3>Schnellaktionen</h3>
+                <button data-action="refresh-all">Neu laden</button>
               </div>
               <div class="quick-actions">
-                <button data-view-link="items">Artikel pflegen</button>
-                <button data-view-link="purchase-orders">Bestellung anlegen</button>
-                <button data-view-link="goods-receipts">Wareneingang buchen</button>
-                <button data-view-link="withdrawals">Entnahme erfassen</button>
+                <button data-view-link="items" data-roles="admin">Artikel anlegen</button>
+                <button data-view-link="purchase-orders" data-roles="admin shift_lead">Bestellung erfassen</button>
+                <button data-view-link="goods-receipts" data-roles="admin shift_lead">Wareneingang buchen</button>
+                <button data-view-link="withdrawals">Entnahme buchen</button>
               </div>
             </article>
             <article class="panel">
               <div class="panel-head">
                 <h3>Offene Prüfungen</h3>
-                <button data-action="load-review-tasks">Laden</button>
+                <button data-action="load-review-tasks" data-roles="admin">Laden</button>
               </div>
               <div class="table-wrap" id="dashboard-review-table"></div>
             </article>
@@ -98,14 +108,16 @@
 
         <section class="view" id="view-items" data-title="Artikel">
           <div class="split-view">
-            <form class="panel form-panel" id="item-form">
+            <form class="panel form-panel" id="item-form" data-roles="admin">
               <h3>Artikel anlegen</h3>
               <label>Name<input name="name" required /></label>
+              <span class="field-error" data-error-for="name"></span>
               <label>SKU<input name="sku" /></label>
               <label>Kategorie<input name="category" /></label>
               <label>Einheit<input name="defaultUnit" required value="Stück" /></label>
+              <span class="field-error" data-error-for="defaultUnit"></span>
               <label>Mindestbestand<input name="minStock" type="number" min="0" step="0.01" /></label>
-              <label>Lagerort-ID<input name="storageLocationId" /></label>
+              <label>Lagerort<select id="item-storage-location" name="storageLocationId"></select></label>
               <button type="submit">Anlegen</button>
             </form>
             <article class="panel">
@@ -130,18 +142,20 @@
 
         <section class="view" id="view-purchase-orders" data-title="Bestellungen">
           <div class="split-view">
-            <form class="panel form-panel" id="purchase-order-form">
-              <h3>Bestellung anlegen</h3>
-              <label>Lieferant-ID<input name="supplierId" /></label>
-              <label>Artikel-ID<input name="inventoryItemId" required /></label>
+            <form class="panel form-panel" id="purchase-order-form" data-roles="admin shift_lead">
+              <h3>Bestellung erfassen</h3>
+              <label>Lieferant<select id="purchase-order-supplier" name="supplierId"></select></label>
+              <label>Artikel<select id="purchase-order-item" name="inventoryItemId" required></select></label>
+              <span class="field-error" data-error-for="inventoryItemId"></span>
               <label>Menge<input name="orderedQty" type="number" min="0.01" step="0.01" required /></label>
+              <span class="field-error" data-error-for="orderedQty"></span>
               <label>Einheit<input name="unit" required value="Stück" /></label>
               <label>Notiz<input name="note" /></label>
-              <button type="submit">Anlegen</button>
+              <button type="submit">Bestellung anlegen</button>
             </form>
             <article class="panel">
               <div class="panel-head">
-                <h3>Bestellungen</h3>
+                <h3>Offene Bestellungen</h3>
                 <button data-action="load-purchase-orders">Laden</button>
               </div>
               <div class="table-wrap" id="purchase-orders-table"></div>
@@ -151,14 +165,16 @@
 
         <section class="view" id="view-goods-receipts" data-title="Wareneingang">
           <div class="split-view">
-            <form class="panel form-panel" id="goods-receipt-form">
+            <form class="panel form-panel" id="goods-receipt-form" data-roles="admin shift_lead">
               <h3>Wareneingang buchen</h3>
-              <label>Bestellung-ID<input name="purchaseOrderId" /></label>
-              <label>Artikel-ID<input name="inventoryItemId" required /></label>
+              <label>Offene Bestellung<select id="goods-receipt-order" name="purchaseOrderId"></select></label>
+              <label>Artikel<select id="goods-receipt-item" name="inventoryItemId" required></select></label>
+              <span class="field-error" data-error-for="inventoryItemId"></span>
               <label>Menge<input name="quantity" type="number" min="0.01" step="0.01" required /></label>
+              <span class="field-error" data-error-for="quantity"></span>
               <label>Einheit<input name="unit" required value="Stück" /></label>
-              <label>Lagerort-ID<input name="storageLocationId" /></label>
-              <button type="submit">Buchen</button>
+              <label>Lagerort<select id="goods-receipt-location" name="storageLocationId"></select></label>
+              <button type="submit">Wareneingang buchen</button>
             </form>
             <article class="panel">
               <div class="panel-head">
@@ -172,31 +188,57 @@
 
         <section class="view" id="view-withdrawals" data-title="Entnahmen">
           <form class="panel form-panel compact-form" id="withdrawal-form">
-            <h3>Entnahme erfassen</h3>
-            <label>Artikel-ID<input name="inventoryItemId" required /></label>
+            <h3>Entnahme buchen</h3>
+            <label>Artikel<select id="withdrawal-item" name="inventoryItemId" required></select></label>
+            <p class="field-hint" id="withdrawal-stock-hint">Bestand wird nach Artikelauswahl angezeigt.</p>
             <label>Menge<input name="quantity" type="number" min="0.01" step="0.01" required /></label>
+            <span class="field-error" data-error-for="quantity"></span>
             <label>Einheit<input name="unit" required value="Stück" /></label>
-            <label>Lagerort-ID<input name="storageLocationId" /></label>
+            <label>Lagerort<select id="withdrawal-location" name="storageLocationId"></select></label>
             <label>Notiz<input name="note" /></label>
-            <button type="submit">Erfassen</button>
+            <button type="submit">Entnahme buchen</button>
+          </form>
+        </section>
+
+        <section class="view" id="view-quick-booking" data-title="Schnellbuchen">
+          <form class="panel form-panel compact-form touch-form" id="quick-booking-form">
+            <h3>Schnellbuchen</h3>
+            <label>Artikel<select id="quick-booking-item" name="inventoryItemId" required></select></label>
+            <p class="field-hint" id="quick-booking-stock-hint">Bestand wird nach Artikelauswahl angezeigt.</p>
+            <label>Menge<input name="quantity" type="number" min="0.01" step="0.01" required /></label>
+            <label>Grund
+              <select name="reason" required>
+                <option value="Produktion">Produktion</option>
+                <option value="Verbrauch Küche">Verbrauch Küche</option>
+                <option value="Verbrauch Bar">Verbrauch Bar</option>
+                <option value="Bruch">Bruch</option>
+                <option value="Verderb">Verderb</option>
+                <option value="Inventurdifferenz">Inventurdifferenz</option>
+              </select>
+            </label>
+            <input name="unit" type="hidden" value="Stück" />
+            <input name="storageLocationId" type="hidden" />
+            <button type="submit">Sofort buchen</button>
           </form>
         </section>
 
         <section class="view" id="view-corrections" data-title="Korrekturen">
           <form class="panel form-panel compact-form" id="correction-form">
             <h3>Korrektur beantragen</h3>
-            <label>Artikel-ID<input name="inventoryItemId" required /></label>
+            <label>Artikel<select id="correction-item" name="inventoryItemId" required></select></label>
             <label>Differenz<input name="expectedDelta" type="number" step="0.01" required /></label>
+            <span class="field-error" data-error-for="expectedDelta"></span>
             <label>Einheit<input name="unit" required value="Stück" /></label>
-            <label>Grund<input name="reason" required /></label>
-            <button type="submit">Beantragen</button>
+            <label>Grund<input name="reason" required placeholder="z. B. Inventurdifferenz beim Zählen" /></label>
+            <span class="field-error" data-error-for="reason"></span>
+            <button type="submit">Korrektur beantragen</button>
           </form>
         </section>
 
         <section class="view" id="view-review-tasks" data-title="Prüfung">
           <article class="panel">
             <div class="panel-head">
-              <h3>Review Tasks</h3>
+              <h3>Prüfaufgaben</h3>
               <button data-action="load-review-tasks">Laden</button>
             </div>
             <div class="table-wrap" id="review-tasks-table"></div>

@@ -27,7 +27,7 @@
       "dest": "/web/styles.css"
     },
     {
-      "src": "/(health|admin(?:/.*)?|goods-receipts(?:/.*)?|withdrawals(?:/.*)?|correction-requests(?:/.*)?)",
+      "src": "/(health|app-context|inventory(?:/.*)?|admin(?:/.*)?|goods-receipts(?:/.*)?|withdrawals(?:/.*)?|correction-requests(?:/.*)?)",
       "dest": "/api/index.ts"
     }
   ]

@@ -5,12 +5,75 @@ import type { Actor } from "../src/modules/auth/actor.js";
 import type { CorrectionServicePort } from "../src/modules/inventory/correction.service.js";
 import type { GoodsReceiptServicePort } from "../src/modules/inventory/goods-receipt.service.js";
 import type { InventoryItemServicePort } from "../src/modules/inventory/inventory-item.service.js";
+import type { InventoryMasterDataServicePort } from "../src/modules/inventory/inventory-master-data.service.js";
 import type { InventoryReadServicePort } from "../src/modules/inventory/inventory-read.service.js";
 import type { PurchaseOrderServicePort } from "../src/modules/inventory/purchase-order.service.js";
 import type { ReviewTaskServicePort } from "../src/modules/inventory/review-task.service.js";
 import type { WithdrawalServicePort } from "../src/modules/inventory/withdrawal.service.js";
 
 describe("inventory API routes", () => {
+  it("returns public app context and only seeds demo data when demo mode is enabled", async () => {
+    const seedCalls: string[] = [];
+    const app = buildApp({
+      env: {
+        NODE_ENV: "production",
+        DEMO_MODE: true
+      },
+      demoSeedService: {
+        async ensure() {
+          seedCalls.push("ensure");
+        }
+      },
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      expect(seedCalls).toEqual(["ensure"]);
+
+      const response = await app.inject({
+        method: "GET",
+        url: "/app-context"
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        demoMode: true,
+        devPanelEnabled: true,
+        defaultActor: {
+          userId: "demo-admin",
+          role: "admin"
+        }
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("does not seed demo data when demo mode is disabled", async () => {
+    const seedCalls: string[] = [];
+    const app = buildApp({
+      env: {
+        NODE_ENV: "production",
+        DEMO_MODE: false
+      },
+      demoSeedService: {
+        async ensure() {
+          seedCalls.push("ensure");
+        }
+      },
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+
+      expect(seedCalls).toEqual([]);
+    } finally {
+      await app.close();
+    }
+  });
+
   it("requires actor headers for protected admin routes", async () => {
     const app = buildApp({
       inventory: fakeInventoryServices()
@@ -53,6 +116,35 @@ describe("inventory API routes", () => {
       });
 
       expect(response.statusCode).toBe(403);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("lets shift leads create purchase orders", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/admin/purchase-orders",
+        headers: {
+          "x-actor-id": "shift-1",
+          "x-actor-role": "shift_lead"
+        },
+        payload: {
+          items: [{ inventoryItemId: "item-1", orderedQty: 10, unit: "Stück" }]
+        }
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.json()).toEqual({
+        purchaseOrderId: "po-1",
+        status: "draft"
+      });
     } finally {
       await app.close();
     }
@@ -411,7 +503,7 @@ describe("inventory API routes", () => {
     }
   });
 
-  it("lets staff record goods receipts and passes actor context to the service", async () => {
+  it("lets shift leads record goods receipts and passes actor context to the service", async () => {
     const calls: Array<{ input: unknown; actor: Actor }> = [];
     const app = buildApp({
       inventory: fakeInventoryServices({
@@ -439,8 +531,8 @@ describe("inventory API routes", () => {
         method: "POST",
         url: "/goods-receipts",
         headers: {
-          "x-actor-id": "staff-1",
-          "x-actor-role": "staff"
+          "x-actor-id": "shift-1",
+          "x-actor-role": "shift_lead"
         },
         payload: {
           items: [{ inventoryItemId: "item-1", quantity: 8, unit: "Stück" }]
@@ -458,11 +550,36 @@ describe("inventory API routes", () => {
             items: [{ inventoryItemId: "item-1", quantity: 8, unit: "Stück" }]
           },
           actor: {
-            userId: "staff-1",
-            role: "staff"
+            userId: "shift-1",
+            role: "shift_lead"
           }
         }
       ]);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("prevents staff from recording goods receipts", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/goods-receipts",
+        headers: {
+          "x-actor-id": "staff-1",
+          "x-actor-role": "staff"
+        },
+        payload: {
+          items: [{ inventoryItemId: "item-1", quantity: 8, unit: "Stück" }]
+        }
+      });
+
+      expect(response.statusCode).toBe(403);
     } finally {
       await app.close();
     }
@@ -487,8 +604,8 @@ describe("inventory API routes", () => {
         method: "GET",
         url: "/goods-receipts/gr-1",
         headers: {
-          "x-actor-id": "staff-1",
-          "x-actor-role": "staff"
+          "x-actor-id": "shift-1",
+          "x-actor-role": "shift_lead"
         }
       });
 
@@ -675,6 +792,56 @@ describe("inventory API routes", () => {
           actor: {
             userId: "admin-1",
             role: "admin"
+          }
+        }
+      ]);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("lets shift leads approve correction requests", async () => {
+    const calls: Array<{ id: string; actor: Actor }> = [];
+    const app = buildApp({
+      inventory: fakeInventoryServices({
+        correctionService: {
+          async createRequest() {
+            throw new Error("not used");
+          },
+          async approve(id, actor) {
+            calls.push({ id, actor });
+            return {
+              correctionRequestId: "correction-1",
+              status: "approved",
+              movementId: "move-3",
+              stockAfter: 8
+            };
+          },
+          async reject() {
+            throw new Error("not used");
+          }
+        }
+      })
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/admin/correction-requests/correction-1/approve",
+        headers: {
+          "x-actor-id": "shift-1",
+          "x-actor-role": "shift_lead"
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(calls).toEqual([
+        {
+          id: "correction-1",
+          actor: {
+            userId: "shift-1",
+            role: "shift_lead"
           }
         }
       ]);
@@ -932,12 +1099,36 @@ describe("inventory API routes", () => {
       await app.close();
     }
   });
+
+  it("returns operational master data for workflow controls", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "GET",
+        url: "/inventory/master-data",
+        headers: {
+          "x-actor-id": "staff-1",
+          "x-actor-role": "staff"
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual(expectedMasterData());
+    } finally {
+      await app.close();
+    }
+  });
 });
 
 function fakeInventoryServices(
   overrides: Partial<{
     purchaseOrderService: PurchaseOrderServicePort;
     inventoryItemService: InventoryItemServicePort;
+    inventoryMasterDataService: InventoryMasterDataServicePort;
     goodsReceiptService: GoodsReceiptServicePort;
     inventoryReadService: InventoryReadServicePort;
     withdrawalService: WithdrawalServicePort;
@@ -987,6 +1178,11 @@ function fakeInventoryServices(
         };
       }
     } as InventoryItemServicePort,
+    inventoryMasterDataService: overrides.inventoryMasterDataService ?? {
+      async list() {
+        return expectedMasterData();
+      }
+    } as InventoryMasterDataServicePort,
     goodsReceiptService: overrides.goodsReceiptService ?? {
       async create() {
         return { goodsReceiptId: "gr-1", movementIds: ["move-1"] };
@@ -1136,5 +1332,42 @@ function expectedGoodsReceiptReadModel() {
         note: "case"
       }
     ]
+  };
+}
+
+function expectedMasterData() {
+  return {
+    suppliers: [
+      {
+        supplierId: "supplier-1",
+        name: "Frischemarkt",
+        email: "bestellung@example.test",
+        phone: "030-123456",
+        isActive: true
+      }
+    ],
+    storageLocations: [
+      {
+        storageLocationId: "loc-1",
+        name: "Küche",
+        type: "kitchen",
+        isActive: true
+      }
+    ],
+    items: [expectedInventoryItemReadModel()],
+    stock: [
+      {
+        inventoryItemId: "item-1",
+        name: "Tomaten passiert 5kg",
+        category: "food",
+        storageLocationName: "Küche",
+        currentStock: 4,
+        unit: "Stück",
+        minStock: 5,
+        status: "low",
+        lastMovementAt: "2026-05-25T20:00:00.000Z"
+      }
+    ],
+    openPurchaseOrders: [expectedPurchaseOrderReadModel()]
   };
 }

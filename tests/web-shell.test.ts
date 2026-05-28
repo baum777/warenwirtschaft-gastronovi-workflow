@@ -23,6 +23,43 @@ describe("Warenwirtschaft web shell", () => {
     expect(app).toContain("apiFetch");
   });
 
+  it("keeps production dashboard free of visible development controls", () => {
+    const html = readWebFile("index.html");
+
+    expect(html).not.toContain("MVP Cockpit");
+    expect(html).toContain("Betriebsübersicht");
+    expect(html).toContain('id="dev-panel"');
+    expect(html).not.toContain('id="actor-form"');
+    expect(html).not.toContain("Lieferant-ID");
+    expect(html).not.toContain("Lagerort-ID");
+    expect(html).not.toContain("Artikel-ID");
+    expect(html).not.toContain("Bestellung-ID");
+  });
+
+  it("uses master-data backed controls for the core workflow forms", () => {
+    const html = readWebFile("index.html");
+    const app = readWebFile("app.js");
+
+    for (const id of [
+      "item-storage-location",
+      "purchase-order-supplier",
+      "purchase-order-item",
+      "goods-receipt-order",
+      "goods-receipt-item",
+      "goods-receipt-location",
+      "withdrawal-item",
+      "withdrawal-location",
+      "correction-item",
+      "quick-booking-item"
+    ]) {
+      expect(html).toContain(`id="${id}"`);
+    }
+
+    expect(app).toContain("/inventory/master-data");
+    expect(app).toContain("renderMasterDataControls");
+    expect(app).toContain("validateWithdrawalStock");
+  });
+
   it("uses the deployed origin as the default API base", () => {
     const app = readWebFile("app.js");
 
@@ -49,12 +86,13 @@ describe("Warenwirtschaft web shell", () => {
 
     for (const endpoint of [
       "/admin/inventory/items",
-      "/admin/inventory/stock",
       "/admin/purchase-orders",
       "/goods-receipts",
       "/withdrawals",
       "/correction-requests",
-      "/admin/review-tasks"
+      "/admin/review-tasks",
+      "/app-context",
+      "/inventory/master-data"
     ]) {
       expect(app).toContain(endpoint);
     }

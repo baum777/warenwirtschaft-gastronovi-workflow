@@ -57,6 +57,7 @@ const rawEnvSchema = z
     GASTRONOVI_TENANT_ID: optionalNonEmptyString,
     SYNC_DEFAULT_LOOKBACK_DAYS: integerEnv("SYNC_DEFAULT_LOOKBACK_DAYS", 1, 365, 7),
     SYNC_ENABLE_SCHEDULED_JOBS: booleanEnv("SYNC_ENABLE_SCHEDULED_JOBS", false),
+    DEMO_MODE: booleanEnv("DEMO_MODE", false),
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info")
   })
   .passthrough();
@@ -74,6 +75,7 @@ export type Env = {
   GASTRONOVI_TENANT_ID?: string;
   SYNC_DEFAULT_LOOKBACK_DAYS: number;
   SYNC_ENABLE_SCHEDULED_JOBS: boolean;
+  DEMO_MODE: boolean;
   LOG_LEVEL: "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
 };
 
@@ -121,6 +123,7 @@ export function parseEnv(input: NodeJS.ProcessEnv = process.env): Env {
     GASTRONOVI_TENANT_ID: data.GASTRONOVI_TENANT_ID,
     SYNC_DEFAULT_LOOKBACK_DAYS: data.SYNC_DEFAULT_LOOKBACK_DAYS,
     SYNC_ENABLE_SCHEDULED_JOBS: data.SYNC_ENABLE_SCHEDULED_JOBS,
+    DEMO_MODE: data.DEMO_MODE,
     LOG_LEVEL: data.LOG_LEVEL
   };
 
