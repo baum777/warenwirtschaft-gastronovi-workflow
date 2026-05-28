@@ -17,6 +17,7 @@ import {
 import type { CorrectionServicePort } from "../modules/inventory/correction.service.js";
 import type { GoodsReceiptServicePort } from "../modules/inventory/goods-receipt.service.js";
 import type { InventoryItemServicePort } from "../modules/inventory/inventory-item.service.js";
+import type { InventoryMasterDataServicePort } from "../modules/inventory/inventory-master-data.service.js";
 import type { InventoryReadServicePort } from "../modules/inventory/inventory-read.service.js";
 import type { PurchaseOrderServicePort } from "../modules/inventory/purchase-order.service.js";
 import type { ReviewTaskServicePort } from "../modules/inventory/review-task.service.js";
@@ -25,6 +26,7 @@ import type { WithdrawalServicePort } from "../modules/inventory/withdrawal.serv
 export type InventoryRouteDependencies = {
   purchaseOrderService: PurchaseOrderServicePort;
   inventoryItemService: InventoryItemServicePort;
+  inventoryMasterDataService: InventoryMasterDataServicePort;
   goodsReceiptService: GoodsReceiptServicePort;
   withdrawalService: WithdrawalServicePort;
   correctionService: CorrectionServicePort;
@@ -36,6 +38,16 @@ export async function inventoryRoute(
   app: FastifyInstance,
   dependencies: InventoryRouteDependencies
 ): Promise<void> {
+  app.get("/inventory/master-data", async (request, reply) => {
+    const actor = authenticate(request, reply, ["admin", "shift_lead", "staff"]);
+
+    if (!actor) {
+      return reply;
+    }
+
+    return dependencies.inventoryMasterDataService.list();
+  });
+
   app.get("/admin/inventory/stock", async (request, reply) => {
     const actor = authenticate(request, reply, ["admin"]);
 
@@ -166,7 +178,7 @@ export async function inventoryRoute(
   });
 
   app.post("/admin/purchase-orders", async (request, reply) => {
-    const actor = authenticate(request, reply, ["admin"]);
+    const actor = authenticate(request, reply, ["admin", "shift_lead"]);
 
     if (!actor) {
       return reply;
@@ -184,7 +196,7 @@ export async function inventoryRoute(
   });
 
   app.post("/admin/purchase-orders/:id/mark-ordered", async (request, reply) => {
-    const actor = authenticate(request, reply, ["admin"]);
+    const actor = authenticate(request, reply, ["admin", "shift_lead"]);
 
     if (!actor) {
       return reply;
@@ -203,7 +215,7 @@ export async function inventoryRoute(
   });
 
   app.post("/admin/purchase-orders/:id/cancel", async (request, reply) => {
-    const actor = authenticate(request, reply, ["admin"]);
+    const actor = authenticate(request, reply, ["admin", "shift_lead"]);
 
     if (!actor) {
       return reply;
@@ -222,7 +234,7 @@ export async function inventoryRoute(
   });
 
   app.get("/admin/purchase-orders", async (request, reply) => {
-    const actor = authenticate(request, reply, ["admin"]);
+    const actor = authenticate(request, reply, ["admin", "shift_lead"]);
 
     if (!actor) {
       return reply;
@@ -234,7 +246,7 @@ export async function inventoryRoute(
   });
 
   app.get("/admin/purchase-orders/:id", async (request, reply) => {
-    const actor = authenticate(request, reply, ["admin"]);
+    const actor = authenticate(request, reply, ["admin", "shift_lead"]);
 
     if (!actor) {
       return reply;
@@ -253,7 +265,7 @@ export async function inventoryRoute(
   });
 
   app.post("/goods-receipts", async (request, reply) => {
-    const actor = authenticate(request, reply, ["admin", "shift_lead", "staff"]);
+    const actor = authenticate(request, reply, ["admin", "shift_lead"]);
 
     if (!actor) {
       return reply;
@@ -271,7 +283,7 @@ export async function inventoryRoute(
   });
 
   app.get("/goods-receipts", async (request, reply) => {
-    const actor = authenticate(request, reply, ["admin", "shift_lead", "staff"]);
+    const actor = authenticate(request, reply, ["admin", "shift_lead"]);
 
     if (!actor) {
       return reply;
@@ -283,7 +295,7 @@ export async function inventoryRoute(
   });
 
   app.get("/goods-receipts/:id", async (request, reply) => {
-    const actor = authenticate(request, reply, ["admin", "shift_lead", "staff"]);
+    const actor = authenticate(request, reply, ["admin", "shift_lead"]);
 
     if (!actor) {
       return reply;
@@ -338,7 +350,7 @@ export async function inventoryRoute(
   });
 
   app.post("/admin/correction-requests/:id/approve", async (request, reply) => {
-    const actor = authenticate(request, reply, ["admin"]);
+    const actor = authenticate(request, reply, ["admin", "shift_lead"]);
 
     if (!actor) {
       return reply;
@@ -357,7 +369,7 @@ export async function inventoryRoute(
   });
 
   app.post("/admin/correction-requests/:id/reject", async (request, reply) => {
-    const actor = authenticate(request, reply, ["admin"]);
+    const actor = authenticate(request, reply, ["admin", "shift_lead"]);
 
     if (!actor) {
       return reply;

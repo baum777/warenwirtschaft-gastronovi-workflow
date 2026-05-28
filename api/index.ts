@@ -5,6 +5,7 @@ import { parseEnv } from "../src/config/env.js";
 
 const env = parseEnv(process.env);
 const app = buildApp({
+  env,
   logger: {
     level: env.LOG_LEVEL
   }

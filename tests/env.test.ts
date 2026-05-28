@@ -37,8 +37,19 @@ describe("parseEnv", () => {
       GASTRONOVI_TENANT_ID: undefined,
       SYNC_DEFAULT_LOOKBACK_DAYS: 7,
       SYNC_ENABLE_SCHEDULED_JOBS: false,
-      LOG_LEVEL: "info"
+      LOG_LEVEL: "info",
+      DEMO_MODE: false
     });
+  });
+
+  it("parses demo mode as an explicit boolean gate", () => {
+    expect(parseEnv({ ...exampleEnv, DEMO_MODE: "true" })).toMatchObject({
+      DEMO_MODE: true
+    });
+    expect(parseEnv({ ...exampleEnv, DEMO_MODE: "false" })).toMatchObject({
+      DEMO_MODE: false
+    });
+    expect(() => parseEnv({ ...exampleEnv, DEMO_MODE: "yes" })).toThrow(/DEMO_MODE/);
   });
 
   it("rejects an invalid port", () => {

@@ -209,6 +209,41 @@ describe("CorrectionService", () => {
     expect(calls.some((call) => call.model === "inventoryMovement")).toBe(false);
     expect(calls.some((call) => call.model === "inventoryCorrectionRequest" && call.method === "update")).toBe(false);
   });
+
+  it("prevents shift leads from approving their own correction request", async () => {
+    const calls: Array<{ model: string; method: string; args?: unknown }> = [];
+    const now = new Date("2026-05-26T11:45:00.000Z");
+    const tx = correctionTransaction({
+      calls,
+      now,
+      existingRequest: {
+        id: "correction-1",
+        inventoryItemId: "item-1",
+        requestedById: "shift-1",
+        status: "open",
+        expectedDelta: 3,
+        unit: "Stück",
+        reason: "count mismatch"
+      }
+    });
+    const service = new CorrectionService({
+      now: () => now,
+      db: {
+        async $transaction<T>(callback: (transaction: typeof tx) => Promise<T>): Promise<T> {
+          return callback(tx);
+        }
+      }
+    });
+
+    await expect(
+      service.approve("correction-1", {
+        userId: "shift-1",
+        role: "shift_lead"
+      })
+    ).rejects.toThrow("actor cannot approve own correction request");
+    expect(calls.some((call) => call.model === "inventoryMovement")).toBe(false);
+    expect(calls.some((call) => call.model === "inventoryCorrectionRequest" && call.method === "update")).toBe(false);
+  });
 });
 
 function correctionTransaction(input: {

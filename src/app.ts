@@ -6,6 +6,11 @@ import {
   type CorrectionDatabaseClient
 } from "./modules/inventory/correction.service.js";
 import {
+  DemoSeedService,
+  type DemoSeedDatabaseClient,
+  type DemoSeedServicePort
+} from "./modules/inventory/demo-seed.service.js";
+import {
   GoodsReceiptService,
   type GoodsReceiptDatabaseClient
 } from "./modules/inventory/goods-receipt.service.js";
@@ -13,6 +18,10 @@ import {
   InventoryItemService,
   type InventoryItemDatabaseClient
 } from "./modules/inventory/inventory-item.service.js";
+import {
+  InventoryMasterDataService,
+  type InventoryMasterDataDatabaseClient
+} from "./modules/inventory/inventory-master-data.service.js";
 import {
   InventoryReadService,
   type InventoryReadDatabaseClient
@@ -31,6 +40,7 @@ import {
 } from "./modules/inventory/withdrawal.service.js";
 import { healthRoute } from "./routes/health.route.js";
 import { inventoryRoute, type InventoryRouteDependencies } from "./routes/inventory.route.js";
+import type { Env } from "./config/env.js";
 
 const localWebAppOriginPattern = /^http:\/\/(?:127\.0\.0\.1|localhost):\d+$/;
 const allowedCorsMethods = "GET,POST,PATCH,OPTIONS";
@@ -44,6 +54,8 @@ export type AppOptions = {
   logger?: FastifyServerOptions["logger"];
   now?: () => Date;
   inventory?: InventoryRouteDependencies;
+  env?: Pick<Env, "NODE_ENV" | "DEMO_MODE">;
+  demoSeedService?: DemoSeedServicePort;
 };
 
 export function buildApp(options: AppOptions = {}): FastifyInstance {
@@ -53,6 +65,8 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
 
   registerUnexpectedErrorHandler(app);
   registerLocalCors(app);
+  registerAppContext(app, runtimeContext(options));
+  registerDemoSeed(app, options);
 
   app.register(healthRoute, {
     now: options.now
@@ -60,6 +74,46 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.register(inventoryRoute, options.inventory ?? buildInventoryDependencies(options));
 
   return app;
+}
+
+function runtimeContext(options: AppOptions): Pick<Env, "NODE_ENV" | "DEMO_MODE"> {
+  return {
+    NODE_ENV: options.env?.NODE_ENV ?? (process.env.NODE_ENV === "production" ? "production" : "development"),
+    DEMO_MODE: options.env?.DEMO_MODE ?? process.env.DEMO_MODE === "true"
+  };
+}
+
+function registerAppContext(
+  app: FastifyInstance,
+  env: Pick<Env, "NODE_ENV" | "DEMO_MODE">
+): void {
+  app.get("/app-context", async () => ({
+    demoMode: env.DEMO_MODE,
+    devPanelEnabled: env.NODE_ENV !== "production" || env.DEMO_MODE,
+    defaultActor: {
+      userId: "demo-admin",
+      role: "admin"
+    }
+  }));
+}
+
+function registerDemoSeed(app: FastifyInstance, options: AppOptions): void {
+  const env = runtimeContext(options);
+
+  if (!env.DEMO_MODE) {
+    return;
+  }
+
+  const demoSeedService =
+    options.demoSeedService ??
+    new DemoSeedService({
+      db: prisma as unknown as DemoSeedDatabaseClient,
+      now: options.now
+    });
+
+  app.addHook("onReady", async () => {
+    await demoSeedService.ensure();
+  });
 }
 
 function registerUnexpectedErrorHandler(app: FastifyInstance): void {
@@ -103,6 +157,10 @@ function registerLocalCors(app: FastifyInstance): void {
 }
 
 function buildInventoryDependencies(options: AppOptions): InventoryRouteDependencies {
+  const inventoryReadService = new InventoryReadService(
+    prisma as unknown as InventoryReadDatabaseClient
+  );
+
   return {
     purchaseOrderService: new PurchaseOrderService({
       db: prisma as unknown as PurchaseOrderDatabaseClient,
@@ -110,6 +168,10 @@ function buildInventoryDependencies(options: AppOptions): InventoryRouteDependen
     }),
     inventoryItemService: new InventoryItemService({
       db: prisma as unknown as InventoryItemDatabaseClient
+    }),
+    inventoryMasterDataService: new InventoryMasterDataService({
+      db: prisma as unknown as InventoryMasterDataDatabaseClient,
+      inventoryReadService
     }),
     goodsReceiptService: new GoodsReceiptService({
       db: prisma as unknown as GoodsReceiptDatabaseClient,
@@ -126,6 +188,6 @@ function buildInventoryDependencies(options: AppOptions): InventoryRouteDependen
     reviewTaskService: new ReviewTaskService({
       db: prisma as unknown as ReviewTaskDatabaseClient
     }),
-    inventoryReadService: new InventoryReadService(prisma as unknown as InventoryReadDatabaseClient)
+    inventoryReadService
   };
 }
