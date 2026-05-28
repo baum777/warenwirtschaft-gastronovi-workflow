@@ -6,10 +6,12 @@ const exampleEnv = {
   NODE_ENV: "development",
   PORT: "4000",
   DATABASE_URL:
-    "postgresql://prisma.project-ref:replace_me@aws-0-region.pooler.supabase.com:5432/postgres?sslmode=require",
+    "postgresql://postgres.czinchfegtglmrloxlmh:replace_me@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true&sslmode=require",
   DIRECT_URL:
-    "postgresql://postgres:replace_me@db.project-ref.supabase.co:5432/postgres?sslmode=require",
+    "postgresql://postgres:replace_me@db.czinchfegtglmrloxlmh.supabase.co:5432/postgres?sslmode=require",
   REDIS_URL: "redis://localhost:6379",
+  UPSTASH_REDIS_REST_URL: "",
+  UPSTASH_REDIS_REST_TOKEN: "",
   GASTRONOVI_API_BASE_URL: "",
   GASTRONOVI_API_KEY: "",
   GASTRONOVI_TENANT_ID: "",
@@ -24,10 +26,12 @@ describe("parseEnv", () => {
       NODE_ENV: "development",
       PORT: 4000,
       DATABASE_URL:
-        "postgresql://prisma.project-ref:replace_me@aws-0-region.pooler.supabase.com:5432/postgres?sslmode=require",
+        "postgresql://postgres.czinchfegtglmrloxlmh:replace_me@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true&sslmode=require",
       DIRECT_URL:
-        "postgresql://postgres:replace_me@db.project-ref.supabase.co:5432/postgres?sslmode=require",
+        "postgresql://postgres:replace_me@db.czinchfegtglmrloxlmh.supabase.co:5432/postgres?sslmode=require",
       REDIS_URL: "redis://localhost:6379",
+      UPSTASH_REDIS_REST_URL: undefined,
+      UPSTASH_REDIS_REST_TOKEN: undefined,
       GASTRONOVI_API_BASE_URL: undefined,
       GASTRONOVI_API_KEY: undefined,
       GASTRONOVI_TENANT_ID: undefined,
@@ -53,7 +57,7 @@ describe("parseEnv", () => {
     );
   });
 
-  it("requires database and redis URLs in production", () => {
+  it("requires database and redis configuration in production", () => {
     expect(() =>
       parseEnv({
         ...exampleEnv,
@@ -63,6 +67,23 @@ describe("parseEnv", () => {
         REDIS_URL: ""
       })
     ).toThrow(/DATABASE_URL.*DIRECT_URL.*REDIS_URL/);
+  });
+
+  it("accepts Upstash REST credentials as production redis configuration", () => {
+    expect(
+      parseEnv({
+        ...exampleEnv,
+        NODE_ENV: "production",
+        REDIS_URL: "",
+        UPSTASH_REDIS_REST_URL: "https://example.upstash.io",
+        UPSTASH_REDIS_REST_TOKEN: "secret-token"
+      })
+    ).toMatchObject({
+      NODE_ENV: "production",
+      REDIS_URL: undefined,
+      UPSTASH_REDIS_REST_URL: "https://example.upstash.io",
+      UPSTASH_REDIS_REST_TOKEN: "secret-token"
+    });
   });
 
   it("requires database urls in development", () => {

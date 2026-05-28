@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/index.ts",
+      "use": "@vercel/node",
+      "config": {
+        "maxDuration": 10
+      }
+    },
+    {
+      "src": "web/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/",
+      "dest": "/web/index.html"
+    },
+    {
+      "src": "/app.js",
+      "dest": "/web/app.js"
+    },
+    {
+      "src": "/styles.css",
+      "dest": "/web/styles.css"
+    },
+    {
+      "src": "/(health|admin(?:/.*)?|goods-receipts(?:/.*)?|withdrawals(?:/.*)?|correction-requests(?:/.*)?)",
+      "dest": "/api/index.ts"
+    }
+  ]
+}

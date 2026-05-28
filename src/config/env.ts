@@ -50,6 +50,8 @@ const rawEnvSchema = z
     DATABASE_URL: optionalNonEmptyString,
     DIRECT_URL: optionalNonEmptyString,
     REDIS_URL: optionalNonEmptyString,
+    UPSTASH_REDIS_REST_URL: optionalUrl,
+    UPSTASH_REDIS_REST_TOKEN: optionalNonEmptyString,
     GASTRONOVI_API_BASE_URL: optionalUrl,
     GASTRONOVI_API_KEY: optionalNonEmptyString,
     GASTRONOVI_TENANT_ID: optionalNonEmptyString,
@@ -64,7 +66,9 @@ export type Env = {
   PORT: number;
   DATABASE_URL: string;
   DIRECT_URL: string;
-  REDIS_URL: string;
+  REDIS_URL?: string;
+  UPSTASH_REDIS_REST_URL?: string;
+  UPSTASH_REDIS_REST_TOKEN?: string;
   GASTRONOVI_API_BASE_URL?: string;
   GASTRONOVI_API_KEY?: string;
   GASTRONOVI_TENANT_ID?: string;
@@ -85,11 +89,15 @@ export function parseEnv(input: NodeJS.ProcessEnv = process.env): Env {
   }
 
   const data = parsed.data;
+  const hasProductionRedis =
+    Boolean(data.REDIS_URL) ||
+    Boolean(data.UPSTASH_REDIS_REST_URL && data.UPSTASH_REDIS_REST_TOKEN);
+  const redisUrl = data.REDIS_URL ?? (data.NODE_ENV === "production" ? undefined : developmentRedisUrl);
 
   const missingRequiredValues = [
     data.DATABASE_URL ? undefined : "DATABASE_URL",
     data.DIRECT_URL ? undefined : "DIRECT_URL",
-    data.NODE_ENV === "production" && !data.REDIS_URL ? "REDIS_URL" : undefined
+    data.NODE_ENV === "production" && !hasProductionRedis ? "REDIS_URL or UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN" : undefined
   ].filter((value): value is string => Boolean(value));
 
   if (missingRequiredValues.length > 0) {
@@ -105,7 +113,9 @@ export function parseEnv(input: NodeJS.ProcessEnv = process.env): Env {
     PORT: data.PORT,
     DATABASE_URL: data.DATABASE_URL!,
     DIRECT_URL: data.DIRECT_URL!,
-    REDIS_URL: data.REDIS_URL ?? developmentRedisUrl,
+    REDIS_URL: redisUrl,
+    UPSTASH_REDIS_REST_URL: data.UPSTASH_REDIS_REST_URL,
+    UPSTASH_REDIS_REST_TOKEN: data.UPSTASH_REDIS_REST_TOKEN,
     GASTRONOVI_API_BASE_URL: data.GASTRONOVI_API_BASE_URL,
     GASTRONOVI_API_KEY: data.GASTRONOVI_API_KEY,
     GASTRONOVI_TENANT_ID: data.GASTRONOVI_TENANT_ID,
@@ -117,7 +127,15 @@ export function parseEnv(input: NodeJS.ProcessEnv = process.env): Env {
   if (input === process.env) {
     process.env.DATABASE_URL ??= env.DATABASE_URL;
     process.env.DIRECT_URL ??= env.DIRECT_URL;
-    process.env.REDIS_URL ??= env.REDIS_URL;
+    if (env.REDIS_URL) {
+      process.env.REDIS_URL ??= env.REDIS_URL;
+    }
+    if (env.UPSTASH_REDIS_REST_URL) {
+      process.env.UPSTASH_REDIS_REST_URL ??= env.UPSTASH_REDIS_REST_URL;
+    }
+    if (env.UPSTASH_REDIS_REST_TOKEN) {
+      process.env.UPSTASH_REDIS_REST_TOKEN ??= env.UPSTASH_REDIS_REST_TOKEN;
+    }
   }
 
   return env;

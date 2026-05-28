@@ -1,4 +1,5 @@
 import type { Actor } from "../auth/actor.js";
+import { InventoryNotFoundError } from "./errors.js";
 import type { CreateWithdrawalInput, WithdrawalDto } from "./inventory.schemas.js";
 import { InventoryStockService } from "./inventory-stock.service.js";
 
@@ -89,7 +90,7 @@ export class WithdrawalService implements WithdrawalServicePort {
       });
 
       if (!inventoryItem) {
-        throw new Error("inventory item not found");
+        throw new InventoryNotFoundError("inventory item not found");
       }
 
       const movement = await tx.inventoryMovement.create({

@@ -4,6 +4,7 @@ import type {
   GoodsReceiptDto,
   GoodsReceiptReadDto
 } from "./inventory.schemas.js";
+import { InventoryNotFoundError } from "./errors.js";
 import { InventoryStockService } from "./inventory-stock.service.js";
 
 type PurchaseOrderStatus = "draft" | "ordered" | "partially_received" | "received" | "cancelled";
@@ -233,7 +234,7 @@ export class GoodsReceiptService implements GoodsReceiptServicePort {
         });
 
         if (!inventoryItem) {
-          throw new Error("inventory item not found");
+          throw new InventoryNotFoundError("inventory item not found");
         }
 
         receivedItemNames.push(inventoryItem.name);
@@ -273,7 +274,7 @@ export class GoodsReceiptService implements GoodsReceiptServicePort {
           });
 
           if (!purchaseOrderItem) {
-            throw new Error("purchase order item not found");
+            throw new InventoryNotFoundError("purchase order item not found");
           }
 
           await tx.purchaseOrderItem.update({
@@ -382,7 +383,7 @@ export class GoodsReceiptService implements GoodsReceiptServicePort {
     });
 
     if (!receipt) {
-      throw new Error("goods receipt not found");
+      throw new InventoryNotFoundError("goods receipt not found");
     }
 
     return mapGoodsReceiptRead(receipt);
@@ -402,7 +403,7 @@ export class GoodsReceiptService implements GoodsReceiptServicePort {
     });
 
     if (!purchaseOrder) {
-      throw new Error("purchase order not found");
+      throw new InventoryNotFoundError("purchase order not found");
     }
 
     const status = calculatePurchaseOrderStatus(purchaseOrder.items);

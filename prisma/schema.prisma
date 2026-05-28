@@ -35,6 +35,7 @@ model RawPayload {
 
   @@index([source, externalId])
   @@index([payloadHash])
+  @@index([syncRunId])
 }
 
 model WorkflowEvent {
@@ -71,6 +72,8 @@ model WorkflowTask {
   assignedRole    String?
   createdAt       DateTime           @default(now())
   resolvedAt      DateTime?
+
+  @@index([workflowEventId])
 }
 
 model InventoryItem {
@@ -94,6 +97,7 @@ model InventoryItem {
 
   @@index([name])
   @@index([category])
+  @@index([storageLocationId])
 }
 
 model Supplier {
@@ -139,6 +143,7 @@ model PurchaseOrder {
 
   @@index([status])
   @@index([createdAt])
+  @@index([supplierId])
 }
 
 model PurchaseOrderItem {
@@ -186,6 +191,7 @@ model GoodsReceiptItem {
 
   @@index([goodsReceiptId])
   @@index([inventoryItemId])
+  @@index([storageLocationId])
 }
 
 model InventoryMovement {
@@ -209,6 +215,9 @@ model InventoryMovement {
   @@index([inventoryItemId, createdAt])
   @@index([type])
   @@index([actorUserId])
+  @@index([storageLocationId])
+  @@index([purchaseOrderId])
+  @@index([goodsReceiptId])
 }
 
 model InventoryStockSnapshot {
@@ -222,6 +231,7 @@ model InventoryStockSnapshot {
   calculatedAt      DateTime         @default(now())
 
   @@unique([inventoryItemId, storageLocationId])
+  @@index([storageLocationId])
   @@index([calculatedAt])
 }
 

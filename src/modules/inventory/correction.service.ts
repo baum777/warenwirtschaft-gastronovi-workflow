@@ -5,6 +5,7 @@ import type {
   CorrectionRequestDto,
   CreateCorrectionRequestInput
 } from "./inventory.schemas.js";
+import { InventoryConflictError, InventoryNotFoundError } from "./errors.js";
 import { InventoryStockService } from "./inventory-stock.service.js";
 
 type CorrectionStatus = "open" | "approved" | "rejected";
@@ -162,7 +163,7 @@ export class CorrectionService implements CorrectionServicePort {
       const correctionRequest = await this.findOpenCorrectionRequest(tx, id);
 
       if (actor.role === "staff" && correctionRequest.requestedById === actor.userId) {
-        throw new Error("staff cannot approve correction requests");
+        throw new InventoryConflictError("staff cannot approve correction requests");
       }
 
       const movementType = correctionMovementType(correctionRequest.expectedDelta);
@@ -248,7 +249,7 @@ export class CorrectionService implements CorrectionServicePort {
     });
 
     if (!inventoryItem) {
-      throw new Error("inventory item not found");
+      throw new InventoryNotFoundError("inventory item not found");
     }
 
     return inventoryItem;
@@ -265,11 +266,11 @@ export class CorrectionService implements CorrectionServicePort {
     });
 
     if (!correctionRequest) {
-      throw new Error("correction request not found");
+      throw new InventoryNotFoundError("correction request not found");
     }
 
     if (correctionRequest.status !== "open") {
-      throw new Error("correction request is not open");
+      throw new InventoryConflictError("correction request is not open");
     }
 
     return correctionRequest;

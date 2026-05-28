@@ -1,0 +1,9 @@
+CREATE INDEX "RawPayload_syncRunId_idx" ON "RawPayload"("syncRunId");
+CREATE INDEX "WorkflowTask_workflowEventId_idx" ON "WorkflowTask"("workflowEventId");
+CREATE INDEX "InventoryItem_storageLocationId_idx" ON "InventoryItem"("storageLocationId");
+CREATE INDEX "PurchaseOrder_supplierId_idx" ON "PurchaseOrder"("supplierId");
+CREATE INDEX "GoodsReceiptItem_storageLocationId_idx" ON "GoodsReceiptItem"("storageLocationId");
+CREATE INDEX "InventoryMovement_storageLocationId_idx" ON "InventoryMovement"("storageLocationId");
+CREATE INDEX "InventoryMovement_purchaseOrderId_idx" ON "InventoryMovement"("purchaseOrderId");
+CREATE INDEX "InventoryMovement_goodsReceiptId_idx" ON "InventoryMovement"("goodsReceiptId");
+CREATE INDEX "InventoryStockSnapshot_storageLocationId_idx" ON "InventoryStockSnapshot"("storageLocationId");

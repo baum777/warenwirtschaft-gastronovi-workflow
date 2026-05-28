@@ -1,4 +1,5 @@
 import type { Actor } from "../auth/actor.js";
+import { InventoryConflictError, InventoryNotFoundError } from "./errors.js";
 import type { ReviewTaskActionDto } from "./inventory.schemas.js";
 
 type ReviewTaskStatus = "open" | "in_review" | "resolved" | "dismissed";
@@ -98,15 +99,15 @@ export class ReviewTaskService implements ReviewTaskServicePort {
     });
 
     if (!task) {
-      throw new Error("review task not found");
+      throw new InventoryNotFoundError("review task not found");
     }
 
     if (!task.type.startsWith("inventory.")) {
-      throw new Error("review task is not an inventory task");
+      throw new InventoryConflictError("review task is not an inventory task");
     }
 
     if (task.status === "resolved" || task.status === "dismissed") {
-      throw new Error("review task is already closed");
+      throw new InventoryConflictError("review task is already closed");
     }
 
     return task;

@@ -324,6 +324,58 @@ describe("inventory API routes", () => {
     }
   });
 
+  it("lets admins cancel purchase orders", async () => {
+    const calls: Array<{ id: string; actorUserId: string }> = [];
+    const app = buildApp({
+      inventory: fakeInventoryServices({
+        purchaseOrderService: {
+          async create() {
+            throw new Error("not used");
+          },
+          async markOrdered() {
+            throw new Error("not used");
+          },
+          async cancel(id, actorUserId) {
+            calls.push({ id, actorUserId });
+            return { purchaseOrderId: id, status: "cancelled" };
+          },
+          async list() {
+            return [expectedPurchaseOrderReadModel()];
+          },
+          async get() {
+            return expectedPurchaseOrderReadModel();
+          }
+        } as PurchaseOrderServicePort
+      })
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "POST",
+        url: "/admin/purchase-orders/po-1/cancel",
+        headers: {
+          "x-actor-id": "admin-1",
+          "x-actor-role": "admin"
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        purchaseOrderId: "po-1",
+        status: "cancelled"
+      });
+      expect(calls).toEqual([
+        {
+          id: "po-1",
+          actorUserId: "admin-1"
+        }
+      ]);
+    } finally {
+      await app.close();
+    }
+  });
+
   it("returns admin purchase orders with pending quantities", async () => {
     const app = buildApp({
       inventory: fakeInventoryServices()
@@ -900,6 +952,9 @@ function fakeInventoryServices(
       },
       async markOrdered() {
         return { purchaseOrderId: "po-1", status: "ordered" };
+      },
+      async cancel() {
+        return { purchaseOrderId: "po-1", status: "cancelled" };
       },
       async list() {
         return [expectedPurchaseOrderReadModel()];

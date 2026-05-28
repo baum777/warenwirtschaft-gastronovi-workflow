@@ -3,13 +3,14 @@ import type {
   PurchaseOrderDto,
   PurchaseOrderReadDto
 } from "./inventory.schemas.js";
+import { InventoryConflictError, InventoryNotFoundError } from "./errors.js";
 
 type PurchaseOrderStatus = PurchaseOrderDto["status"];
 
 type PurchaseOrderRecord = {
   id: string;
   status: PurchaseOrderStatus;
-  items?: Array<{ id: string }>;
+  items?: Array<{ id: string; receivedQty?: number }>;
 };
 
 type PurchaseOrderReadRecord = {
@@ -109,6 +110,7 @@ export type PurchaseOrderDatabaseClient = {
 export type PurchaseOrderServicePort = {
   create(input: CreatePurchaseOrderInput, actorUserId: string): Promise<PurchaseOrderDto>;
   markOrdered(id: string, actorUserId: string): Promise<PurchaseOrderDto>;
+  cancel(id: string, actorUserId: string): Promise<PurchaseOrderDto>;
   list(): Promise<PurchaseOrderReadDto[]>;
   get(id: string): Promise<PurchaseOrderReadDto>;
 };
@@ -160,15 +162,15 @@ export class PurchaseOrderService implements PurchaseOrderServicePort {
     });
 
     if (!existing) {
-      throw new Error("purchase order not found");
+      throw new InventoryNotFoundError("purchase order not found");
     }
 
     if (!existing.items || existing.items.length === 0) {
-      throw new Error("purchase order requires at least one item");
+      throw new InventoryConflictError("purchase order requires at least one item");
     }
 
     if (existing.status === "cancelled") {
-      throw new Error("cancelled purchase orders cannot be marked ordered");
+      throw new InventoryConflictError("cancelled purchase orders cannot be marked ordered");
     }
 
     const orderedAt = this.options.now?.() ?? new Date();
@@ -204,6 +206,59 @@ export class PurchaseOrderService implements PurchaseOrderServicePort {
     return mapPurchaseOrder(purchaseOrder);
   }
 
+  public async cancel(id: string, actorUserId: string): Promise<PurchaseOrderDto> {
+    const existing = await this.options.db.purchaseOrder.findUnique({
+      where: {
+        id
+      },
+      include: {
+        items: true
+      }
+    });
+
+    if (!existing) {
+      throw new InventoryNotFoundError("purchase order not found");
+    }
+
+    if (existing.status === "cancelled") {
+      return mapPurchaseOrder(existing as PurchaseOrderRecord);
+    }
+
+    if (existing.items?.some((item) => (item.receivedQty ?? 0) > 0)) {
+      throw new InventoryConflictError("received purchase orders cannot be cancelled");
+    }
+
+    const purchaseOrder = await this.options.db.purchaseOrder.update({
+      where: {
+        id
+      },
+      data: {
+        status: "cancelled"
+      },
+      include: {
+        items: true
+      }
+    });
+
+    await this.options.db.workflowEvent.create({
+      data: {
+        type: "inventory.purchase_order.cancelled",
+        version: 1,
+        source: "system",
+        externalId: id,
+        idempotencyKey: `inventory.purchase_order.cancelled:${id}`,
+        occurredAt: this.options.now?.() ?? new Date(),
+        dataJson: {
+          purchaseOrderId: id,
+          actorUserId
+        },
+        metadataJson: undefined
+      }
+    });
+
+    return mapPurchaseOrder(purchaseOrder);
+  }
+
   public async list(): Promise<PurchaseOrderReadDto[]> {
     if (!this.options.db.purchaseOrder.findMany) {
       throw new Error("purchase order read model is not available");
@@ -228,7 +283,7 @@ export class PurchaseOrderService implements PurchaseOrderServicePort {
     });
 
     if (!purchaseOrder) {
-      throw new Error("purchase order not found");
+      throw new InventoryNotFoundError("purchase order not found");
     }
 
     return mapPurchaseOrderRead(purchaseOrder as PurchaseOrderReadRecord);
@@ -246,7 +301,7 @@ export class PurchaseOrderService implements PurchaseOrderServicePort {
       });
 
       if (!inventoryItem) {
-        throw new Error("inventory item not found");
+        throw new InventoryNotFoundError("inventory item not found");
       }
     }
   }
