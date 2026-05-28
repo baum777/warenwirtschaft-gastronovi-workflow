@@ -1,0 +1,2849 @@
+{
+  "version": "1.0.0",
+  "gitCommitHash": "2008713a82229a5be2a158bb2ad930ba3f8681c7",
+  "generatedAt": "2026-05-28T03:15:41.064Z",
+  "files": {
+    ".env.example": {
+      "filePath": ".env.example",
+      "contentHash": "29c74f8d0c11aa91d287615d293bdbfc4b438e2e9dbdb0cf848f9496fca8d91c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 17,
+      "hasStructuralAnalysis": true
+    },
+    ".understand-anything/.understandignore": {
+      "filePath": ".understand-anything/.understandignore",
+      "contentHash": "94ba002827550aa8aeadf957aeb634b9aa5d5d39c16b8d5db7022914178a6d65",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 30,
+      "hasStructuralAnalysis": false
+    },
+    "AGENTS.md": {
+      "filePath": "AGENTS.md",
+      "contentHash": "59b676abefd320109d2f891e680e1efb98152c12f6f28c6e218dac214679ac67",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 67,
+      "hasStructuralAnalysis": true
+    },
+    "api/index.ts": {
+      "filePath": "api/index.ts",
+      "contentHash": "87fc4836baddb5032fcee4312631feab1adf442041f408245641bc7b177400b0",
+      "functions": [
+        {
+          "name": "handler",
+          "params": [
+            "request",
+            "response"
+          ],
+          "returnType": "Promise<void>",
+          "exported": true,
+          "lineCount": 7
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:http",
+          "specifiers": [
+            "IncomingMessage",
+            "ServerResponse"
+          ]
+        },
+        {
+          "source": "../src/app.js",
+          "specifiers": [
+            "buildApp"
+          ]
+        },
+        {
+          "source": "../src/config/env.js",
+          "specifiers": [
+            "parseEnv"
+          ]
+        }
+      ],
+      "exports": [
+        "handler"
+      ],
+      "totalLines": 23,
+      "hasStructuralAnalysis": true
+    },
+    "docs/ARCHITECTURE.md": {
+      "filePath": "docs/ARCHITECTURE.md",
+      "contentHash": "d2b33adb0ed47fcd61213b2f305929ddb678b2c79e15c67cb0946d3ec52b76f7",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 104,
+      "hasStructuralAnalysis": true
+    },
+    "docs/DECISIONS.md": {
+      "filePath": "docs/DECISIONS.md",
+      "contentHash": "6912a236a08f46ad98d1c6a49bdad803c740833795a5a6a0c76ee140c90f0d3a",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 76,
+      "hasStructuralAnalysis": true
+    },
+    "docs/EVENT_CONTRACT.md": {
+      "filePath": "docs/EVENT_CONTRACT.md",
+      "contentHash": "621dd95d92fdc0c5b471b29667bb7ab0d01e702604acc7ce5b6c4d6f821fb4b2",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 160,
+      "hasStructuralAnalysis": true
+    },
+    "docs/ROLE_BASED_UI_UX_PHASE_0.md": {
+      "filePath": "docs/ROLE_BASED_UI_UX_PHASE_0.md",
+      "contentHash": "e0aaa398984d3c85ace3396dc80299b37e8c0714a16520375175f84d4634bc00",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 64,
+      "hasStructuralAnalysis": true
+    },
+    "package.json": {
+      "filePath": "package.json",
+      "contentHash": "fafdf7ebf1c7f1645081cbe3e47d2c0923c6e7ec030ee0abc796e278947844ae",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 28,
+      "hasStructuralAnalysis": true
+    },
+    "prisma.config.ts": {
+      "filePath": "prisma.config.ts",
+      "contentHash": "cf45a19f9a9f1f30722a834c7ea78dab438db3af5ef20e7dfb63ae755e928e20",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "dotenv",
+          "specifiers": [
+            "config"
+          ]
+        },
+        {
+          "source": "prisma/config",
+          "specifiers": [
+            "defineConfig"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 19,
+      "hasStructuralAnalysis": true
+    },
+    "prisma/migrations/20260526061234_init/migration.sql": {
+      "filePath": "prisma/migrations/20260526061234_init/migration.sql",
+      "contentHash": "c4d5c41a536397f5e194879b6c22c5da3615e89060163a3e4188c078bebc00f8",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 342,
+      "hasStructuralAnalysis": true
+    },
+    "prisma/migrations/20260527202000_enable_public_table_rls/migration.sql": {
+      "filePath": "prisma/migrations/20260527202000_enable_public_table_rls/migration.sql",
+      "contentHash": "5e1262efb2309dafc43d03572a91519e9f05536fb2b0c112c7e22458367f86b6",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 15,
+      "hasStructuralAnalysis": true
+    },
+    "prisma/migrations/20260527203000_add_foreign_key_indexes/migration.sql": {
+      "filePath": "prisma/migrations/20260527203000_add_foreign_key_indexes/migration.sql",
+      "contentHash": "bb12aed6df14f3598e2fe3706f9901f618521c8b65199c7fe2d8868a9596b79f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 10,
+      "hasStructuralAnalysis": true
+    },
+    "prisma/migrations/migration_lock.toml": {
+      "filePath": "prisma/migrations/migration_lock.toml",
+      "contentHash": "99836963713b4f5b269ad49af0ed3d7b0b2e336115c2f92dc9ac683d139d0900",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 4,
+      "hasStructuralAnalysis": true
+    },
+    "prisma/schema.prisma": {
+      "filePath": "prisma/schema.prisma",
+      "contentHash": "d55833b087f05661719622f0b76907ff61c1795f893c2060b9b65ff1f18064f9",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 290,
+      "hasStructuralAnalysis": false
+    },
+    "README.md": {
+      "filePath": "README.md",
+      "contentHash": "3392a57b13f5db01afbf47ae74da8b9cebed94caf2627ff2711b1b3d266dcc1c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 106,
+      "hasStructuralAnalysis": true
+    },
+    "src/app.ts": {
+      "filePath": "src/app.ts",
+      "contentHash": "b95ae87e416dd6b892d4372569bdf4d6a7f07a15b0ba88db60087704528ba8cb",
+      "functions": [
+        {
+          "name": "buildApp",
+          "params": [
+            "options"
+          ],
+          "returnType": "FastifyInstance",
+          "exported": true,
+          "lineCount": 17
+        },
+        {
+          "name": "runtimeContext",
+          "params": [
+            "options"
+          ],
+          "returnType": "Pick<Env, \"NODE_ENV\" | \"DEMO_MODE\">",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "registerAppContext",
+          "params": [
+            "app",
+            "env"
+          ],
+          "returnType": "void",
+          "exported": false,
+          "lineCount": 13
+        },
+        {
+          "name": "registerDemoSeed",
+          "params": [
+            "app",
+            "options"
+          ],
+          "returnType": "void",
+          "exported": false,
+          "lineCount": 18
+        },
+        {
+          "name": "registerUnexpectedErrorHandler",
+          "params": [
+            "app"
+          ],
+          "returnType": "void",
+          "exported": false,
+          "lineCount": 20
+        },
+        {
+          "name": "registerLocalCors",
+          "params": [
+            "app"
+          ],
+          "returnType": "void",
+          "exported": false,
+          "lineCount": 18
+        },
+        {
+          "name": "buildInventoryDependencies",
+          "params": [
+            "options"
+          ],
+          "returnType": "InventoryRouteDependencies",
+          "exported": false,
+          "lineCount": 35
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "fastify",
+          "specifiers": [
+            "Fastify",
+            "FastifyInstance",
+            "FastifyServerOptions"
+          ]
+        },
+        {
+          "source": "./lib/prisma.js",
+          "specifiers": [
+            "prisma"
+          ]
+        },
+        {
+          "source": "./modules/inventory/correction.service.js",
+          "specifiers": [
+            "CorrectionService",
+            "CorrectionDatabaseClient"
+          ]
+        },
+        {
+          "source": "./modules/inventory/demo-seed.service.js",
+          "specifiers": [
+            "DemoSeedService",
+            "DemoSeedDatabaseClient",
+            "DemoSeedServicePort"
+          ]
+        },
+        {
+          "source": "./modules/inventory/goods-receipt.service.js",
+          "specifiers": [
+            "GoodsReceiptService",
+            "GoodsReceiptDatabaseClient"
+          ]
+        },
+        {
+          "source": "./modules/inventory/inventory-item.service.js",
+          "specifiers": [
+            "InventoryItemService",
+            "InventoryItemDatabaseClient"
+          ]
+        },
+        {
+          "source": "./modules/inventory/inventory-master-data.service.js",
+          "specifiers": [
+            "InventoryMasterDataService",
+            "InventoryMasterDataDatabaseClient"
+          ]
+        },
+        {
+          "source": "./modules/inventory/inventory-read.service.js",
+          "specifiers": [
+            "InventoryReadService",
+            "InventoryReadDatabaseClient"
+          ]
+        },
+        {
+          "source": "./modules/inventory/purchase-order.service.js",
+          "specifiers": [
+            "PurchaseOrderService",
+            "PurchaseOrderDatabaseClient"
+          ]
+        },
+        {
+          "source": "./modules/inventory/review-task.service.js",
+          "specifiers": [
+            "ReviewTaskService",
+            "ReviewTaskDatabaseClient"
+          ]
+        },
+        {
+          "source": "./modules/inventory/withdrawal.service.js",
+          "specifiers": [
+            "WithdrawalService",
+            "WithdrawalDatabaseClient"
+          ]
+        },
+        {
+          "source": "./routes/health.route.js",
+          "specifiers": [
+            "healthRoute"
+          ]
+        },
+        {
+          "source": "./routes/inventory.route.js",
+          "specifiers": [
+            "inventoryRoute",
+            "InventoryRouteDependencies"
+          ]
+        },
+        {
+          "source": "./config/env.js",
+          "specifiers": [
+            "Env"
+          ]
+        }
+      ],
+      "exports": [
+        "buildApp"
+      ],
+      "totalLines": 194,
+      "hasStructuralAnalysis": true
+    },
+    "src/config/env.ts": {
+      "filePath": "src/config/env.ts",
+      "contentHash": "efb1fee1e32726ed57e5dbdc1555c07e45d8082999bbd25c8ff6decf79d55aec",
+      "functions": [
+        {
+          "name": "emptyToUndefined",
+          "params": [
+            "value"
+          ],
+          "returnType": "unknown",
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "integerEnv",
+          "params": [
+            "name",
+            "min",
+            "max",
+            "defaultValue"
+          ],
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "booleanEnv",
+          "params": [
+            "name",
+            "defaultValue"
+          ],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "parseEnv",
+          "params": [
+            "input"
+          ],
+          "returnType": "Env",
+          "exported": true,
+          "lineCount": 64
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "dotenv",
+          "specifiers": [
+            "config"
+          ]
+        },
+        {
+          "source": "zod",
+          "specifiers": [
+            "z"
+          ]
+        }
+      ],
+      "exports": [
+        "parseEnv"
+      ],
+      "totalLines": 146,
+      "hasStructuralAnalysis": true
+    },
+    "src/lib/prisma.ts": {
+      "filePath": "src/lib/prisma.ts",
+      "contentHash": "639a57ba3209d7b3ee0082812a859d680df86cb46b20b013a987e17ef7450f59",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "@prisma/client",
+          "specifiers": [
+            "PrismaClient"
+          ]
+        }
+      ],
+      "exports": [
+        "prisma"
+      ],
+      "totalLines": 12,
+      "hasStructuralAnalysis": true
+    },
+    "src/modules/auth/actor.ts": {
+      "filePath": "src/modules/auth/actor.ts",
+      "contentHash": "ed161ce4efbfdf27cd4c7de7b9ff55eb192b67090d611c1c963f4353b3cc7269",
+      "functions": [
+        {
+          "name": "parseActorFromHeaders",
+          "params": [
+            "headers"
+          ],
+          "returnType": "Actor",
+          "exported": true,
+          "lineCount": 17
+        },
+        {
+          "name": "requireActorRole",
+          "params": [
+            "actor",
+            "allowedRoles"
+          ],
+          "returnType": "Actor",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "readHeader",
+          "params": [
+            "headers",
+            "name"
+          ],
+          "returnType": "string | undefined",
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "isRole",
+          "params": [
+            "value"
+          ],
+          "exported": false,
+          "lineCount": 3
+        }
+      ],
+      "classes": [
+        {
+          "name": "ActorAuthError",
+          "methods": [
+            "constructor"
+          ],
+          "properties": [
+            "statusCode"
+          ],
+          "exported": true,
+          "lineCount": 9
+        }
+      ],
+      "imports": [
+        {
+          "source": "node:http",
+          "specifiers": [
+            "IncomingHttpHeaders"
+          ]
+        }
+      ],
+      "exports": [
+        "roles",
+        "ActorAuthError",
+        "parseActorFromHeaders",
+        "requireActorRole"
+      ],
+      "totalLines": 61,
+      "hasStructuralAnalysis": true
+    },
+    "src/modules/ingestion/ingestion.service.ts": {
+      "filePath": "src/modules/ingestion/ingestion.service.ts",
+      "contentHash": "f7cb900005156bb7667c64b600cd619b47088f2f918a62b2557f33d36fa5c3cf",
+      "functions": [],
+      "classes": [
+        {
+          "name": "IngestionService",
+          "methods": [
+            "constructor",
+            "ingestRawPayload"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 39
+        }
+      ],
+      "imports": [
+        {
+          "source": "../raw-payloads/payload-hash.js",
+          "specifiers": [
+            "calculatePayloadHash"
+          ]
+        },
+        {
+          "source": "../raw-payloads/raw-payload.repository.js",
+          "specifiers": [
+            "CreateRawPayloadInput",
+            "RawPayloadRecord"
+          ]
+        },
+        {
+          "source": "../shared/json-value.js",
+          "specifiers": [
+            "JsonValue"
+          ]
+        }
+      ],
+      "exports": [
+        "IngestionService"
+      ],
+      "totalLines": 78,
+      "hasStructuralAnalysis": true
+    },
+    "src/modules/ingestion/sync-run.repository.ts": {
+      "filePath": "src/modules/ingestion/sync-run.repository.ts",
+      "contentHash": "10997bef907d877bc40653f1e5b0ccb279ac7eecea1813456c8c75906064297f",
+      "functions": [
+        {
+          "name": "mapSyncRun",
+          "params": [
+            "record"
+          ],
+          "returnType": "SyncRunRecord",
+          "exported": false,
+          "lineCount": 13
+        }
+      ],
+      "classes": [
+        {
+          "name": "SyncRunRepository",
+          "methods": [
+            "constructor",
+            "createRunning",
+            "markSucceeded",
+            "markFailed"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 56
+        }
+      ],
+      "imports": [],
+      "exports": [
+        "SyncRunRepository"
+      ],
+      "totalLines": 119,
+      "hasStructuralAnalysis": true
+    },
+    "src/modules/inventory/correction.service.ts": {
+      "filePath": "src/modules/inventory/correction.service.ts",
+      "contentHash": "38e904908189501c9f4135501f17d6ba85637014094e6abd9142eff7002e2901",
+      "functions": [
+        {
+          "name": "correctionMovementType",
+          "params": [
+            "expectedDelta"
+          ],
+          "returnType": "CorrectionMovementType",
+          "exported": false,
+          "lineCount": 3
+        }
+      ],
+      "classes": [
+        {
+          "name": "CorrectionService",
+          "methods": [
+            "constructor",
+            "createRequest",
+            "approve",
+            "reject",
+            "findInventoryItem",
+            "findOpenCorrectionRequest"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 166
+        }
+      ],
+      "imports": [
+        {
+          "source": "../auth/actor.js",
+          "specifiers": [
+            "Actor"
+          ]
+        },
+        {
+          "source": "./inventory.schemas.js",
+          "specifiers": [
+            "CorrectionApprovalDto",
+            "CorrectionRejectionDto",
+            "CorrectionRequestDto",
+            "CreateCorrectionRequestInput"
+          ]
+        },
+        {
+          "source": "./errors.js",
+          "specifiers": [
+            "InventoryConflictError",
+            "InventoryNotFoundError"
+          ]
+        },
+        {
+          "source": "./inventory-stock.service.js",
+          "specifiers": [
+            "InventoryStockService"
+          ]
+        }
+      ],
+      "exports": [
+        "CorrectionService"
+      ],
+      "totalLines": 287,
+      "hasStructuralAnalysis": true
+    },
+    "src/modules/inventory/demo-seed.service.ts": {
+      "filePath": "src/modules/inventory/demo-seed.service.ts",
+      "contentHash": "9bceca110d314a6ee6a0147715492810be54e2ad1b23d21d3ef0b8428a0f8c5e",
+      "functions": [
+        {
+          "name": "ensureDemoData",
+          "params": [
+            "db",
+            "now"
+          ],
+          "returnType": "Promise<void>",
+          "exported": true,
+          "lineCount": 188
+        },
+        {
+          "name": "upsertPurchaseOrder",
+          "params": [
+            "db",
+            "order"
+          ],
+          "returnType": "Promise<void>",
+          "exported": false,
+          "lineCount": 59
+        },
+        {
+          "name": "upsertReceiptItemAndMovement",
+          "params": [
+            "db",
+            "input"
+          ],
+          "returnType": "Promise<void>",
+          "exported": false,
+          "lineCount": 60
+        },
+        {
+          "name": "upsertSnapshot",
+          "params": [
+            "db",
+            "inventoryItemId",
+            "storageLocationId",
+            "quantity",
+            "unit",
+            "calculatedAt"
+          ],
+          "returnType": "Promise<void>",
+          "exported": false,
+          "lineCount": 29
+        }
+      ],
+      "classes": [
+        {
+          "name": "DemoSeedService",
+          "methods": [
+            "constructor",
+            "ensure"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 12
+        }
+      ],
+      "imports": [],
+      "exports": [
+        "DemoSeedService",
+        "ensureDemoData"
+      ],
+      "totalLines": 478,
+      "hasStructuralAnalysis": true
+    },
+    "src/modules/inventory/errors.ts": {
+      "filePath": "src/modules/inventory/errors.ts",
+      "contentHash": "77e5879a5c8572f7c5ce7d3680dde11f9136989635370b94dea9332990a734a0",
+      "functions": [],
+      "classes": [
+        {
+          "name": "InventoryHttpError",
+          "methods": [
+            "constructor"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "InventoryNotFoundError",
+          "methods": [
+            "constructor"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "InventoryConflictError",
+          "methods": [
+            "constructor"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 5
+        }
+      ],
+      "imports": [],
+      "exports": [
+        "InventoryHttpError",
+        "InventoryNotFoundError",
+        "InventoryConflictError"
+      ],
+      "totalLines": 22,
+      "hasStructuralAnalysis": true
+    },
+    "src/modules/inventory/goods-receipt.service.ts": {
+      "filePath": "src/modules/inventory/goods-receipt.service.ts",
+      "contentHash": "185ca39c522ea0ab58d4f31a60d2929bd496502c99de802b618a224d8f61763d",
+      "functions": [
+        {
+          "name": "calculatePurchaseOrderStatus",
+          "params": [
+            "items"
+          ],
+          "returnType": "PurchaseOrderStatus",
+          "exported": false,
+          "lineCount": 13
+        },
+        {
+          "name": "mapGoodsReceiptRead",
+          "params": [
+            "record"
+          ],
+          "returnType": "GoodsReceiptReadDto",
+          "exported": false,
+          "lineCount": 20
+        }
+      ],
+      "classes": [
+        {
+          "name": "GoodsReceiptService",
+          "methods": [
+            "constructor",
+            "create",
+            "list",
+            "get",
+            "recalculatePurchaseOrderStatus"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 227
+        }
+      ],
+      "imports": [
+        {
+          "source": "../auth/actor.js",
+          "specifiers": [
+            "Actor"
+          ]
+        },
+        {
+          "source": "./inventory.schemas.js",
+          "specifiers": [
+            "CreateGoodsReceiptInput",
+            "GoodsReceiptDto",
+            "GoodsReceiptReadDto"
+          ]
+        },
+        {
+          "source": "./errors.js",
+          "specifiers": [
+            "InventoryNotFoundError"
+          ]
+        },
+        {
+          "source": "./inventory-stock.service.js",
+          "specifiers": [
+            "InventoryStockService"
+          ]
+        }
+      ],
+      "exports": [
+        "GoodsReceiptService"
+      ],
+      "totalLines": 476,
+      "hasStructuralAnalysis": true
+    },
+    "src/modules/inventory/inventory-item.service.ts": {
+      "filePath": "src/modules/inventory/inventory-item.service.ts",
+      "contentHash": "aa339e09faa5d8113c6f01919a73b9a0a8c9474f9f1a81b8a7abc39d24281a10",
+      "functions": [
+        {
+          "name": "mapInventoryItem",
+          "params": [
+            "record"
+          ],
+          "returnType": "InventoryItemReadDto",
+          "exported": false,
+          "lineCount": 15
+        }
+      ],
+      "classes": [
+        {
+          "name": "InventoryItemService",
+          "methods": [
+            "constructor",
+            "create",
+            "list",
+            "get",
+            "update",
+            "deactivate"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 74
+        }
+      ],
+      "imports": [
+        {
+          "source": "./inventory.schemas.js",
+          "specifiers": [
+            "CreateInventoryItemInput",
+            "InventoryItemReadDto",
+            "UpdateInventoryItemInput"
+          ]
+        },
+        {
+          "source": "./errors.js",
+          "specifiers": [
+            "InventoryNotFoundError"
+          ]
+        }
+      ],
+      "exports": [
+        "InventoryItemService"
+      ],
+      "totalLines": 173,
+      "hasStructuralAnalysis": true
+    },
+    "src/modules/inventory/inventory-master-data.service.ts": {
+      "filePath": "src/modules/inventory/inventory-master-data.service.ts",
+      "contentHash": "c84e2cd523dd69f1a286a8471dd63e5d0d7eb5f12a3822bfc6f5593f56ea831a",
+      "functions": [
+        {
+          "name": "mapSupplier",
+          "params": [
+            "record"
+          ],
+          "returnType": "SupplierReadDto",
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "mapStorageLocation",
+          "params": [
+            "record"
+          ],
+          "returnType": "StorageLocationReadDto",
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "mapInventoryItem",
+          "params": [
+            "record"
+          ],
+          "returnType": "InventoryItemReadDto",
+          "exported": false,
+          "lineCount": 15
+        },
+        {
+          "name": "mapPurchaseOrder",
+          "params": [
+            "record"
+          ],
+          "returnType": "PurchaseOrderReadDto",
+          "exported": false,
+          "lineCount": 23
+        }
+      ],
+      "classes": [
+        {
+          "name": "InventoryMasterDataService",
+          "methods": [
+            "constructor",
+            "list"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 82
+        }
+      ],
+      "imports": [
+        {
+          "source": "./inventory.schemas.js",
+          "specifiers": [
+            "AdminStockRow",
+            "InventoryItemReadDto",
+            "PurchaseOrderReadDto"
+          ]
+        },
+        {
+          "source": "./inventory-read.service.js",
+          "specifiers": [
+            "InventoryReadServicePort"
+          ]
+        }
+      ],
+      "exports": [
+        "InventoryMasterDataService"
+      ],
+      "totalLines": 247,
+      "hasStructuralAnalysis": true
+    },
+    "src/modules/inventory/inventory-read.service.ts": {
+      "filePath": "src/modules/inventory/inventory-read.service.ts",
+      "contentHash": "f4250b2eaa667838a9d8f2946717d409d842f61dea89d27754b1bc58b9ad575f",
+      "functions": [
+        {
+          "name": "calculateStockStatus",
+          "params": [
+            "currentStock",
+            "minStock",
+            "movementCount"
+          ],
+          "returnType": "AdminStockRow[\"status\"]",
+          "exported": false,
+          "lineCount": 19
+        }
+      ],
+      "classes": [
+        {
+          "name": "InventoryReadService",
+          "methods": [
+            "constructor",
+            "listStock",
+            "listMovements",
+            "listOpenReviewTasks"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 118
+        }
+      ],
+      "imports": [
+        {
+          "source": "./inventory.schemas.js",
+          "specifiers": [
+            "AdminStockRow",
+            "InventoryMovementRow",
+            "ReviewTaskRow"
+          ]
+        },
+        {
+          "source": "./inventory-stock.service.js",
+          "specifiers": [
+            "signedQuantity"
+          ]
+        }
+      ],
+      "exports": [
+        "InventoryReadService"
+      ],
+      "totalLines": 213,
+      "hasStructuralAnalysis": true
+    },
+    "src/modules/inventory/inventory-stock.service.ts": {
+      "filePath": "src/modules/inventory/inventory-stock.service.ts",
+      "contentHash": "9f7d8079dfce638ce513bfd89566a482d3d398e32015b6637f40ee882366f26d",
+      "functions": [
+        {
+          "name": "signedQuantity",
+          "params": [
+            "movement"
+          ],
+          "returnType": "number",
+          "exported": true,
+          "lineCount": 7
+        }
+      ],
+      "classes": [
+        {
+          "name": "InventoryStockService",
+          "methods": [
+            "constructor",
+            "calculateStock",
+            "refreshSnapshot"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 65
+        }
+      ],
+      "imports": [],
+      "exports": [
+        "InventoryStockService",
+        "signedQuantity"
+      ],
+      "totalLines": 127,
+      "hasStructuralAnalysis": true
+    },
+    "src/modules/inventory/inventory.schemas.ts": {
+      "filePath": "src/modules/inventory/inventory.schemas.ts",
+      "contentHash": "036aa4cd04bb2d5bf33531db3d41df2976a2b7f3f458d0add4765404f9f65f5f",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "zod",
+          "specifiers": [
+            "z"
+          ]
+        }
+      ],
+      "exports": [
+        "createPurchaseOrderSchema",
+        "createGoodsReceiptSchema",
+        "createWithdrawalSchema",
+        "createCorrectionRequestSchema",
+        "createInventoryItemSchema",
+        "updateInventoryItemSchema"
+      ],
+      "totalLines": 208,
+      "hasStructuralAnalysis": true
+    },
+    "src/modules/inventory/purchase-order.service.ts": {
+      "filePath": "src/modules/inventory/purchase-order.service.ts",
+      "contentHash": "c15f6c24a2765023dc103aec116894d6010e5cf1eb074f366c99e69fed8328bf",
+      "functions": [
+        {
+          "name": "mapPurchaseOrder",
+          "params": [
+            "record"
+          ],
+          "returnType": "PurchaseOrderDto",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "mapPurchaseOrderRead",
+          "params": [
+            "record"
+          ],
+          "returnType": "PurchaseOrderReadDto",
+          "exported": false,
+          "lineCount": 23
+        }
+      ],
+      "classes": [
+        {
+          "name": "PurchaseOrderService",
+          "methods": [
+            "constructor",
+            "create",
+            "markOrdered",
+            "cancel",
+            "list",
+            "get",
+            "assertInventoryItemsExist"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 191
+        }
+      ],
+      "imports": [
+        {
+          "source": "./inventory.schemas.js",
+          "specifiers": [
+            "CreatePurchaseOrderInput",
+            "PurchaseOrderDto",
+            "PurchaseOrderReadDto"
+          ]
+        },
+        {
+          "source": "./errors.js",
+          "specifiers": [
+            "InventoryConflictError",
+            "InventoryNotFoundError"
+          ]
+        }
+      ],
+      "exports": [
+        "PurchaseOrderService"
+      ],
+      "totalLines": 360,
+      "hasStructuralAnalysis": true
+    },
+    "src/modules/inventory/review-task.service.ts": {
+      "filePath": "src/modules/inventory/review-task.service.ts",
+      "contentHash": "8e4faab5cd58dd846631696903691edc513f4ab2e21da5d66b8fe3a086abcc8a",
+      "functions": [
+        {
+          "name": "mapReviewTaskAction",
+          "params": [
+            "task"
+          ],
+          "returnType": "ReviewTaskActionDto",
+          "exported": false,
+          "lineCount": 11
+        }
+      ],
+      "classes": [
+        {
+          "name": "ReviewTaskService",
+          "methods": [
+            "constructor",
+            "startReview",
+            "resolve",
+            "dismiss",
+            "close",
+            "findOpenInventoryTask"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 72
+        }
+      ],
+      "imports": [
+        {
+          "source": "../auth/actor.js",
+          "specifiers": [
+            "Actor"
+          ]
+        },
+        {
+          "source": "./errors.js",
+          "specifiers": [
+            "InventoryConflictError",
+            "InventoryNotFoundError"
+          ]
+        },
+        {
+          "source": "./inventory.schemas.js",
+          "specifiers": [
+            "ReviewTaskActionDto"
+          ]
+        }
+      ],
+      "exports": [
+        "ReviewTaskService"
+      ],
+      "totalLines": 128,
+      "hasStructuralAnalysis": true
+    },
+    "src/modules/inventory/withdrawal.service.ts": {
+      "filePath": "src/modules/inventory/withdrawal.service.ts",
+      "contentHash": "cc6994a4f5976eaf07fdf1986ee359da659246a4b9b62528b7bd6860cd9a6060",
+      "functions": [],
+      "classes": [
+        {
+          "name": "WithdrawalService",
+          "methods": [
+            "constructor",
+            "create"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 70
+        }
+      ],
+      "imports": [
+        {
+          "source": "../auth/actor.js",
+          "specifiers": [
+            "Actor"
+          ]
+        },
+        {
+          "source": "./errors.js",
+          "specifiers": [
+            "InventoryNotFoundError"
+          ]
+        },
+        {
+          "source": "./inventory.schemas.js",
+          "specifiers": [
+            "CreateWithdrawalInput",
+            "WithdrawalDto"
+          ]
+        },
+        {
+          "source": "./inventory-stock.service.js",
+          "specifiers": [
+            "InventoryStockService"
+          ]
+        }
+      ],
+      "exports": [
+        "WithdrawalService"
+      ],
+      "totalLines": 140,
+      "hasStructuralAnalysis": true
+    },
+    "src/modules/raw-payloads/payload-hash.ts": {
+      "filePath": "src/modules/raw-payloads/payload-hash.ts",
+      "contentHash": "dd73779981c63b516546f580e68296263d0ed7003c547d1d4e51d5dfa767f1b6",
+      "functions": [
+        {
+          "name": "stableStringify",
+          "params": [
+            "value"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "calculatePayloadHash",
+          "params": [
+            "payload"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "stringifyJsonValue",
+          "params": [
+            "value",
+            "path"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 40
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:crypto",
+          "specifiers": [
+            "createHash"
+          ]
+        }
+      ],
+      "exports": [
+        "stableStringify",
+        "calculatePayloadHash"
+      ],
+      "totalLines": 51,
+      "hasStructuralAnalysis": true
+    },
+    "src/modules/raw-payloads/raw-payload.repository.ts": {
+      "filePath": "src/modules/raw-payloads/raw-payload.repository.ts",
+      "contentHash": "3e33d373785c22932da1a6c5c852c76b15444c16dcbfc67b432f2a027ed3507c",
+      "functions": [
+        {
+          "name": "mapRawPayload",
+          "params": [
+            "record"
+          ],
+          "returnType": "RawPayloadRecord",
+          "exported": false,
+          "lineCount": 12
+        }
+      ],
+      "classes": [
+        {
+          "name": "RawPayloadRepository",
+          "methods": [
+            "constructor",
+            "findByHash",
+            "create"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 28
+        }
+      ],
+      "imports": [
+        {
+          "source": "../shared/json-value.js",
+          "specifiers": [
+            "JsonValue"
+          ]
+        }
+      ],
+      "exports": [
+        "RawPayloadRepository"
+      ],
+      "totalLines": 91,
+      "hasStructuralAnalysis": true
+    },
+    "src/modules/shared/json-value.ts": {
+      "filePath": "src/modules/shared/json-value.ts",
+      "contentHash": "9b22d2f00ff44898d2a416537e98d9c4754962293aa409e71750369ec01bda55",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 10,
+      "hasStructuralAnalysis": true
+    },
+    "src/routes/health.route.ts": {
+      "filePath": "src/routes/health.route.ts",
+      "contentHash": "7e226fdaf88b0b89b6e3601bd0095b7fed66ea2b848a6622d85f3e4e106a406e",
+      "functions": [
+        {
+          "name": "healthRoute",
+          "params": [
+            "app",
+            "options"
+          ],
+          "exported": true,
+          "lineCount": 9
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "fastify",
+          "specifiers": [
+            "FastifyPluginAsync"
+          ]
+        }
+      ],
+      "exports": [
+        "healthRoute"
+      ],
+      "totalLines": 24,
+      "hasStructuralAnalysis": true
+    },
+    "src/routes/inventory.route.ts": {
+      "filePath": "src/routes/inventory.route.ts",
+      "contentHash": "4cc919fb8874b821d4e6e6cb7227bec843d10746afb6a8dd05e791edf4e93703",
+      "functions": [
+        {
+          "name": "inventoryRoute",
+          "params": [
+            "app",
+            "dependencies"
+          ],
+          "returnType": "Promise<void>",
+          "exported": true,
+          "lineCount": 410
+        },
+        {
+          "name": "authenticate",
+          "params": [
+            "request",
+            "reply",
+            "allowedRoles"
+          ],
+          "exported": false,
+          "lineCount": 21
+        },
+        {
+          "name": "parseBody",
+          "params": [
+            "result",
+            "reply"
+          ],
+          "returnType": "T | undefined",
+          "exported": false,
+          "lineCount": 16
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "fastify",
+          "specifiers": [
+            "FastifyInstance",
+            "FastifyReply",
+            "FastifyRequest"
+          ]
+        },
+        {
+          "source": "../modules/auth/actor.js",
+          "specifiers": [
+            "ActorAuthError",
+            "parseActorFromHeaders",
+            "requireActorRole",
+            "Role"
+          ]
+        },
+        {
+          "source": "../modules/inventory/inventory.schemas.js",
+          "specifiers": [
+            "createCorrectionRequestSchema",
+            "createGoodsReceiptSchema",
+            "createInventoryItemSchema",
+            "createPurchaseOrderSchema",
+            "createWithdrawalSchema",
+            "updateInventoryItemSchema"
+          ]
+        },
+        {
+          "source": "../modules/inventory/correction.service.js",
+          "specifiers": [
+            "CorrectionServicePort"
+          ]
+        },
+        {
+          "source": "../modules/inventory/goods-receipt.service.js",
+          "specifiers": [
+            "GoodsReceiptServicePort"
+          ]
+        },
+        {
+          "source": "../modules/inventory/inventory-item.service.js",
+          "specifiers": [
+            "InventoryItemServicePort"
+          ]
+        },
+        {
+          "source": "../modules/inventory/inventory-master-data.service.js",
+          "specifiers": [
+            "InventoryMasterDataServicePort"
+          ]
+        },
+        {
+          "source": "../modules/inventory/inventory-read.service.js",
+          "specifiers": [
+            "InventoryReadServicePort"
+          ]
+        },
+        {
+          "source": "../modules/inventory/purchase-order.service.js",
+          "specifiers": [
+            "PurchaseOrderServicePort"
+          ]
+        },
+        {
+          "source": "../modules/inventory/review-task.service.js",
+          "specifiers": [
+            "ReviewTaskServicePort"
+          ]
+        },
+        {
+          "source": "../modules/inventory/withdrawal.service.js",
+          "specifiers": [
+            "WithdrawalServicePort"
+          ]
+        }
+      ],
+      "exports": [
+        "inventoryRoute"
+      ],
+      "totalLines": 486,
+      "hasStructuralAnalysis": true
+    },
+    "src/server.ts": {
+      "filePath": "src/server.ts",
+      "contentHash": "10ce0ed8276b8e727b188ee9270c49df8a27cdb9b45de2112d757a616ce0d194",
+      "functions": [
+        {
+          "name": "start",
+          "params": [],
+          "returnType": "Promise<void>",
+          "exported": false,
+          "lineCount": 11
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "./app.js",
+          "specifiers": [
+            "buildApp"
+          ]
+        },
+        {
+          "source": "./config/env.js",
+          "specifiers": [
+            "parseEnv"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 25,
+      "hasStructuralAnalysis": true
+    },
+    "tests/auth.guard.test.ts": {
+      "filePath": "tests/auth.guard.test.ts",
+      "contentHash": "05553d34453b85fab133dfbfc21fbd44f482ee677a50a33a7f0a295c35c6056b",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/modules/auth/actor.js",
+          "specifiers": [
+            "parseActorFromHeaders",
+            "requireActorRole"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 34,
+      "hasStructuralAnalysis": true
+    },
+    "tests/correction.service.test.ts": {
+      "filePath": "tests/correction.service.test.ts",
+      "contentHash": "d1cfb2b93a0d33945b9d4b6c033d2e0b04126aba85f03804c76d6a293c0a2804",
+      "functions": [
+        {
+          "name": "correctionTransaction",
+          "params": [
+            "input"
+          ],
+          "exported": false,
+          "lineCount": 62
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/modules/inventory/correction.service.js",
+          "specifiers": [
+            "CorrectionService"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 321,
+      "hasStructuralAnalysis": true
+    },
+    "tests/cors.route.test.ts": {
+      "filePath": "tests/cors.route.test.ts",
+      "contentHash": "d3fb88191831592cfa9b9da3eb7b913b1a63288ec22012b4044955433c103853",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/app.js",
+          "specifiers": [
+            "buildApp"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 32,
+      "hasStructuralAnalysis": true
+    },
+    "tests/demo-seed.service.test.ts": {
+      "filePath": "tests/demo-seed.service.test.ts",
+      "contentHash": "ac71faeb603d8befc3c2c514726c584e60a905115427ba0b957fec36c6955a0b",
+      "functions": [
+        {
+          "name": "demoSeedDb",
+          "params": [
+            "calls"
+          ],
+          "exported": false,
+          "lineCount": 22
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/modules/inventory/demo-seed.service.js",
+          "specifiers": [
+            "ensureDemoData"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 111,
+      "hasStructuralAnalysis": true
+    },
+    "tests/env.test.ts": {
+      "filePath": "tests/env.test.ts",
+      "contentHash": "afb4f644111882bf758fe3202c7b548e2a8b75f9b6fad699d4304371224c1477",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/config/env.js",
+          "specifiers": [
+            "parseEnv"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 149,
+      "hasStructuralAnalysis": true
+    },
+    "tests/error-handler.test.ts": {
+      "filePath": "tests/error-handler.test.ts",
+      "contentHash": "bede800d45d37ca5ee0685e4e2089ca05c7af53c09fc0ba22edceb935b432ac7",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/app.js",
+          "specifiers": [
+            "buildApp"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 31,
+      "hasStructuralAnalysis": true
+    },
+    "tests/goods-receipt.service.test.ts": {
+      "filePath": "tests/goods-receipt.service.test.ts",
+      "contentHash": "d21d3e18a8672f451dbe0567eacbdbc1c59c045d8f3163daa4c9c8f141ff04be",
+      "functions": [
+        {
+          "name": "receiptTransaction",
+          "params": [
+            "input"
+          ],
+          "exported": false,
+          "lineCount": 101
+        },
+        {
+          "name": "goodsReceiptReadRecord",
+          "params": [
+            "receivedAt"
+          ],
+          "exported": false,
+          "lineCount": 26
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/modules/inventory/goods-receipt.service.js",
+          "specifiers": [
+            "GoodsReceiptService"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 570,
+      "hasStructuralAnalysis": true
+    },
+    "tests/health.route.test.ts": {
+      "filePath": "tests/health.route.test.ts",
+      "contentHash": "7fb05a3bf66d05a5b1baa20be2cf7841f6e0e095de1ed5f906d687a2a8264af4",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/app.js",
+          "specifiers": [
+            "buildApp"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 30,
+      "hasStructuralAnalysis": true
+    },
+    "tests/ingestion.service.test.ts": {
+      "filePath": "tests/ingestion.service.test.ts",
+      "contentHash": "89a0f8ed95200dd42ff795f7acd6db09ee542952867310132f347278f4889b8c",
+      "functions": [],
+      "classes": [
+        {
+          "name": "InMemoryRawPayloadRepository",
+          "methods": [
+            "findByHash",
+            "create"
+          ],
+          "properties": [
+            "createInputs",
+            "records"
+          ],
+          "exported": false,
+          "lineCount": 24
+        }
+      ],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/modules/ingestion/ingestion.service.js",
+          "specifiers": [
+            "IngestionService",
+            "IngestRawPayloadInput",
+            "RawPayloadRepositoryPort"
+          ]
+        },
+        {
+          "source": "../src/modules/raw-payloads/raw-payload.repository.js",
+          "specifiers": [
+            "RawPayloadRecord"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 108,
+      "hasStructuralAnalysis": true
+    },
+    "tests/inventory-item.service.test.ts": {
+      "filePath": "tests/inventory-item.service.test.ts",
+      "contentHash": "acc680f6011e9bff234bd4d489ae6b40e5e7bd7bb85cc717a7837ef998202d8a",
+      "functions": [
+        {
+          "name": "inventoryItemDb",
+          "params": [
+            "input"
+          ],
+          "exported": false,
+          "lineCount": 28
+        },
+        {
+          "name": "inventoryItemRecord",
+          "params": [
+            "overrides"
+          ],
+          "returnType": "InventoryItemRecord",
+          "exported": false,
+          "lineCount": 18
+        },
+        {
+          "name": "expectedItemReadModel",
+          "params": [],
+          "exported": false,
+          "lineCount": 15
+        },
+        {
+          "name": "inventoryItemIncludeExpectation",
+          "params": [],
+          "exported": false,
+          "lineCount": 9
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/modules/inventory/inventory-item.service.js",
+          "specifiers": [
+            "InventoryItemService"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 225,
+      "hasStructuralAnalysis": true
+    },
+    "tests/inventory-schema.test.ts": {
+      "filePath": "tests/inventory-schema.test.ts",
+      "contentHash": "aa7adc32bdce84076aa5562c6d8c4f28e69cca4d9a9363866d81ad30e9813067",
+      "functions": [
+        {
+          "name": "getBlock",
+          "params": [
+            "kind",
+            "name"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "expectLine",
+          "params": [
+            "block",
+            "line"
+          ],
+          "returnType": "void",
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "escapeRegExp",
+          "params": [
+            "value"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 3
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "readFileSync"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "join"
+          ]
+        },
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 118,
+      "hasStructuralAnalysis": true
+    },
+    "tests/inventory-stock.service.test.ts": {
+      "filePath": "tests/inventory-stock.service.test.ts",
+      "contentHash": "a76f94db45aee63699a9049715852cb6668d20cad152f6c13411028af4cbcdfe",
+      "functions": [
+        {
+          "name": "stockDb",
+          "params": [
+            "calls"
+          ],
+          "exported": false,
+          "lineCount": 19
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/modules/inventory/inventory-stock.service.js",
+          "specifiers": [
+            "InventoryStockService"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 86,
+      "hasStructuralAnalysis": true
+    },
+    "tests/inventory.routes.test.ts": {
+      "filePath": "tests/inventory.routes.test.ts",
+      "contentHash": "789c3162aca7c6358039c24656ad79eb908896d667e85e4f5da80452065a0e88",
+      "functions": [
+        {
+          "name": "fakeInventoryServices",
+          "params": [
+            "overrides"
+          ],
+          "exported": false,
+          "lineCount": 145
+        },
+        {
+          "name": "expectedInventoryItemReadModel",
+          "params": [],
+          "exported": false,
+          "lineCount": 15
+        },
+        {
+          "name": "expectedPurchaseOrderReadModel",
+          "params": [],
+          "exported": false,
+          "lineCount": 25
+        },
+        {
+          "name": "expectedGoodsReceiptReadModel",
+          "params": [],
+          "exported": false,
+          "lineCount": 22
+        },
+        {
+          "name": "expectedMasterData",
+          "params": [],
+          "exported": false,
+          "lineCount": 36
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/app.js",
+          "specifiers": [
+            "buildApp"
+          ]
+        },
+        {
+          "source": "../src/modules/auth/actor.js",
+          "specifiers": [
+            "Actor"
+          ]
+        },
+        {
+          "source": "../src/modules/inventory/correction.service.js",
+          "specifiers": [
+            "CorrectionServicePort"
+          ]
+        },
+        {
+          "source": "../src/modules/inventory/goods-receipt.service.js",
+          "specifiers": [
+            "GoodsReceiptServicePort"
+          ]
+        },
+        {
+          "source": "../src/modules/inventory/inventory-item.service.js",
+          "specifiers": [
+            "InventoryItemServicePort"
+          ]
+        },
+        {
+          "source": "../src/modules/inventory/inventory-master-data.service.js",
+          "specifiers": [
+            "InventoryMasterDataServicePort"
+          ]
+        },
+        {
+          "source": "../src/modules/inventory/inventory-read.service.js",
+          "specifiers": [
+            "InventoryReadServicePort"
+          ]
+        },
+        {
+          "source": "../src/modules/inventory/purchase-order.service.js",
+          "specifiers": [
+            "PurchaseOrderServicePort"
+          ]
+        },
+        {
+          "source": "../src/modules/inventory/review-task.service.js",
+          "specifiers": [
+            "ReviewTaskServicePort"
+          ]
+        },
+        {
+          "source": "../src/modules/inventory/withdrawal.service.js",
+          "specifiers": [
+            "WithdrawalServicePort"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 1374,
+      "hasStructuralAnalysis": true
+    },
+    "tests/payload-hash.test.ts": {
+      "filePath": "tests/payload-hash.test.ts",
+      "contentHash": "a1a7e288447e937ab95daf730293e3e0bb4de4904b3b7ef1b974d9ed2e92c00b",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/modules/raw-payloads/payload-hash.js",
+          "specifiers": [
+            "calculatePayloadHash",
+            "stableStringify"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 31,
+      "hasStructuralAnalysis": true
+    },
+    "tests/purchase-order.service.test.ts": {
+      "filePath": "tests/purchase-order.service.test.ts",
+      "contentHash": "356024838976b28210b38614fac2b3baf09c2149b067fe71185550363444bfae",
+      "functions": [
+        {
+          "name": "purchaseOrderReadRecord",
+          "params": [
+            "createdAt",
+            "orderedAt"
+          ],
+          "exported": false,
+          "lineCount": 28
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/modules/inventory/purchase-order.service.js",
+          "specifiers": [
+            "PurchaseOrderService"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 542,
+      "hasStructuralAnalysis": true
+    },
+    "tests/raw-payload.repository.test.ts": {
+      "filePath": "tests/raw-payload.repository.test.ts",
+      "contentHash": "3932055daf52eb78f910f938a1f690f47b9a60ec4ac09bbf69fae5f780823108",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/modules/raw-payloads/raw-payload.repository.js",
+          "specifiers": [
+            "RawPayloadRepository"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 78,
+      "hasStructuralAnalysis": true
+    },
+    "tests/review-task.service.test.ts": {
+      "filePath": "tests/review-task.service.test.ts",
+      "contentHash": "a66c989827f587f57837d4f5c367532b307086ede167a9e4b027b78555485bf5",
+      "functions": [
+        {
+          "name": "reviewTaskDb",
+          "params": [
+            "input"
+          ],
+          "exported": false,
+          "lineCount": 21
+        },
+        {
+          "name": "reviewTaskRecord",
+          "params": [
+            "overrides"
+          ],
+          "returnType": "ReviewTaskRecord",
+          "exported": false,
+          "lineCount": 11
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/modules/inventory/review-task.service.js",
+          "specifiers": [
+            "ReviewTaskService"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 217,
+      "hasStructuralAnalysis": true
+    },
+    "tests/sync-run.repository.test.ts": {
+      "filePath": "tests/sync-run.repository.test.ts",
+      "contentHash": "8aee6edf57a73e7eaa9de707cde8e1ec2873be93c82394a66877d5bb583eb996",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/modules/ingestion/sync-run.repository.js",
+          "specifiers": [
+            "SyncRunRepository"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 91,
+      "hasStructuralAnalysis": true
+    },
+    "tests/web-shell.test.ts": {
+      "filePath": "tests/web-shell.test.ts",
+      "contentHash": "7c04fc80eefb4832d98848d82775fcd7e33ec00bd904d90077e20904e5fa59f6",
+      "functions": [
+        {
+          "name": "readWebFile",
+          "params": [
+            "path"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 3
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "readFileSync"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "join"
+          ]
+        },
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 101,
+      "hasStructuralAnalysis": true
+    },
+    "tests/withdrawal.service.test.ts": {
+      "filePath": "tests/withdrawal.service.test.ts",
+      "contentHash": "f539051c23043a32c30b448a6a1de633c7fcaeb8c5c02d5f5291ad66ff90f98e",
+      "functions": [
+        {
+          "name": "withdrawalTransaction",
+          "params": [
+            "input"
+          ],
+          "exported": false,
+          "lineCount": 48
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/modules/inventory/withdrawal.service.js",
+          "specifiers": [
+            "WithdrawalService"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 204,
+      "hasStructuralAnalysis": true
+    },
+    "tsconfig.json": {
+      "filePath": "tsconfig.json",
+      "contentHash": "a8735a5ae31b3b404975ccc16b47fdbd6f6d04b8540349ca943a1569f01b8f59",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 18,
+      "hasStructuralAnalysis": true
+    },
+    "vercel.json": {
+      "filePath": "vercel.json",
+      "contentHash": "54cfca69547262b81b55fefef462280d87b04b27f8e9625aac5c5f76adda21b1",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 35,
+      "hasStructuralAnalysis": true
+    },
+    "vitest.config.ts": {
+      "filePath": "vitest.config.ts",
+      "contentHash": "d3a3ff77a4705ecef3d40fd7ffe42f86b3b9c3f7b9e54d3587c7486edb280265",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest/config",
+          "specifiers": [
+            "defineConfig"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 9,
+      "hasStructuralAnalysis": true
+    },
+    "web/app.js": {
+      "filePath": "web/app.js",
+      "contentHash": "79020309865b5e31886f9bd931d20c667230722142c48025fcb9724b1e033f4c",
+      "functions": [
+        {
+          "name": "boot",
+          "params": [],
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "defaultApiBase",
+          "params": [],
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "emptyMasterData",
+          "params": [],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "cacheRefs",
+          "params": [],
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "bindNavigation",
+          "params": [],
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "bindDevForm",
+          "params": [],
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "bindForms",
+          "params": [],
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "bindActions",
+          "params": [],
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "bindMasterDataEvents",
+          "params": [],
+          "exported": false,
+          "lineCount": 24
+        },
+        {
+          "name": "loadAppContext",
+          "params": [],
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "applyAppContext",
+          "params": [],
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "syncDevForm",
+          "params": [],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "applyRoleVisibility",
+          "params": [],
+          "exported": false,
+          "lineCount": 21
+        },
+        {
+          "name": "showView",
+          "params": [
+            "viewName"
+          ],
+          "exported": false,
+          "lineCount": 15
+        },
+        {
+          "name": "apiFetch",
+          "params": [
+            "path"
+          ],
+          "exported": false,
+          "lineCount": 25
+        },
+        {
+          "name": "refreshDashboard",
+          "params": [],
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "runAction",
+          "params": [
+            "action",
+            "button"
+          ],
+          "exported": false,
+          "lineCount": 22
+        },
+        {
+          "name": "loadMasterData",
+          "params": [],
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "renderMasterDataControls",
+          "params": [],
+          "exported": false,
+          "lineCount": 15
+        },
+        {
+          "name": "fillSelect",
+          "params": [
+            "selector",
+            "rows",
+            "valueKey",
+            "label",
+            "emptyLabel"
+          ],
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "itemOptionText",
+          "params": [
+            "item"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "orderOptionText",
+          "params": [
+            "order"
+          ],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "prefillReceiptFromOrder",
+          "params": [
+            "event"
+          ],
+          "exported": false,
+          "lineCount": 17
+        },
+        {
+          "name": "syncItemDefaults",
+          "params": [
+            "itemId",
+            "formSelector"
+          ],
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "syncWithdrawalDefaults",
+          "params": [
+            "formSelector",
+            "hint"
+          ],
+          "exported": false,
+          "lineCount": 15
+        },
+        {
+          "name": "validateWithdrawalStock",
+          "params": [
+            "formSelector",
+            "hint"
+          ],
+          "exported": false,
+          "lineCount": 26
+        },
+        {
+          "name": "renderItems",
+          "params": [],
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "renderStock",
+          "params": [],
+          "exported": false,
+          "lineCount": 13
+        },
+        {
+          "name": "renderPurchaseOrders",
+          "params": [],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "loadGoodsReceipts",
+          "params": [],
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "loadReviewTasks",
+          "params": [],
+          "exported": false,
+          "lineCount": 15
+        },
+        {
+          "name": "renderReviewTasks",
+          "params": [
+            "selector",
+            "tasks"
+          ],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "actionButtons",
+          "params": [
+            "id"
+          ],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "updateMetrics",
+          "params": [],
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "submitItem",
+          "params": [
+            "event"
+          ],
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "submitPurchaseOrder",
+          "params": [
+            "event"
+          ],
+          "exported": false,
+          "lineCount": 27
+        },
+        {
+          "name": "submitGoodsReceipt",
+          "params": [
+            "event"
+          ],
+          "exported": false,
+          "lineCount": 27
+        },
+        {
+          "name": "submitWithdrawal",
+          "params": [
+            "event"
+          ],
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "submitQuickBooking",
+          "params": [
+            "event"
+          ],
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "postWithdrawal",
+          "params": [
+            "form",
+            "successMessage"
+          ],
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "submitCorrection",
+          "params": [
+            "event"
+          ],
+          "exported": false,
+          "lineCount": 24
+        },
+        {
+          "name": "postJson",
+          "params": [
+            "path",
+            "body",
+            "successMessage"
+          ],
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "submitTaskAction",
+          "params": [
+            "id",
+            "action"
+          ],
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "withSubmitState",
+          "params": [
+            "form",
+            "callback"
+          ],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "withButtonState",
+          "params": [
+            "button",
+            "callback"
+          ],
+          "exported": false,
+          "lineCount": 18
+        },
+        {
+          "name": "validateRequired",
+          "params": [
+            "form"
+          ],
+          "exported": false,
+          "lineCount": 15
+        },
+        {
+          "name": "setFieldError",
+          "params": [
+            "form",
+            "name",
+            "message"
+          ],
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "clearFieldError",
+          "params": [
+            "form",
+            "name"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "clearFormErrors",
+          "params": [
+            "form"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "formData",
+          "params": [
+            "form"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "normalizeFormValues",
+          "params": [
+            "data"
+          ],
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "renderTable",
+          "params": [
+            "selector",
+            "headers",
+            "rows",
+            "mapRow",
+            "emptyMessage",
+            "retryAction"
+          ],
+          "exported": false,
+          "lineCount": 29
+        },
+        {
+          "name": "findItem",
+          "params": [
+            "id"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "findStock",
+          "params": [
+            "id"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "findOrder",
+          "params": [
+            "id"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "canUseAdminReviewTasks",
+          "params": [],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "statusBadge",
+          "params": [
+            "label"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "showToast",
+          "params": [
+            "message"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "escapeHtml",
+          "params": [
+            "value"
+          ],
+          "exported": false,
+          "lineCount": 7
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 838,
+      "hasStructuralAnalysis": true
+    },
+    "web/index.html": {
+      "filePath": "web/index.html",
+      "contentHash": "0e771f890a48fdca01a52d2ad300ec3587cff1c903ccf186dcea00147fabd546",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 252,
+      "hasStructuralAnalysis": false
+    },
+    "web/styles.css": {
+      "filePath": "web/styles.css",
+      "contentHash": "65e4bc9cb9f056a9b3a754e23d583318c82c5e2cb6d598d75555408f9a869e8c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 453,
+      "hasStructuralAnalysis": false
+    }
+  }
+}
