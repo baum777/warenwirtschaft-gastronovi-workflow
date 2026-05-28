@@ -49,7 +49,7 @@ function defaultApiBase() {
 const columns = {
   items: ["Name", "SKU", "Kategorie", "Einheit", "Min", "Status"],
   stock: ["Artikel", "Kategorie", "Bestand", "Einheit", "Status", "Letzte Bewegung"],
-  orders: ["ID", "Status", "Lieferant", "Positionen"],
+  orders: ["ID", "Status", "Lieferant", "Positionen", "Aktion"],
   receipts: ["ID", "Bestellung", "Empfangen von", "Positionen"],
   tasks: ["Typ", "Status", "Schwere", "Titel", "Aktion"]
 };
@@ -767,8 +767,21 @@ function renderPurchaseOrders() {
     order.purchaseOrderId,
     statusBadge(order.status),
     order.supplierName || order.supplierId || "-",
-    order.items.map((item) => `${item.inventoryItemName || item.inventoryItemId}: ${item.pendingQty} ${item.unit}`).join(", ")
+    order.items.map((item) => `${item.inventoryItemName || item.inventoryItemId}: ${item.pendingQty} ${item.unit}`).join(", "),
+    purchaseOrderActions(order)
   ], emptyStates.purchaseOrders);
+}
+
+function purchaseOrderActions(order) {
+  if (order.status !== "draft") {
+    return "-";
+  }
+
+  return `
+    <span class="row-actions">
+      <button data-order-action="mark-ordered" data-order-id="${escapeHtml(order.purchaseOrderId)}">Bestellt</button>
+    </span>
+  `;
 }
 
 async function loadGoodsReceipts() {
@@ -1058,12 +1071,33 @@ function renderTable(selector, headers, rows, mapRow, emptyMessage = "Keine Eint
   container.querySelectorAll("[data-task-action]").forEach((button) => {
     button.addEventListener("click", () => submitTaskAction(button.dataset.taskId, button.dataset.taskAction));
   });
+  container.querySelectorAll("[data-order-action]").forEach((button) => {
+    button.addEventListener("click", () => submitPurchaseOrderAction(button.dataset.orderId, button.dataset.orderAction));
+  });
+}
+
+async function submitPurchaseOrderAction(id, action) {
+  try {
+    if (action !== "mark-ordered") {
+      return;
+    }
+
+    await apiFetch(`/admin/purchase-orders/${id}/mark-ordered`, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    showToast("Bestellung als bestellt markiert.");
+    await loadMasterData();
+  } catch (error) {
+    showToast(error.message, true);
+  }
 }
 
 async function submitTaskAction(id, action) {
   try {
     await apiFetch(`/admin/review-tasks/${id}/${action}`, {
-      method: "POST"
+      method: "POST",
+      body: JSON.stringify({})
     });
     showToast("Review Task aktualisiert.");
     await loadReviewTasks();

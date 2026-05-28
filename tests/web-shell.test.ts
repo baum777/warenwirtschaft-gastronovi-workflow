@@ -98,6 +98,15 @@ describe("Warenwirtschaft web shell", () => {
     }
   });
 
+  it("exposes purchase-order actions without stock-changing item edits", () => {
+    const app = readWebFile("app.js");
+
+    expect(app).toContain("/admin/purchase-orders/${id}/mark-ordered");
+    expect(app).toContain("data-order-action");
+    expect(app).toContain("body: JSON.stringify({})");
+    expect(app).not.toContain('apiFetch(`/admin/inventory/items/${id}`');
+  });
+
   it("defines the workspace overlay shell and workspace entry points", () => {
     const html = readWebFile("index.html");
     const styles = readWebFile("styles.css");
