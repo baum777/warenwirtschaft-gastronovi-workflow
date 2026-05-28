@@ -174,6 +174,23 @@ describe("Warenwirtschaft web shell", () => {
     expect(app).toContain('"review-tasks": {\n    title: "Prüfung",\n    roles: ["admin"]');
   });
 
+  it("keeps sidebar workspace routing keys for corrections and review explicit", () => {
+    const html = readWebFile("index.html");
+    const app = readWebFile("app.js");
+
+    expect(html).toContain('data-workspace="corrections"');
+    expect(html).toContain('data-workspace="review-tasks"');
+    expect(app).toContain("if (workspace) {");
+    expect(app).toContain("return;");
+    expect(app).toContain('korrekturen: "corrections"');
+    expect(app).toContain('pruefung: "review-tasks"');
+    expect(app).toContain('prüfung: "review-tasks"');
+    expect(app).toContain('bestellungen: "purchase-orders"');
+    expect(app).toContain('wareneingang: "goods-receipts"');
+    expect(app).toContain('entnahmen: "withdrawals"');
+    expect(app).toContain('schnellbuchen: "quick-booking"');
+  });
+
   it("defines guided workspace context, critical empty states, and quick-booking reason chips", () => {
     const html = readWebFile("index.html");
     const app = readWebFile("app.js");
@@ -189,5 +206,22 @@ describe("Warenwirtschaft web shell", () => {
     expect(app).toContain("lastQuickBooking");
     expect(styles).toContain(".workspace-context");
     expect(styles).toContain(".reason-chip");
+  });
+
+  it("keeps item-driven form defaults deterministic across all booking inputs", () => {
+    const app = readWebFile("app.js");
+
+    expect(app).toContain('form.elements.storageLocationId.value = item.storageLocationId || "";');
+    expect(app).toContain('form.elements.storageLocationId.value = "";');
+    expect(app).toContain('if (!itemId) {');
+    expect(app).toContain("Bestand wird nach Artikelauswahl angezeigt.");
+  });
+
+  it("validates quick-booking receipts separately from withdrawal stock limits", () => {
+    const app = readWebFile("app.js");
+
+    expect(app).toContain("#quick-booking-form [name='movementType']");
+    expect(app).toContain('form.elements.movementType?.value === "goods-receipt"');
+    expect(app).toContain("Wareneingang erhöht den Bestand.");
   });
 });

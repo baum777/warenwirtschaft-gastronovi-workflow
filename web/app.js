@@ -174,15 +174,16 @@ function bindNavigation() {
       const view = element.dataset.view || element.dataset.viewLink;
       const workspace = element.dataset.workspace;
 
-      if (view) {
-        showView(view);
-      }
       if (workspace) {
         openWorkspace(workspace, {
           tab: element.dataset.workspaceTab,
           filter: element.dataset.workspaceFilter,
           trigger: element
         });
+        return;
+      }
+      if (view) {
+        showView(view);
       }
     });
   });
@@ -265,6 +266,9 @@ function bindMasterDataEvents() {
   });
   document.querySelector("#quick-booking-item").addEventListener("change", () => {
     syncWithdrawalDefaults("#quick-booking-form", WarenwirtschaftApp.refs.quickBookingStockHint);
+  });
+  document.querySelector("#quick-booking-form [name='movementType']").addEventListener("change", () => {
+    validateWithdrawalStock("#quick-booking-form", WarenwirtschaftApp.refs.quickBookingStockHint);
   });
   document.querySelector("#quick-booking-form [name='quantity']").addEventListener("input", () => {
     validateWithdrawalStock("#quick-booking-form", WarenwirtschaftApp.refs.quickBookingStockHint);
@@ -475,7 +479,25 @@ function canOpenWorkspace(workspaceName) {
 }
 
 function normalizeWorkspaceName(workspaceName) {
-  return workspaceName === "quick-book" ? "quick-booking" : workspaceName;
+  const aliases = {
+    "quick-book": "quick-booking",
+    quickbook: "quick-booking",
+    schnellbuchen: "quick-booking",
+    bestand: "stock",
+    bestellungen: "purchase-orders",
+    wareneingang: "goods-receipts",
+    entnahmen: "withdrawals",
+    korrekturen: "corrections",
+    pruefung: "review-tasks",
+    prüfung: "review-tasks",
+    review: "review-tasks"
+  };
+
+  const normalized = String(workspaceName || "")
+    .trim()
+    .toLowerCase();
+
+  return aliases[normalized] || normalized;
 }
 
 function loadWorkspace(workspaceName) {
@@ -652,8 +674,8 @@ function syncItemDefaults(itemId, formSelector) {
   if (form.elements.unit) {
     form.elements.unit.value = item.defaultUnit;
   }
-  if (form.elements.storageLocationId && item.storageLocationId) {
-    form.elements.storageLocationId.value = item.storageLocationId;
+  if (form.elements.storageLocationId) {
+    form.elements.storageLocationId.value = item.storageLocationId || "";
   }
 }
 
@@ -665,9 +687,11 @@ function syncWithdrawalDefaults(formSelector, hint) {
     if (form.elements.unit) {
       form.elements.unit.value = item.defaultUnit;
     }
-    if (form.elements.storageLocationId && item.storageLocationId) {
-      form.elements.storageLocationId.value = item.storageLocationId;
+    if (form.elements.storageLocationId) {
+      form.elements.storageLocationId.value = item.storageLocationId || "";
     }
+  } else if (form.elements.storageLocationId) {
+    form.elements.storageLocationId.value = "";
   }
 
   validateWithdrawalStock(formSelector, hint);
@@ -683,12 +707,22 @@ function validateWithdrawalStock(formSelector, hint) {
   clearFieldError(form, "quantity");
   quantityInput.setCustomValidity("");
 
+  if (!itemId) {
+    hint.textContent = "Bestand wird nach Artikelauswahl angezeigt.";
+    return true;
+  }
+
   if (!stock) {
     hint.textContent = "Für diesen Artikel liegt noch kein Bestand vor.";
     return true;
   }
 
   hint.textContent = `Verfügbar: ${stock.currentStock} ${stock.unit}`;
+
+  if (form.elements.movementType?.value === "goods-receipt") {
+    hint.textContent = `Aktueller Bestand: ${stock.currentStock} ${stock.unit}. Wareneingang erhöht den Bestand.`;
+    return true;
+  }
 
   if (quantity > stock.currentStock) {
     const message = `Maximal verfügbar: ${stock.currentStock} ${stock.unit}.`;
