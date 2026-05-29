@@ -46,6 +46,10 @@ const WarenwirtschaftApp = {
     reviewUi: {
       selectedTaskId: null
     },
+    mobileUi: {
+      quickBookingStep: 0,
+      quickBookingSuccess: null
+    },
     correctionReviewIndex: {},
     commandForms: {},
     dashboardMetrics: [],
@@ -292,6 +296,34 @@ const mobilePrimaryNavigationByRole = {
   staff: ["quick-booking", "staff-history", "staff-hints"]
 };
 
+const mobileStaffActionCards = [
+  {
+    id: "withdrawal",
+    title: "Entnahme buchen",
+    description: "Bestand sinkt nach bestätigter Buchung.",
+    tone: "warning",
+    action: "quick-booking",
+    movementType: "withdrawal"
+  },
+  {
+    id: "goods-receipt",
+    title: "Ware erhalten",
+    description: "Bestand steigt nach bestätigter Buchung.",
+    tone: "ok",
+    action: "quick-booking",
+    movementType: "goods-receipt"
+  },
+  {
+    id: "correction",
+    title: "Fehler melden",
+    description: "Korrektur an Admin-Review senden, ohne Sofort-Effekt.",
+    tone: "info",
+    action: "corrections"
+  }
+];
+
+const quickBookingMobileStepCount = 5;
+
 const workspaces = {
   items: {
     title: "Artikel",
@@ -376,6 +408,7 @@ async function boot() {
   bindMasterDataEvents();
   bindWorkspaceShell();
   bindReasonChips();
+  bindMobileStaffFlowEvents();
   bindStockWorkspaceEvents();
   bindReviewWorkspaceEvents();
   bindShellControls();
@@ -436,6 +469,15 @@ function cacheRefs() {
     workspaceTabs: document.querySelector("#workspace-tabs"),
     workspaceBody: document.querySelector("#workspace-body"),
     quickBookingResult: document.querySelector("#quick-booking-result"),
+    mobileStaffStart: document.querySelector("#mobile-staff-start"),
+    mobileActionCardGrid: document.querySelector("#mobile-action-card-grid"),
+    quickMobileStepper: document.querySelector("#quick-mobile-stepper"),
+    quickMobileStepperTitle: document.querySelector("#quick-mobile-stepper-title"),
+    quickMobileStepperProgress: document.querySelector("#quick-mobile-stepper-progress"),
+    mobileSuccessScreen: document.querySelector("#mobile-success-screen"),
+    mobileSuccessTitle: document.querySelector("#mobile-success-title"),
+    mobileSuccessMessage: document.querySelector("#mobile-success-message"),
+    mobileSuccessEffect: document.querySelector("#mobile-success-effect"),
     reviewTaskCardList: document.querySelector("#review-task-card-list"),
     reviewTaskDrawer: document.querySelector("#review-task-drawer"),
     reviewTaskTitle: document.querySelector("#review-task-title"),
@@ -584,6 +626,7 @@ function syncShellState() {
     ? WarenwirtschaftApp.state.ui.isSidebarOpenMobile
     : !WarenwirtschaftApp.state.ui.isSidebarCollapsed;
   WarenwirtschaftApp.refs.sidebarToggle.setAttribute("aria-expanded", String(isExpanded));
+  syncMobileStaffQuickBookingMode();
 }
 
 function closeSidebarOnMobile() {
@@ -610,6 +653,371 @@ function bindReasonChips() {
       updateCommandEffectPreview(form);
     });
   });
+}
+
+function bindMobileStaffFlowEvents() {
+  const form = document.querySelector("#quick-booking-form");
+  if (!form) {
+    return;
+  }
+
+  form.addEventListener("click", (event) => {
+    const actionCard = event.target.closest("[data-mobile-action-card]");
+    if (actionCard) {
+      event.preventDefault();
+      handleMobileActionCard(actionCard);
+      return;
+    }
+
+    const nextButton = event.target.closest("[data-mobile-step-next]");
+    if (nextButton) {
+      event.preventDefault();
+      advanceQuickBookingMobileStep();
+      return;
+    }
+
+    const backButton = event.target.closest("[data-mobile-step-back]");
+    if (backButton) {
+      event.preventDefault();
+      retreatQuickBookingMobileStep();
+      return;
+    }
+
+    const resetButton = event.target.closest("[data-mobile-success-reset]");
+    if (resetButton) {
+      event.preventDefault();
+      resetQuickBookingMobileSuccess();
+    }
+  });
+
+  form.elements.movementType?.addEventListener("change", () => {
+    if (!isStaffMobileQuickBookingMode()) {
+      return;
+    }
+
+    WarenwirtschaftApp.state.mobileUi.quickBookingSuccess = null;
+    renderQuickBookingMobileStepper();
+    applyQuickBookingMobileStepVisibility();
+  });
+
+  window.addEventListener("resize", () => {
+    syncMobileStaffQuickBookingMode();
+  });
+}
+
+function isStaffMobileQuickBookingMode() {
+  return isStaffRole() && isMobileViewport() && WarenwirtschaftApp.state.activeWorkspace === "quick-booking";
+}
+
+function mobileActionCardMarkup(card) {
+  return `
+    <button
+      type="button"
+      class="mobile-action-card is-${escapeHtml(card.tone)}"
+      data-mobile-action-card
+      data-mobile-action="${escapeHtml(card.action)}"
+      ${card.movementType ? `data-mobile-movement-type="${escapeHtml(card.movementType)}"` : ""}
+    >
+      <strong>${escapeHtml(card.title)}</strong>
+      <span>${escapeHtml(card.description)}</span>
+    </button>
+  `;
+}
+
+function renderMobileActionCards() {
+  if (!WarenwirtschaftApp.refs.mobileActionCardGrid) {
+    return;
+  }
+
+  WarenwirtschaftApp.refs.mobileActionCardGrid.innerHTML = mobileStaffActionCards
+    .map((card) => mobileActionCardMarkup(card))
+    .join("");
+}
+
+function handleMobileActionCard(button) {
+  const action = button.dataset.mobileAction;
+  if (action === "corrections") {
+    openWorkspace("corrections", { trigger: button });
+    return;
+  }
+
+  const form = document.querySelector("#quick-booking-form");
+  if (!form || action !== "quick-booking") {
+    return;
+  }
+
+  const movementType = button.dataset.mobileMovementType || "withdrawal";
+  form.elements.movementType.value = movementType;
+  WarenwirtschaftApp.state.mobileUi.quickBookingSuccess = null;
+  WarenwirtschaftApp.state.mobileUi.quickBookingStep = 1;
+  markCommandFormAsFilling(form);
+  updateCommandEffectPreview(form);
+  renderQuickBookingMobileStepper();
+  applyQuickBookingMobileStepVisibility();
+}
+
+function quickBookingMobileStepLabel() {
+  const form = document.querySelector("#quick-booking-form");
+  const movementType = form?.elements?.movementType?.value || "withdrawal";
+  const flow = movementType === "goods-receipt" ? "Wareneingang" : "Entnahme";
+  return `${flow} · Schritt ${WarenwirtschaftApp.state.mobileUi.quickBookingStep + 1} von ${quickBookingMobileStepCount}`;
+}
+
+function setQuickBookingMobileStep(step) {
+  const bounded = Math.min(Math.max(step, 0), quickBookingMobileStepCount - 1);
+  WarenwirtschaftApp.state.mobileUi.quickBookingStep = bounded;
+  renderQuickBookingMobileStepper();
+  applyQuickBookingMobileStepVisibility();
+}
+
+function getQuickBookingMobileStepGroups(form) {
+  return Array.from(form.querySelectorAll("[data-mobile-step]"));
+}
+
+function clearQuickBookingMobileStepVisibility() {
+  const form = document.querySelector("#quick-booking-form");
+  if (!form) {
+    return;
+  }
+
+  getQuickBookingMobileStepGroups(form).forEach((group) => {
+    group.hidden = false;
+    group.classList.remove("is-mobile-step-hidden");
+  });
+
+  form.querySelectorAll("[data-mobile-step-back], [data-mobile-step-next]").forEach((button) => {
+    button.hidden = true;
+  });
+  const submit = form.querySelector("[data-command-primary]");
+  if (submit) {
+    submit.hidden = false;
+  }
+
+  if (WarenwirtschaftApp.refs.mobileStaffStart) {
+    WarenwirtschaftApp.refs.mobileStaffStart.hidden = true;
+  }
+  if (WarenwirtschaftApp.refs.quickMobileStepper) {
+    WarenwirtschaftApp.refs.quickMobileStepper.hidden = true;
+  }
+  if (WarenwirtschaftApp.refs.mobileSuccessScreen) {
+    WarenwirtschaftApp.refs.mobileSuccessScreen.hidden = true;
+  }
+}
+
+function syncMobileStaffQuickBookingMode() {
+  const form = document.querySelector("#quick-booking-form");
+  if (!form) {
+    return;
+  }
+
+  const enabled = isStaffMobileQuickBookingMode();
+  form.classList.toggle("is-mobile-staff-mode", enabled);
+  if (WarenwirtschaftApp.refs.quickBookingResult) {
+    WarenwirtschaftApp.refs.quickBookingResult.hidden = enabled || !WarenwirtschaftApp.state.lastQuickBooking;
+  }
+
+  if (!enabled) {
+    clearQuickBookingMobileStepVisibility();
+    return;
+  }
+
+  renderMobileActionCards();
+  if (WarenwirtschaftApp.refs.mobileStaffStart) {
+    WarenwirtschaftApp.refs.mobileStaffStart.hidden = false;
+  }
+  if (WarenwirtschaftApp.refs.quickMobileStepper) {
+    WarenwirtschaftApp.refs.quickMobileStepper.hidden = false;
+  }
+
+  renderQuickBookingMobileStepper();
+  renderQuickBookingMobileSuccess();
+  applyQuickBookingMobileStepVisibility();
+}
+
+function renderQuickBookingMobileStepper() {
+  if (!isStaffMobileQuickBookingMode()) {
+    return;
+  }
+
+  const form = document.querySelector("#quick-booking-form");
+  const movementType = form?.elements?.movementType?.value || "withdrawal";
+  const label = movementType === "goods-receipt" ? "Ware erhalten" : "Entnahme buchen";
+
+  if (WarenwirtschaftApp.refs.quickMobileStepperTitle) {
+    WarenwirtschaftApp.refs.quickMobileStepperTitle.textContent = label;
+  }
+  if (WarenwirtschaftApp.refs.quickMobileStepperProgress) {
+    WarenwirtschaftApp.refs.quickMobileStepperProgress.textContent = quickBookingMobileStepLabel();
+  }
+}
+
+function renderQuickBookingMobileSuccess() {
+  if (!isStaffMobileQuickBookingMode()) {
+    if (WarenwirtschaftApp.refs.mobileSuccessScreen) {
+      WarenwirtschaftApp.refs.mobileSuccessScreen.hidden = true;
+    }
+    return;
+  }
+
+  const success = WarenwirtschaftApp.state.mobileUi.quickBookingSuccess;
+  if (!success || !WarenwirtschaftApp.refs.mobileSuccessScreen) {
+    if (WarenwirtschaftApp.refs.mobileSuccessScreen) {
+      WarenwirtschaftApp.refs.mobileSuccessScreen.hidden = true;
+    }
+    return;
+  }
+
+  WarenwirtschaftApp.refs.mobileSuccessScreen.hidden = false;
+  if (WarenwirtschaftApp.refs.mobileSuccessTitle) {
+    WarenwirtschaftApp.refs.mobileSuccessTitle.textContent = success.title;
+  }
+  if (WarenwirtschaftApp.refs.mobileSuccessMessage) {
+    WarenwirtschaftApp.refs.mobileSuccessMessage.textContent = success.message;
+  }
+  if (WarenwirtschaftApp.refs.mobileSuccessEffect) {
+    WarenwirtschaftApp.refs.mobileSuccessEffect.innerHTML = `
+      <dt>Before</dt><dd>${escapeHtml(success.before)}</dd>
+      <dt>Delta</dt><dd>${escapeHtml(success.delta)}</dd>
+      <dt>After</dt><dd>${escapeHtml(success.after)}</dd>
+      <dt>Unit</dt><dd>${escapeHtml(success.unit)}</dd>
+    `;
+  }
+}
+
+function applyQuickBookingMobileStepVisibility() {
+  const form = document.querySelector("#quick-booking-form");
+  if (!form) {
+    return;
+  }
+
+  if (!isStaffMobileQuickBookingMode()) {
+    clearQuickBookingMobileStepVisibility();
+    return;
+  }
+
+  const success = Boolean(WarenwirtschaftApp.state.mobileUi.quickBookingSuccess);
+  const currentStep = WarenwirtschaftApp.state.mobileUi.quickBookingStep;
+  getQuickBookingMobileStepGroups(form).forEach((group) => {
+    const step = Number(group.dataset.mobileStep || 0);
+    const isVisible = !success && step === currentStep;
+    group.hidden = !isVisible;
+    group.classList.toggle("is-mobile-step-hidden", !isVisible);
+  });
+
+  form.querySelectorAll("[data-mobile-step-back]").forEach((button) => {
+    button.hidden = success || currentStep <= 0;
+  });
+  form.querySelectorAll("[data-mobile-step-next]").forEach((button) => {
+    button.hidden = success || currentStep >= quickBookingMobileStepCount - 1;
+  });
+
+  const submit = form.querySelector("[data-command-primary]");
+  if (submit) {
+    submit.hidden = success || currentStep < quickBookingMobileStepCount - 1;
+  }
+}
+
+function validateQuickBookingMobileStep(step) {
+  const form = document.querySelector("#quick-booking-form");
+  if (!form) {
+    return false;
+  }
+
+  if (step === 0) {
+    return Boolean(form.elements.movementType.value);
+  }
+
+  if (step === 1) {
+    if (form.elements.inventoryItemId.value) {
+      return true;
+    }
+    showToast("Bitte zuerst einen Artikel wählen.", { tone: "warning" });
+    return false;
+  }
+
+  if (step === 2) {
+    const quantity = Number(form.elements.quantity.value || 0);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      showToast("Bitte eine gültige Menge eingeben.", { tone: "warning" });
+      return false;
+    }
+
+    if (!form.elements.unit.value) {
+      showToast("Bitte eine Einheit wählen.", { tone: "warning" });
+      return false;
+    }
+
+    if (form.elements.movementType.value !== "goods-receipt") {
+      return validateWithdrawalStock("#quick-booking-form", WarenwirtschaftApp.refs.quickBookingStockHint);
+    }
+
+    return true;
+  }
+
+  if (step === 3 && form.elements.movementType.value !== "goods-receipt") {
+    if (String(form.elements.reason?.value || "").trim()) {
+      return true;
+    }
+    showToast("Bitte einen Entnahmegrund wählen.", { tone: "warning" });
+    return false;
+  }
+
+  return true;
+}
+
+function advanceQuickBookingMobileStep() {
+  if (!isStaffMobileQuickBookingMode()) {
+    return;
+  }
+
+  const current = WarenwirtschaftApp.state.mobileUi.quickBookingStep;
+  if (!validateQuickBookingMobileStep(current)) {
+    return;
+  }
+
+  setQuickBookingMobileStep(current + 1);
+}
+
+function retreatQuickBookingMobileStep() {
+  if (!isStaffMobileQuickBookingMode()) {
+    return;
+  }
+
+  setQuickBookingMobileStep(WarenwirtschaftApp.state.mobileUi.quickBookingStep - 1);
+}
+
+function setQuickBookingMobileSuccess(outcome) {
+  const flow = outcome.data.movementType === "goods-receipt" ? "Wareneingang gebucht" : "Entnahme gespeichert";
+  WarenwirtschaftApp.state.mobileUi.quickBookingSuccess = {
+    title: flow,
+    message: outcome.data.movementType === "goods-receipt" ? "Bestand wurde erhöht." : "Bestand wurde gesenkt.",
+    before: formatEffectNumber(outcome.effect.before),
+    delta: formatEffectNumber(outcome.effect.delta, true),
+    after: formatEffectNumber(outcome.effect.after),
+    unit: outcome.effect.unit || outcome.data.unit || "-"
+  };
+  renderQuickBookingMobileSuccess();
+  applyQuickBookingMobileStepVisibility();
+}
+
+function resetQuickBookingMobileSuccess() {
+  const form = document.querySelector("#quick-booking-form");
+  if (!form) {
+    return;
+  }
+
+  WarenwirtschaftApp.state.mobileUi.quickBookingSuccess = null;
+  WarenwirtschaftApp.state.mobileUi.quickBookingStep = 1;
+  form.elements.quantity.value = "";
+  form.elements.note.value = "";
+  if (form.elements.movementType.value !== "goods-receipt") {
+    form.elements.reason.value = "Verbrauch Küche";
+    updateReasonChips("Verbrauch Küche", form);
+  }
+  markCommandFormAsFilling(form);
+  updateCommandEffectPreview(form);
+  renderQuickBookingMobileStepper();
+  applyQuickBookingMobileStepVisibility();
 }
 
 function initializeCommandForm(form) {
@@ -1580,6 +1988,7 @@ function openWorkspace(workspaceName, options = {}) {
   renderWorkspaceShell(normalizedWorkspaceName);
   updateWorkspaceNavigation();
   loadWorkspace(normalizedWorkspaceName);
+  syncMobileStaffQuickBookingMode();
   document.querySelector("[data-action='close-workspace']").focus();
   return true;
 }
@@ -1611,6 +2020,8 @@ function closeWorkspace() {
   if (trigger && trigger.isConnected) {
     trigger.focus();
   }
+
+  syncMobileStaffQuickBookingMode();
 }
 
 function setWorkspaceTab(tabName) {
@@ -1671,6 +2082,7 @@ function renderWorkspaceShell(workspaceName) {
   });
 
   document.body.classList.toggle("has-critical-filter", WarenwirtschaftApp.state.activeWorkspaceFilter === "critical");
+  syncMobileStaffQuickBookingMode();
 }
 
 function renderWorkspaceContext(workspaceName) {
@@ -1722,6 +2134,7 @@ function updateWorkspaceAccess() {
     }
   });
   updateWorkspaceNavigation();
+  syncMobileStaffQuickBookingMode();
 }
 
 function canOpenWorkspace(workspaceName) {
@@ -2457,6 +2870,7 @@ async function submitQuickBook(event) {
     return;
   }
 
+  const mobileStaffMode = isStaffMobileQuickBookingMode();
   const form = outcome.form;
   const data = outcome.data;
   WarenwirtschaftApp.state.lastQuickBooking = {
@@ -2466,11 +2880,24 @@ async function submitQuickBook(event) {
     reason: data.reason || data.note || "-"
   };
   renderLastQuickBooking();
+
+  if (mobileStaffMode) {
+    setQuickBookingMobileSuccess(outcome);
+  }
+
   form.reset();
   form.elements.reason.value = "Verbrauch Küche";
   updateReasonChips("Verbrauch Küche", form);
-  form.elements.inventoryItemId.focus();
+  if (!mobileStaffMode) {
+    form.elements.inventoryItemId.focus();
+  }
   updateCommandEffectPreview(form);
+
+  if (mobileStaffMode) {
+    WarenwirtschaftApp.state.mobileUi.quickBookingStep = 0;
+    renderQuickBookingMobileStepper();
+    applyQuickBookingMobileStepVisibility();
+  }
 }
 
 async function submitCorrection(event) {
@@ -2621,6 +3048,7 @@ function renderLastQuickBooking() {
 
   WarenwirtschaftApp.refs.quickBookingResult.hidden = false;
   WarenwirtschaftApp.refs.quickBookingResult.textContent = `Zuletzt gebucht: ${booking.quantity} ${booking.unit} ${booking.inventoryItemId} · ${booking.reason}`;
+  syncMobileStaffQuickBookingMode();
 }
 
 function updateReasonChips(activeReason, scope = document) {
@@ -2728,7 +3156,8 @@ function hydrateCorrectionReviewIndexFromTasks(tasks) {
 
     WarenwirtschaftApp.state.correctionReviewIndex[task.id] = {
       ...existing,
-      correctionRequestId: existing.correctionRequestId || parsedCorrectionRequestId || null,
+      correctionRequestId:
+        existing.correctionRequestId || task.correctionRequestId || parsedCorrectionRequestId || null,
       inventoryItemId: existing.inventoryItemId || stockFromName?.inventoryItemId || null,
       expectedDelta:
         typeof existing.expectedDelta === "number" && Number.isFinite(existing.expectedDelta)
@@ -2758,7 +3187,8 @@ function extractCorrectionReviewContext(task) {
   const remembered = WarenwirtschaftApp.state.correctionReviewIndex[task.id] || {};
   const description = normalizeReviewDescription(task.description || task.title || "");
   const deltaFromText = parseCorrectionDeltaFromText(description);
-  const correctionRequestId = remembered.correctionRequestId || parseCorrectionRequestIdFromText(task.description || "");
+  const correctionRequestId =
+    remembered.correctionRequestId || task.correctionRequestId || parseCorrectionRequestIdFromText(task.description || "");
   const expectedDelta =
     typeof remembered.expectedDelta === "number" && Number.isFinite(remembered.expectedDelta)
       ? remembered.expectedDelta

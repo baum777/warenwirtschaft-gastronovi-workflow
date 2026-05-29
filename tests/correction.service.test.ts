@@ -39,10 +39,45 @@ describe("CorrectionService", () => {
       "db.$transaction",
       "inventoryItem.findUnique",
       "inventoryCorrectionRequest.create",
+      "workflowEvent.create",
       "workflowTask.create"
     ]);
     expect(calls.some((call) => call.model === "inventoryMovement")).toBe(false);
     expect(calls.some((call) => call.model === "inventoryStockSnapshot")).toBe(false);
+    expect(calls).toContainEqual({
+      model: "workflowEvent",
+      method: "create",
+      args: {
+        data: {
+          type: "inventory.correction.requested",
+          version: 1,
+          source: "system",
+          externalId: "correction-1",
+          idempotencyKey: "inventory.correction.requested:correction-1",
+          occurredAt: now,
+          dataJson: {
+            correctionRequestId: "correction-1",
+            inventoryItemId: "item-1",
+            requestedById: "staff-1",
+            expectedDelta: -2,
+            unit: "Stück"
+          },
+          metadataJson: {
+            correctionRequestId: "correction-1"
+          }
+        }
+      }
+    });
+    expect(calls).toContainEqual({
+      model: "workflowTask",
+      method: "create",
+      args: {
+        data: expect.objectContaining({
+          description: "Tomaten passiert 5kg: Korrektur um -2 Stück angefordert.",
+          workflowEventId: "event-1"
+        })
+      }
+    });
   });
 
   it("approves a correction and creates the stock movement in a transaction", async () => {
@@ -304,6 +339,12 @@ function correctionTransaction(input: {
       async create(args: unknown) {
         input.calls.push({ model: "workflowTask", method: "create", args });
         return { id: "task-1" };
+      }
+    },
+    workflowEvent: {
+      async create(args: unknown) {
+        input.calls.push({ model: "workflowEvent", method: "create", args });
+        return { id: "event-1" };
       }
     }
   };

@@ -76,6 +76,20 @@ describe("ensureDemoData", () => {
     );
     expect(calls).toContainEqual(
       expect.objectContaining({
+        model: "workflowEvent",
+        args: expect.objectContaining({
+          where: { id: "demo-workflow-event-correction-requested-1" },
+          create: expect.objectContaining({
+            type: "inventory.correction.requested",
+            metadataJson: expect.objectContaining({
+              correctionRequestId: "demo-correction-request-1"
+            })
+          })
+        })
+      })
+    );
+    expect(calls).toContainEqual(
+      expect.objectContaining({
         model: "workflowTask",
         args: expect.objectContaining({
           where: { id: "demo-review-task-correction-1" },
@@ -102,6 +116,7 @@ function demoSeedDb(calls: Array<{ model: string; args: unknown }>) {
     purchaseOrderItem: model("purchaseOrderItem"),
     goodsReceipt: model("goodsReceipt"),
     goodsReceiptItem: model("goodsReceiptItem"),
+    workflowEvent: model("workflowEvent"),
     inventoryMovement: model("inventoryMovement"),
     inventoryStockSnapshot: model("inventoryStockSnapshot"),
     inventoryCorrectionRequest: model("inventoryCorrectionRequest"),

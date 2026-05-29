@@ -52,6 +52,9 @@ type ReviewTaskRecord = {
   severity: string;
   title: string;
   description: string | null;
+  workflowEvent?: {
+    metadataJson: unknown;
+  } | null;
   createdAt: Date;
 };
 
@@ -175,6 +178,13 @@ export class InventoryReadService implements InventoryReadServicePort {
           startsWith: "inventory."
         }
       },
+      include: {
+        workflowEvent: {
+          select: {
+            metadataJson: true
+          }
+        }
+      },
       orderBy: {
         createdAt: "asc"
       }
@@ -187,9 +197,24 @@ export class InventoryReadService implements InventoryReadServicePort {
       severity: task.severity,
       title: task.title,
       description: task.description ?? undefined,
+      correctionRequestId: extractCorrectionRequestId(task),
       createdAt: task.createdAt.toISOString()
     }));
   }
+}
+
+function extractCorrectionRequestId(task: ReviewTaskRecord): string | undefined {
+  if (task.type !== "inventory.correction_request") {
+    return undefined;
+  }
+
+  const metadata = task.workflowEvent?.metadataJson;
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return undefined;
+  }
+
+  const candidate = (metadata as Record<string, unknown>).correctionRequestId;
+  return typeof candidate === "string" && candidate.trim() ? candidate : undefined;
 }
 
 function calculateStockStatus(

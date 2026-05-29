@@ -1458,11 +1458,12 @@ describe("inventory API routes", () => {
         tasks: [
           {
             id: "task-1",
-            type: "inventory.unlinked_receipt",
+            type: "inventory.correction_request",
             status: "open",
             severity: "warning",
-            title: "Wareneingang ohne Bestellung",
-            description: "Tomaten passiert 5kg wurde ohne Bestellung gebucht.",
+            title: "Bestandskorrektur prüfen",
+            description: "Tomaten passiert 5kg: Korrektur um -1 Stück angefordert.",
+            correctionRequestId: "correction-1",
             createdAt: "2026-05-25T20:00:00.000Z"
           }
         ]
@@ -1629,11 +1630,12 @@ function fakeInventoryServices(
         return [
           {
             id: "task-1",
-            type: "inventory.unlinked_receipt",
+            type: "inventory.correction_request",
             status: "open",
             severity: "warning",
-            title: "Wareneingang ohne Bestellung",
-            description: "Tomaten passiert 5kg wurde ohne Bestellung gebucht.",
+            title: "Bestandskorrektur prüfen",
+            description: "Tomaten passiert 5kg: Korrektur um -1 Stück angefordert.",
+            correctionRequestId: "correction-1",
             createdAt: "2026-05-25T20:00:00.000Z"
           }
         ];

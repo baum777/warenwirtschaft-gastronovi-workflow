@@ -555,62 +555,94 @@
                 data-command-confirm-action="Sofortbuchung ausführen"
               >
                 <h3>Sofort buchen</h3>
-                <label>
-                  Buchung
-                  <select name="movementType" required>
-                    <option value="withdrawal">Entnahme</option>
-                    <option value="goods-receipt">Wareneingang</option>
-                  </select>
-                </label>
-                <label class="reason-select">
-                  Grund
-                  <select name="reason" data-reason-select>
-                    <option value="Verbrauch Küche">Verbrauch Küche</option>
-                    <option value="Produktion">Produktion</option>
-                    <option value="Verbrauch Bar">Verbrauch Bar</option>
-                    <option value="Bruch">Bruch</option>
-                    <option value="Verderb">Verderb</option>
-                    <option value="Inventurdifferenz">Inventurdifferenz</option>
-                  </select>
-                </label>
-                <div class="reason-chip-group reason-chips" data-reason-chips aria-label="Grund auswählen">
-                  <button class="reason-chip" type="button" data-reason-chip="Produktion">Produktion</button>
-                  <button class="reason-chip is-active" type="button" data-reason-chip="Verbrauch Küche">
-                    Verbrauch Küche
-                  </button>
-                  <button class="reason-chip" type="button" data-reason-chip="Verbrauch Bar">Verbrauch Bar</button>
-                  <button class="reason-chip" type="button" data-reason-chip="Bruch">Bruch</button>
-                  <button class="reason-chip" type="button" data-reason-chip="Verderb">Verderb</button>
-                  <button class="reason-chip" type="button" data-reason-chip="Inventurdifferenz">
-                    Inventurdifferenz
-                  </button>
+                <section class="mobile-staff-start" id="mobile-staff-start" hidden>
+                  <h4>Aktion wählen</h4>
+                  <p class="panel-subtitle">MobileActionCard · schneller Staff-Modus mit maximal fünf Schritten.</p>
+                  <div class="mobile-action-card-grid" id="mobile-action-card-grid"></div>
+                </section>
+                <section class="mobile-stepper" id="quick-mobile-stepper" hidden aria-live="polite">
+                  <p class="mobile-stepper-kicker">MobileStepper</p>
+                  <h4 id="quick-mobile-stepper-title">Entnahme buchen</h4>
+                  <p id="quick-mobile-stepper-progress">Schritt 1 von 5</p>
+                </section>
+                <div class="mobile-step-group" data-mobile-step="0">
+                  <label>
+                    Buchung
+                    <select name="movementType" required>
+                      <option value="withdrawal">Entnahme</option>
+                      <option value="goods-receipt">Wareneingang</option>
+                    </select>
+                  </label>
                 </div>
-                <label class="command-field command-field--item-picker"
-                  >Artikel<select id="quick-booking-item" name="inventoryItemId" data-item-picker required></select
-                ></label>
-                <p class="field-hint" id="quick-booking-stock-hint">Bestand wird nach Artikelauswahl angezeigt.</p>
-                <label class="command-field command-field--quantity"
-                  >Menge<input name="quantity" type="number" min="0.01" step="0.01" data-quantity-input required
-                /></label>
-                <span class="field-error" data-error-for="quantity"></span>
-                <label class="command-field command-field--unit-selector"
-                  >Einheit<input name="unit" data-unit-selector required value="Stück"
-                /></label>
-                <label class="command-field command-field--location-selector"
-                  >Lagerort<select id="quick-booking-location" name="storageLocationId" data-location-selector></select
-                ></label>
-                <label>Notiz<input name="note" /></label>
-                <section class="command-effect-preview" data-command-effect-preview aria-live="polite"></section>
-                <p class="warning-banner" data-command-warning-banner role="status" aria-live="polite" hidden></p>
-                <div class="command-meta-row">
-                  <p class="command-idempotency-key">Idempotency Key: <code data-command-idempotency-key></code></p>
-                  <button type="button" data-action="refresh-idempotency-key">Neu</button>
+                <div class="mobile-step-group" data-mobile-step="1">
+                  <label class="command-field command-field--item-picker"
+                    >Artikel<select id="quick-booking-item" name="inventoryItemId" data-item-picker required></select
+                  ></label>
+                  <p class="field-hint" id="quick-booking-stock-hint">Bestand wird nach Artikelauswahl angezeigt.</p>
+                </div>
+                <div class="mobile-step-group" data-mobile-step="2">
+                  <label class="command-field command-field--quantity"
+                    >Menge<input name="quantity" type="number" min="0.01" step="0.01" data-quantity-input required
+                  /></label>
+                  <span class="field-error" data-error-for="quantity"></span>
+                  <label class="command-field command-field--unit-selector"
+                    >Einheit<input name="unit" data-unit-selector required value="Stück"
+                  /></label>
+                  <label class="command-field command-field--location-selector"
+                    >Lagerort<select id="quick-booking-location" name="storageLocationId" data-location-selector></select
+                  ></label>
+                </div>
+                <div class="mobile-step-group" data-mobile-step="3">
+                  <label class="reason-select">
+                    Grund
+                    <select name="reason" data-reason-select>
+                      <option value="Verbrauch Küche">Verbrauch Küche</option>
+                      <option value="Produktion">Produktion</option>
+                      <option value="Verbrauch Bar">Verbrauch Bar</option>
+                      <option value="Bruch">Bruch</option>
+                      <option value="Verderb">Verderb</option>
+                      <option value="Inventurdifferenz">Inventurdifferenz</option>
+                    </select>
+                  </label>
+                  <div class="reason-chip-group reason-chips" data-reason-chips aria-label="Grund auswählen">
+                    <button class="reason-chip" type="button" data-reason-chip="Produktion">Produktion</button>
+                    <button class="reason-chip is-active" type="button" data-reason-chip="Verbrauch Küche">
+                      Verbrauch Küche
+                    </button>
+                    <button class="reason-chip" type="button" data-reason-chip="Verbrauch Bar">Verbrauch Bar</button>
+                    <button class="reason-chip" type="button" data-reason-chip="Bruch">Bruch</button>
+                    <button class="reason-chip" type="button" data-reason-chip="Verderb">Verderb</button>
+                    <button class="reason-chip" type="button" data-reason-chip="Inventurdifferenz">
+                      Inventurdifferenz
+                    </button>
+                  </div>
+                  <label>Notiz<input name="note" /></label>
+                </div>
+                <div class="mobile-step-group" data-mobile-step="4">
+                  <section class="command-effect-preview" data-command-effect-preview aria-live="polite"></section>
+                  <p class="warning-banner" data-command-warning-banner role="status" aria-live="polite" hidden></p>
+                  <div class="command-meta-row">
+                    <p class="command-idempotency-key">Idempotency Key: <code data-command-idempotency-key></code></p>
+                    <button type="button" data-action="refresh-idempotency-key">Neu</button>
+                  </div>
                 </div>
                 <input type="hidden" name="idempotencyKey" data-command-idempotency-input />
                 <p class="booking-result" id="quick-booking-result" hidden>Zuletzt gebucht</p>
+                <section class="mobile-success-screen" id="mobile-success-screen" hidden>
+                  <h4 id="mobile-success-title">Buchung bestätigt</h4>
+                  <p id="mobile-success-message">Bestandseffekt wird angezeigt.</p>
+                  <dl class="mobile-success-effect" id="mobile-success-effect"></dl>
+                  <p class="field-hint">Kein Undo. Fehler immer über „Fehler melden“.</p>
+                  <div class="mobile-success-actions">
+                    <button type="button" data-mobile-success-reset>Weitere Buchung</button>
+                    <button type="button" data-workspace="corrections">Fehler melden</button>
+                  </div>
+                </section>
                 <button type="button" data-workspace="corrections">Fehler melden</button>
                 <div class="sticky-action-footer">
                   <p class="command-form-status" data-command-form-status aria-live="polite"></p>
+                  <button type="button" data-mobile-step-back hidden>Zurück</button>
+                  <button type="button" data-mobile-step-next hidden>Weiter</button>
                   <button type="button" data-command-retry hidden>Erneut senden</button>
                   <button type="submit" data-command-primary>Sofort buchen</button>
                 </div>

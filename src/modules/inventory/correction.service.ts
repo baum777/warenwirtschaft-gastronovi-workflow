@@ -85,6 +85,20 @@ type CorrectionTransactionClient = {
   inventoryStockSnapshot: {
     upsert(args: unknown): Promise<unknown>;
   };
+  workflowEvent: {
+    create(args: {
+      data: {
+        type: string;
+        version: number;
+        source: string;
+        externalId?: string;
+        idempotencyKey: string;
+        occurredAt: Date;
+        dataJson: Record<string, unknown>;
+        metadataJson?: Record<string, unknown>;
+      };
+    }): Promise<{ id: string }>;
+  };
   workflowTask: {
     create(args: {
       data: {
@@ -94,6 +108,7 @@ type CorrectionTransactionClient = {
         title: string;
         description: string;
         assignedRole: string;
+        workflowEventId?: string;
       };
     }): Promise<{ id: string }>;
   };
@@ -124,6 +139,7 @@ export class CorrectionService implements CorrectionServicePort {
     return this.options.db.$transaction(async (transaction) => {
       const tx = transaction as CorrectionTransactionClient;
       const inventoryItem = await this.findInventoryItem(tx, input.inventoryItemId);
+      const occurredAt = this.options.now?.() ?? new Date();
       const correctionRequest = await tx.inventoryCorrectionRequest.create({
         data: {
           inventoryItemId: input.inventoryItemId,
@@ -133,14 +149,35 @@ export class CorrectionService implements CorrectionServicePort {
           reason: input.reason
         }
       });
+      const workflowEvent = await tx.workflowEvent.create({
+        data: {
+          type: "inventory.correction.requested",
+          version: 1,
+          source: "system",
+          externalId: correctionRequest.id,
+          idempotencyKey: `inventory.correction.requested:${correctionRequest.id}`,
+          occurredAt,
+          dataJson: {
+            correctionRequestId: correctionRequest.id,
+            inventoryItemId: input.inventoryItemId,
+            requestedById: actor.userId,
+            expectedDelta: input.expectedDelta,
+            unit: input.unit
+          },
+          metadataJson: {
+            correctionRequestId: correctionRequest.id
+          }
+        }
+      });
       const task = await tx.workflowTask.create({
         data: {
           type: "inventory.correction_request",
           status: "open",
           severity: "warning",
           title: "Bestandskorrektur prüfen",
-          description: `${inventoryItem.name}: Korrektur um ${input.expectedDelta} ${input.unit} angefordert. [correctionRequestId: ${correctionRequest.id}]`,
-          assignedRole: "admin"
+          description: `${inventoryItem.name}: Korrektur um ${input.expectedDelta} ${input.unit} angefordert.`,
+          assignedRole: "admin",
+          workflowEventId: workflowEvent.id
         }
       });
 

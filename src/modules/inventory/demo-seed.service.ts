@@ -12,6 +12,7 @@ export type DemoSeedDatabaseClient = {
   supplier: UpsertDelegate;
   storageLocation: UpsertDelegate;
   inventoryItem: UpsertDelegate;
+  workflowEvent: UpsertDelegate;
   purchaseOrder: UpsertDelegate;
   purchaseOrderItem: UpsertDelegate;
   goodsReceipt: UpsertDelegate;
@@ -301,6 +302,47 @@ export async function ensureDemoData(db: DemoSeedDatabaseClient, now: Date): Pro
     }
   });
 
+  await db.workflowEvent.upsert({
+    where: { id: "demo-workflow-event-correction-requested-1" },
+    update: {
+      type: "inventory.correction.requested",
+      version: 1,
+      source: "system",
+      externalId: "demo-correction-request-1",
+      idempotencyKey: "inventory.correction.requested:demo-correction-request-1",
+      occurredAt: now,
+      dataJson: {
+        correctionRequestId: "demo-correction-request-1",
+        inventoryItemId: "demo-item-tomaten",
+        requestedById: "demo-staff",
+        expectedDelta: -1,
+        unit: "kg"
+      },
+      metadataJson: {
+        correctionRequestId: "demo-correction-request-1"
+      }
+    },
+    create: {
+      id: "demo-workflow-event-correction-requested-1",
+      type: "inventory.correction.requested",
+      version: 1,
+      source: "system",
+      externalId: "demo-correction-request-1",
+      idempotencyKey: "inventory.correction.requested:demo-correction-request-1",
+      occurredAt: now,
+      dataJson: {
+        correctionRequestId: "demo-correction-request-1",
+        inventoryItemId: "demo-item-tomaten",
+        requestedById: "demo-staff",
+        expectedDelta: -1,
+        unit: "kg"
+      },
+      metadataJson: {
+        correctionRequestId: "demo-correction-request-1"
+      }
+    }
+  });
+
   await db.workflowTask.upsert({
     where: { id: "demo-review-task-correction-1" },
     update: {
@@ -308,7 +350,8 @@ export async function ensureDemoData(db: DemoSeedDatabaseClient, now: Date): Pro
       status: "open",
       severity: "warning",
       title: "Bestandskorrektur prüfen",
-      description: "DEMO_MODE Tomaten: Korrektur um -1 kg angefordert. [correctionRequestId: demo-correction-request-1]",
+      description: "DEMO_MODE Tomaten: Korrektur um -1 kg angefordert.",
+      workflowEventId: "demo-workflow-event-correction-requested-1",
       assignedRole: "admin",
       resolvedAt: null
     },
@@ -318,7 +361,8 @@ export async function ensureDemoData(db: DemoSeedDatabaseClient, now: Date): Pro
       status: "open",
       severity: "warning",
       title: "Bestandskorrektur prüfen",
-      description: "DEMO_MODE Tomaten: Korrektur um -1 kg angefordert. [correctionRequestId: demo-correction-request-1]",
+      description: "DEMO_MODE Tomaten: Korrektur um -1 kg angefordert.",
+      workflowEventId: "demo-workflow-event-correction-requested-1",
       assignedRole: "admin",
       createdAt: now
     }

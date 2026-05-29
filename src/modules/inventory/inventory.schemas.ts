@@ -203,5 +203,6 @@ export type ReviewTaskRow = {
   severity: string;
   title: string;
   description?: string;
+  correctionRequestId?: string;
   createdAt: string;
 };

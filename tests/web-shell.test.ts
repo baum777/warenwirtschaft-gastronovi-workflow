@@ -407,6 +407,7 @@ describe("Warenwirtschaft web shell", () => {
     expect(app).toContain("buildRejectCorrectionCommand");
     expect(app).toContain("buildResolveReviewTaskCommand");
     expect(app).toContain("hydrateCorrectionReviewIndexFromTasks");
+    expect(app).toContain("task.correctionRequestId");
     expect(app).toContain("inventory.correction_request");
     expect(app).toContain('WarenwirtschaftApp.state.actorRole !== "admin"');
     expect(app).toContain("/admin/correction-requests/");
@@ -417,5 +418,38 @@ describe("Warenwirtschaft web shell", () => {
     expect(styles).toContain(".review-task-drawer");
     expect(styles).toContain(".review-task-context");
     expect(styles).toContain(".review-task-action-grid");
+  });
+
+  it("provides a staff-first mobile execution mode with action cards, stepper, and stock-effect success screen", () => {
+    const html = readWebFile("index.html");
+    const app = readWebFile("app.js");
+    const styles = readWebFile("styles.css");
+
+    expect(html).toContain('id="mobile-staff-start"');
+    expect(html).toContain('id="mobile-action-card-grid"');
+    expect(html).toContain('id="quick-mobile-stepper"');
+    expect(html).toContain('id="mobile-success-screen"');
+    expect(html).toContain("data-mobile-step");
+    expect(html).toContain("data-mobile-step-back");
+    expect(html).toContain("data-mobile-step-next");
+    expect(html).toContain("data-mobile-success-reset");
+    expect(html).toContain("Kein Undo. Fehler immer über „Fehler melden“.");
+
+    expect(app).toContain("mobileStaffActionCards");
+    expect(app).toContain("quickBookingMobileStepCount");
+    expect(app).toContain("mobileActionCardMarkup");
+    expect(app).toContain("bindMobileStaffFlowEvents");
+    expect(app).toContain("syncMobileStaffQuickBookingMode");
+    expect(app).toContain("advanceQuickBookingMobileStep");
+    expect(app).toContain("retreatQuickBookingMobileStep");
+    expect(app).toContain("setQuickBookingMobileSuccess");
+    expect(app).toContain("resetQuickBookingMobileSuccess");
+    expect(app).toContain('staff: ["quick-booking", "staff-history", "staff-hints"]');
+
+    expect(styles).toContain(".mobile-action-card");
+    expect(styles).toContain(".mobile-stepper");
+    expect(styles).toContain(".mobile-success-screen");
+    expect(styles).toContain(".command-form.is-mobile-staff-mode .sticky-action-footer");
+    expect(styles).toContain("min-height: 48px");
   });
 });
