@@ -356,16 +356,38 @@
               data-title="Bestellungen"
               data-workspace="purchase-orders"
             >
-              <form class="panel form-panel" id="purchase-order-form" data-workspace-tab-panel="create">
+              <form
+                class="panel form-panel command-form"
+                id="purchase-order-form"
+                data-workspace-tab-panel="create"
+                data-command-form="purchase-order"
+                data-command-confirm-title="Bestellung anlegen?"
+                data-command-confirm-action="Bestellung anlegen"
+              >
                 <h3>Bestellung erfassen</h3>
                 <label>Lieferant<select id="purchase-order-supplier" name="supplierId"></select></label>
-                <label>Artikel<select id="purchase-order-item" name="inventoryItemId" required></select></label>
+                <label class="command-field command-field--item-picker"
+                  >Artikel<select id="purchase-order-item" name="inventoryItemId" data-item-picker required></select
+                ></label>
                 <span class="field-error" data-error-for="inventoryItemId"></span>
-                <label>Menge<input name="orderedQty" type="number" min="0.01" step="0.01" required /></label>
+                <label class="command-field command-field--quantity"
+                  >Menge<input name="orderedQty" type="number" min="0.01" step="0.01" data-quantity-input required
+                /></label>
                 <span class="field-error" data-error-for="orderedQty"></span>
-                <label>Einheit<input name="unit" required value="Stück" /></label>
+                <label class="command-field command-field--unit-selector"
+                  >Einheit<input name="unit" data-unit-selector required value="Stück"
+                /></label>
                 <label>Notiz<input name="note" /></label>
-                <button type="submit">Anlegen</button>
+                <section class="command-effect-preview" data-command-effect-preview aria-live="polite"></section>
+                <div class="command-meta-row">
+                  <p class="command-idempotency-key">Idempotency Key: <code data-command-idempotency-key></code></p>
+                  <button type="button" data-action="refresh-idempotency-key">Neu</button>
+                </div>
+                <input type="hidden" name="idempotencyKey" data-command-idempotency-input />
+                <div class="sticky-action-footer">
+                  <p class="command-form-status" data-command-form-status aria-live="polite"></p>
+                  <button type="submit" data-command-primary>Bestellung anlegen</button>
+                </div>
               </form>
               <article class="panel" data-workspace-tab-panel="open">
                 <div class="panel-head">
@@ -382,16 +404,40 @@
               data-title="Wareneingang"
               data-workspace="goods-receipts"
             >
-              <form class="panel form-panel" id="goods-receipt-form" data-workspace-tab-panel="book">
+              <form
+                class="panel form-panel command-form"
+                id="goods-receipt-form"
+                data-workspace-tab-panel="book"
+                data-command-form="goods-receipt"
+                data-command-confirm-title="Wareneingang buchen?"
+                data-command-confirm-action="Wareneingang buchen"
+              >
                 <h3>Wareneingang buchen</h3>
                 <label>Offene Bestellung<select id="goods-receipt-order" name="purchaseOrderId"></select></label>
-                <label>Artikel<select id="goods-receipt-item" name="inventoryItemId" required></select></label>
+                <label class="command-field command-field--item-picker"
+                  >Artikel<select id="goods-receipt-item" name="inventoryItemId" data-item-picker required></select
+                ></label>
                 <span class="field-error" data-error-for="inventoryItemId"></span>
-                <label>Menge<input name="quantity" type="number" min="0.01" step="0.01" required /></label>
+                <label class="command-field command-field--quantity"
+                  >Menge<input name="quantity" type="number" min="0.01" step="0.01" data-quantity-input required
+                /></label>
                 <span class="field-error" data-error-for="quantity"></span>
-                <label>Einheit<input name="unit" required value="Stück" /></label>
-                <label>Lagerort<select id="goods-receipt-location" name="storageLocationId"></select></label>
-                <button type="submit">Buchen</button>
+                <label class="command-field command-field--unit-selector"
+                  >Einheit<input name="unit" data-unit-selector required value="Stück"
+                /></label>
+                <label class="command-field command-field--location-selector"
+                  >Lagerort<select id="goods-receipt-location" name="storageLocationId" data-location-selector></select
+                ></label>
+                <section class="command-effect-preview" data-command-effect-preview aria-live="polite"></section>
+                <div class="command-meta-row">
+                  <p class="command-idempotency-key">Idempotency Key: <code data-command-idempotency-key></code></p>
+                  <button type="button" data-action="refresh-idempotency-key">Neu</button>
+                </div>
+                <input type="hidden" name="idempotencyKey" data-command-idempotency-input />
+                <div class="sticky-action-footer">
+                  <p class="command-form-status" data-command-form-status aria-live="polite"></p>
+                  <button type="submit" data-command-primary>Wareneingang buchen</button>
+                </div>
               </form>
               <article class="panel" data-workspace-tab-panel="receipts">
                 <div class="panel-head">
@@ -403,16 +449,40 @@
             </section>
 
             <section class="workspace-view" id="view-withdrawals" data-title="Entnahmen" data-workspace="withdrawals">
-              <form class="panel form-panel compact-form" id="withdrawal-form" data-workspace-tab-panel="book">
+              <form
+                class="panel form-panel compact-form command-form"
+                id="withdrawal-form"
+                data-workspace-tab-panel="book"
+                data-command-form="withdrawal"
+                data-command-confirm-title="Entnahme buchen?"
+                data-command-confirm-action="Entnahme buchen"
+              >
                 <h3>Entnahme buchen</h3>
-                <label>Artikel<select id="withdrawal-item" name="inventoryItemId" required></select></label>
+                <label class="command-field command-field--item-picker"
+                  >Artikel<select id="withdrawal-item" name="inventoryItemId" data-item-picker required></select
+                ></label>
                 <p class="field-hint" id="withdrawal-stock-hint">Bestand wird nach Artikelauswahl angezeigt.</p>
-                <label>Menge<input name="quantity" type="number" min="0.01" step="0.01" required /></label>
+                <label class="command-field command-field--quantity"
+                  >Menge<input name="quantity" type="number" min="0.01" step="0.01" data-quantity-input required
+                /></label>
                 <span class="field-error" data-error-for="quantity"></span>
-                <label>Einheit<input name="unit" required value="Stück" /></label>
-                <label>Lagerort<select id="withdrawal-location" name="storageLocationId"></select></label>
+                <label class="command-field command-field--unit-selector"
+                  >Einheit<input name="unit" data-unit-selector required value="Stück"
+                /></label>
+                <label class="command-field command-field--location-selector"
+                  >Lagerort<select id="withdrawal-location" name="storageLocationId" data-location-selector></select
+                ></label>
                 <label>Notiz<input name="note" /></label>
-                <button type="submit">Erfassen</button>
+                <section class="command-effect-preview" data-command-effect-preview aria-live="polite"></section>
+                <div class="command-meta-row">
+                  <p class="command-idempotency-key">Idempotency Key: <code data-command-idempotency-key></code></p>
+                  <button type="button" data-action="refresh-idempotency-key">Neu</button>
+                </div>
+                <input type="hidden" name="idempotencyKey" data-command-idempotency-input />
+                <div class="sticky-action-footer">
+                  <p class="command-form-status" data-command-form-status aria-live="polite"></p>
+                  <button type="submit" data-command-primary>Entnahme buchen</button>
+                </div>
               </form>
             </section>
 
@@ -422,7 +492,14 @@
               data-title="Schnellbuchen"
               data-workspace="quick-booking"
             >
-              <form class="panel form-panel compact-form touch-form" id="quick-booking-form" data-workspace-tab-panel="book">
+              <form
+                class="panel form-panel compact-form touch-form command-form"
+                id="quick-booking-form"
+                data-workspace-tab-panel="book"
+                data-command-form="quick-booking"
+                data-command-confirm-title="Sofortbuchung ausführen?"
+                data-command-confirm-action="Sofortbuchung ausführen"
+              >
                 <h3>Sofort buchen</h3>
                 <label>
                   Buchung
@@ -433,7 +510,7 @@
                 </label>
                 <label class="reason-select">
                   Grund
-                  <select name="reason">
+                  <select name="reason" data-reason-select>
                     <option value="Verbrauch Küche">Verbrauch Küche</option>
                     <option value="Produktion">Produktion</option>
                     <option value="Verbrauch Bar">Verbrauch Bar</option>
@@ -442,7 +519,7 @@
                     <option value="Inventurdifferenz">Inventurdifferenz</option>
                   </select>
                 </label>
-                <div class="reason-chip-group" aria-label="Grund auswählen">
+                <div class="reason-chip-group reason-chips" data-reason-chips aria-label="Grund auswählen">
                   <button class="reason-chip" type="button" data-reason-chip="Produktion">Produktion</button>
                   <button class="reason-chip is-active" type="button" data-reason-chip="Verbrauch Küche">
                     Verbrauch Küche
@@ -454,15 +531,32 @@
                     Inventurdifferenz
                   </button>
                 </div>
-                <label>Artikel<select id="quick-booking-item" name="inventoryItemId" required></select></label>
+                <label class="command-field command-field--item-picker"
+                  >Artikel<select id="quick-booking-item" name="inventoryItemId" data-item-picker required></select
+                ></label>
                 <p class="field-hint" id="quick-booking-stock-hint">Bestand wird nach Artikelauswahl angezeigt.</p>
-                <label>Menge<input name="quantity" type="number" min="0.01" step="0.01" required /></label>
+                <label class="command-field command-field--quantity"
+                  >Menge<input name="quantity" type="number" min="0.01" step="0.01" data-quantity-input required
+                /></label>
                 <span class="field-error" data-error-for="quantity"></span>
-                <label>Einheit<input name="unit" required value="Stück" /></label>
-                <label>Lagerort<select id="quick-booking-location" name="storageLocationId"></select></label>
+                <label class="command-field command-field--unit-selector"
+                  >Einheit<input name="unit" data-unit-selector required value="Stück"
+                /></label>
+                <label class="command-field command-field--location-selector"
+                  >Lagerort<select id="quick-booking-location" name="storageLocationId" data-location-selector></select
+                ></label>
                 <label>Notiz<input name="note" /></label>
+                <section class="command-effect-preview" data-command-effect-preview aria-live="polite"></section>
+                <div class="command-meta-row">
+                  <p class="command-idempotency-key">Idempotency Key: <code data-command-idempotency-key></code></p>
+                  <button type="button" data-action="refresh-idempotency-key">Neu</button>
+                </div>
+                <input type="hidden" name="idempotencyKey" data-command-idempotency-input />
                 <p class="booking-result" id="quick-booking-result" hidden>Zuletzt gebucht</p>
-                <button type="submit">Buchen</button>
+                <div class="sticky-action-footer">
+                  <p class="command-form-status" data-command-form-status aria-live="polite"></p>
+                  <button type="submit" data-command-primary>Sofort buchen</button>
+                </div>
               </form>
             </section>
 
@@ -493,15 +587,37 @@
             </section>
 
             <section class="workspace-view" id="view-corrections" data-title="Korrekturen" data-workspace="corrections">
-              <form class="panel form-panel compact-form" id="correction-form" data-workspace-tab-panel="request">
+              <form
+                class="panel form-panel compact-form command-form"
+                id="correction-form"
+                data-workspace-tab-panel="request"
+                data-command-form="correction"
+                data-command-confirm-title="Korrektur beantragen?"
+                data-command-confirm-action="Korrektur beantragen"
+              >
                 <h3>Korrektur beantragen</h3>
-                <label>Artikel<select id="correction-item" name="inventoryItemId" required></select></label>
-                <label>Differenz<input name="expectedDelta" type="number" step="0.01" required /></label>
+                <label class="command-field command-field--item-picker"
+                  >Artikel<select id="correction-item" name="inventoryItemId" data-item-picker required></select
+                ></label>
+                <label class="command-field command-field--quantity"
+                  >Differenz<input name="expectedDelta" type="number" step="0.01" data-quantity-input required
+                /></label>
                 <span class="field-error" data-error-for="expectedDelta"></span>
-                <label>Einheit<input name="unit" required value="Stück" /></label>
+                <label class="command-field command-field--unit-selector"
+                  >Einheit<input name="unit" data-unit-selector required value="Stück"
+                /></label>
                 <label>Grund<input name="reason" required /></label>
                 <span class="field-error" data-error-for="reason"></span>
-                <button type="submit">Beantragen</button>
+                <section class="command-effect-preview" data-command-effect-preview aria-live="polite"></section>
+                <div class="command-meta-row">
+                  <p class="command-idempotency-key">Idempotency Key: <code data-command-idempotency-key></code></p>
+                  <button type="button" data-action="refresh-idempotency-key">Neu</button>
+                </div>
+                <input type="hidden" name="idempotencyKey" data-command-idempotency-input />
+                <div class="sticky-action-footer">
+                  <p class="command-form-status" data-command-form-status aria-live="polite"></p>
+                  <button type="submit" data-command-primary>Korrektur beantragen</button>
+                </div>
               </form>
             </section>
 
@@ -522,6 +638,17 @@
           </div>
         </section>
       </div>
+
+      <dialog class="confirm-command-dialog" id="confirm-command-dialog" aria-labelledby="confirm-command-title">
+        <form method="dialog" class="confirm-command-content">
+          <h3 id="confirm-command-title">Command bestätigen</h3>
+          <p id="confirm-command-message">Bitte Aktion bestätigen.</p>
+          <menu class="confirm-command-actions">
+            <button value="cancel">Abbrechen</button>
+            <button value="confirm" class="confirm-command-primary">Bestätigen</button>
+          </menu>
+        </form>
+      </dialog>
 
       <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile Navigation"></nav>
     </div>

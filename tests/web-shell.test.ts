@@ -277,4 +277,49 @@ describe("Warenwirtschaft web shell", () => {
     expect(styles).toContain(".stock-detail-drawer");
     expect(styles).toContain(".stock-movement-timeline");
   });
+
+  it("defines reusable command UI primitives with lifecycle states and idempotency keys", () => {
+    const html = readWebFile("index.html");
+    const app = readWebFile("app.js");
+    const styles = readWebFile("styles.css");
+
+    for (const formName of ["purchase-order", "goods-receipt", "withdrawal", "quick-booking", "correction"]) {
+      expect(html).toContain(`data-command-form="${formName}"`);
+    }
+
+    for (const selector of [
+      'data-item-picker',
+      'data-location-selector',
+      'data-quantity-input',
+      'data-unit-selector',
+      'data-command-effect-preview',
+      'data-command-idempotency-key',
+      'data-command-idempotency-input',
+      'data-command-form-status',
+      'data-command-primary'
+    ]) {
+      expect(html).toContain(selector);
+    }
+
+    expect(html).toContain("Wareneingang buchen");
+    expect(html).toContain("Entnahme buchen");
+    expect(html).toContain("Korrektur beantragen");
+    expect(html).toContain('id="confirm-command-dialog"');
+    expect(html).toContain("confirm-command-title");
+
+    expect(app).toContain("submitCommandForm");
+    expect(app).toContain("calculateCommandEffect");
+    expect(app).toContain("openConfirmCommandDialog");
+    expect(app).toContain("generateIdempotencyKey");
+    expect(app).toContain("commandFormStatusLabel");
+    expect(app).toContain('"x-idempotency-key"');
+    expect(app).toContain('idle: "Bereit"');
+    expect(app).toContain('submitting: "Command wird gesendet"');
+    expect(app).toContain('failed: "Command fehlgeschlagen"');
+
+    expect(styles).toContain(".command-form");
+    expect(styles).toContain(".command-effect-preview");
+    expect(styles).toContain(".sticky-action-footer");
+    expect(styles).toContain(".confirm-command-dialog");
+  });
 });

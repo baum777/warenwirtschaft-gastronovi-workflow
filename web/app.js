@@ -43,6 +43,7 @@ const WarenwirtschaftApp = {
       },
       selectedInventoryItemId: null
     },
+    commandForms: {},
     dashboardMetrics: [],
     lastUpdatedAt: null
   },
@@ -240,6 +241,15 @@ const connectionPresentation = {
   offline: { label: "Offline", tone: "danger" }
 };
 
+const commandFormStatusLabel = {
+  idle: "Bereit",
+  filling: "Eingabe läuft",
+  validating: "Eingaben prüfen",
+  submitting: "Command wird gesendet",
+  committed: "Command bestätigt",
+  failed: "Command fehlgeschlagen"
+};
+
 const navigationItems = [
   { id: "dashboard", label: "Übersicht", icon: "⌂", target: "view", view: "dashboard", roles: ["admin", "shift_lead"] },
   { id: "items", label: "Artikel", icon: "▦", target: "workspace", workspace: "items", roles: ["admin"] },
@@ -353,6 +363,7 @@ async function boot() {
   bindNavigation();
   bindDevForm();
   bindForms();
+  bindCommandPrimitives();
   bindActions();
   bindMasterDataEvents();
   bindWorkspaceShell();
@@ -413,7 +424,10 @@ function cacheRefs() {
     workspaceContext: document.querySelector("#workspace-context"),
     workspaceTabs: document.querySelector("#workspace-tabs"),
     workspaceBody: document.querySelector("#workspace-body"),
-    quickBookingResult: document.querySelector("#quick-booking-result")
+    quickBookingResult: document.querySelector("#quick-booking-result"),
+    confirmCommandDialog: document.querySelector("#confirm-command-dialog"),
+    confirmCommandTitle: document.querySelector("#confirm-command-title"),
+    confirmCommandMessage: document.querySelector("#confirm-command-message")
   };
 }
 
@@ -479,9 +493,20 @@ function bindForms() {
   document.querySelector("#correction-form").addEventListener("submit", submitCorrection);
 }
 
+function bindCommandPrimitives() {
+  document.querySelectorAll("[data-command-form]").forEach((form) => {
+    initializeCommandForm(form);
+
+    const reasonSelect = form.querySelector("[data-reason-select]");
+    if (reasonSelect) {
+      updateReasonChips(reasonSelect.value, form);
+    }
+  });
+}
+
 function bindActions() {
   document.querySelectorAll("[data-action]").forEach((button) => {
-    button.addEventListener("click", () => runAction(button.dataset.action));
+    button.addEventListener("click", () => runAction(button.dataset.action, button));
   });
 }
 
@@ -555,12 +580,328 @@ function closeSidebarOnMobile() {
 function bindReasonChips() {
   document.querySelectorAll("[data-reason-chip]").forEach((chip) => {
     chip.addEventListener("click", () => {
-      const form = document.querySelector("#quick-booking-form");
-      const select = form.elements.reason;
+      const form = chip.closest("[data-command-form]") || document.querySelector("#quick-booking-form");
+      const select = form?.querySelector("[data-reason-select]") || form?.elements?.reason;
+      if (!select) {
+        return;
+      }
+
       select.value = chip.dataset.reasonChip;
-      updateReasonChips(select.value);
+      updateReasonChips(select.value, form);
+      markCommandFormAsFilling(form);
+      updateCommandEffectPreview(form);
     });
   });
+}
+
+function initializeCommandForm(form) {
+  if (!form) {
+    return;
+  }
+
+  ensureCommandFormState(form);
+  setCommandFormStatus(form, "idle");
+  refreshCommandIdempotencyKey(form);
+  updateCommandEffectPreview(form);
+
+  const sync = () => {
+    markCommandFormAsFilling(form);
+    const reasonSelect = form.querySelector("[data-reason-select]");
+    if (reasonSelect) {
+      updateReasonChips(reasonSelect.value, form);
+    }
+    updateCommandEffectPreview(form);
+  };
+
+  form.addEventListener("input", sync);
+  form.addEventListener("change", sync);
+}
+
+function ensureCommandFormState(form) {
+  const formName = form?.dataset?.commandForm;
+  if (!formName) {
+    return null;
+  }
+
+  if (!WarenwirtschaftApp.state.commandForms[formName]) {
+    WarenwirtschaftApp.state.commandForms[formName] = {
+      status: "idle",
+      idempotencyKey: "",
+      statusMessage: ""
+    };
+  }
+
+  return WarenwirtschaftApp.state.commandForms[formName];
+}
+
+function setCommandFormStatus(form, status, message = "") {
+  const formState = ensureCommandFormState(form);
+  if (!formState) {
+    return;
+  }
+
+  formState.status = status;
+  formState.statusMessage = message;
+  form.dataset.commandState = status;
+  form.setAttribute("aria-busy", String(status === "submitting"));
+
+  const statusElement = form.querySelector("[data-command-form-status]");
+  if (statusElement) {
+    const base = commandFormStatusLabel[status] || status;
+    statusElement.textContent = message ? `${base}: ${message}` : base;
+  }
+
+  const primary = form.querySelector("[data-command-primary]");
+  if (primary) {
+    primary.disabled = status === "submitting";
+    primary.setAttribute("aria-disabled", String(status === "submitting"));
+  }
+}
+
+function markCommandFormAsFilling(form) {
+  if (!form || !form.dataset.commandForm) {
+    return;
+  }
+
+  const currentStatus = form.dataset.commandState || "idle";
+  if (currentStatus === "submitting" || currentStatus === "validating") {
+    return;
+  }
+
+  setCommandFormStatus(form, "filling");
+}
+
+function renderCommandEffectPreviews() {
+  document.querySelectorAll("[data-command-form]").forEach((form) => {
+    updateCommandEffectPreview(form);
+  });
+}
+
+function updateCommandEffectPreview(form) {
+  if (!form) {
+    return;
+  }
+
+  const preview = form.querySelector("[data-command-effect-preview]");
+  if (!preview) {
+    return;
+  }
+
+  const data = formData(form);
+  const effect = calculateCommandEffect(form.dataset.commandForm, data);
+  preview.innerHTML = `
+    <h4>Effect Preview</h4>
+    <div class="command-effect-grid">
+      <p><span>Before</span><strong>${escapeHtml(formatEffectNumber(effect.before))}</strong></p>
+      <p><span>Delta</span><strong>${escapeHtml(formatEffectNumber(effect.delta, true))}</strong></p>
+      <p><span>After</span><strong>${escapeHtml(formatEffectNumber(effect.after))}</strong></p>
+      <p><span>Unit</span><strong>${escapeHtml(effect.unit || "-")}</strong></p>
+      <p><span>Status</span><strong>${escapeHtml(effect.status || "n/a")}</strong></p>
+    </div>
+  `;
+}
+
+function calculateCommandEffect(commandFormName, data) {
+  const stock = findStock(data.inventoryItemId);
+  const before = stock ? Number(stock.currentStock) : null;
+  const commandUnit = data.unit || stock?.unit || "-";
+  const readQuantity = (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) {
+      return 0;
+    }
+
+    return parsed;
+  };
+  const createEffect = (delta, status) => ({
+    before,
+    delta,
+    after: before === null || delta === null ? null : before + delta,
+    unit: commandUnit,
+    status
+  });
+
+  if (commandFormName === "withdrawal") {
+    const delta = -Math.abs(readQuantity(data.quantity));
+    const status = before === null ? "no_snapshot" : before + delta < 0 ? "below_zero" : "projected";
+    return createEffect(delta, status);
+  }
+
+  if (commandFormName === "goods-receipt") {
+    const delta = Math.abs(readQuantity(data.quantity));
+    return createEffect(delta, before === null ? "no_snapshot" : "projected");
+  }
+
+  if (commandFormName === "quick-booking") {
+    const quantity = Math.abs(readQuantity(data.quantity));
+    const delta = data.movementType === "goods-receipt" ? quantity : -quantity;
+    const status = before === null ? "no_snapshot" : before + delta < 0 ? "below_zero" : "projected";
+    return createEffect(delta, status);
+  }
+
+  if (commandFormName === "correction") {
+    const delta = readQuantity(data.expectedDelta);
+    return createEffect(delta, "pending_review");
+  }
+
+  if (commandFormName === "purchase-order") {
+    return {
+      before: null,
+      delta: null,
+      after: null,
+      unit: commandUnit,
+      status: "no_stock_effect"
+    };
+  }
+
+  return {
+    before: null,
+    delta: null,
+    after: null,
+    unit: commandUnit,
+    status: "n/a"
+  };
+}
+
+function formatEffectNumber(value, withSign = false) {
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return String(value);
+  }
+
+  const formatted = new Intl.NumberFormat("de-DE", {
+    maximumFractionDigits: 2
+  }).format(numeric);
+  if (!withSign) {
+    return formatted;
+  }
+
+  return numeric > 0 ? `+${formatted}` : formatted;
+}
+
+function generateIdempotencyKey() {
+  if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `cmd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function refreshCommandIdempotencyKey(form) {
+  const formState = ensureCommandFormState(form);
+  if (!formState) {
+    return "";
+  }
+
+  const key = generateIdempotencyKey();
+  formState.idempotencyKey = key;
+  const keyView = form.querySelector("[data-command-idempotency-key]");
+  if (keyView) {
+    keyView.textContent = key;
+  }
+  const keyInput = form.querySelector("[data-command-idempotency-input]");
+  if (keyInput) {
+    keyInput.value = key;
+  }
+
+  return key;
+}
+
+function getCommandIdempotencyKey(form) {
+  const formState = ensureCommandFormState(form);
+  if (!formState) {
+    return "";
+  }
+
+  if (formState.idempotencyKey) {
+    return formState.idempotencyKey;
+  }
+
+  return refreshCommandIdempotencyKey(form);
+}
+
+async function openConfirmCommandDialog({ title, message, actionLabel }) {
+  const dialog = WarenwirtschaftApp.refs.confirmCommandDialog;
+  if (!dialog || typeof dialog.showModal !== "function") {
+    return window.confirm(`${title}\n\n${message}`);
+  }
+
+  if (dialog.open) {
+    dialog.close("cancel");
+  }
+
+  WarenwirtschaftApp.refs.confirmCommandTitle.textContent = title;
+  WarenwirtschaftApp.refs.confirmCommandMessage.textContent = message;
+  const confirmButton = dialog.querySelector(".confirm-command-primary");
+  if (confirmButton) {
+    confirmButton.textContent = actionLabel || "Bestätigen";
+  }
+
+  return new Promise((resolve) => {
+    const handleClose = () => {
+      dialog.removeEventListener("close", handleClose);
+      resolve(dialog.returnValue === "confirm");
+    };
+
+    dialog.addEventListener("close", handleClose);
+    dialog.showModal();
+  });
+}
+
+function buildCommandConfirmMessage(form, effect) {
+  const label = form.querySelector("h3")?.textContent || "Command";
+  const unit = effect.unit || "-";
+  return `${label} · Before ${formatEffectNumber(effect.before)} ${unit}, Delta ${formatEffectNumber(effect.delta, true)} ${unit}, After ${formatEffectNumber(effect.after)} ${unit}, Status ${effect.status}.`;
+}
+
+async function submitCommandForm(event, execute) {
+  event.preventDefault();
+  const form = event.target;
+  if (!form || !form.dataset.commandForm) {
+    return { committed: false };
+  }
+
+  setCommandFormStatus(form, "validating");
+  if (!form.reportValidity()) {
+    setCommandFormStatus(form, "failed", "Pflichtfelder prüfen");
+    return { committed: false };
+  }
+
+  const data = formData(form);
+  const effect = calculateCommandEffect(form.dataset.commandForm, data);
+  const confirmed = await openConfirmCommandDialog({
+    title: form.dataset.commandConfirmTitle || "Command bestätigen?",
+    message: buildCommandConfirmMessage(form, effect),
+    actionLabel: form.dataset.commandConfirmAction || "Bestätigen"
+  });
+  if (!confirmed) {
+    setCommandFormStatus(form, "filling", "Abgebrochen");
+    return { committed: false };
+  }
+
+  const idempotencyKey = getCommandIdempotencyKey(form);
+  setCommandFormStatus(form, "submitting");
+
+  try {
+    await execute(data, {
+      form,
+      idempotencyKey,
+      effect
+    });
+    setCommandFormStatus(form, "committed");
+    refreshCommandIdempotencyKey(form);
+    updateCommandEffectPreview(form);
+    return { committed: true, data, form, effect, idempotencyKey };
+  } catch (error) {
+    const message = error?.message || "Command fehlgeschlagen";
+    setCommandFormStatus(form, "failed", message);
+    showToast(message, true);
+    return { committed: false };
+  }
 }
 
 function bindMasterDataEvents() {
@@ -1096,7 +1437,7 @@ async function refreshDashboard() {
   }
 }
 
-async function runAction(action) {
+async function runAction(action, source = null) {
   try {
     if (action === "close-workspace") {
       closeWorkspace();
@@ -1126,6 +1467,13 @@ async function runAction(action) {
       renderDashboardMetricCards();
       showToast("Dashboard-Statuskarten aus Fixtures aktualisiert.");
     }
+    if (action === "refresh-idempotency-key") {
+      const form = source?.closest("[data-command-form]");
+      if (form) {
+        refreshCommandIdempotencyKey(form);
+        markCommandFormAsFilling(form);
+      }
+    }
   } catch (error) {
     showToast(error.message, true);
   }
@@ -1142,6 +1490,7 @@ async function loadMasterData() {
   };
   markUpdated();
   renderMasterDataControls();
+  renderCommandEffectPreviews();
   renderItems();
   renderStockViews();
   renderPurchaseOrders();
@@ -1231,6 +1580,8 @@ function syncItemDefaults(itemId, formSelector) {
   if (form.elements.storageLocationId && item.storageLocationId) {
     form.elements.storageLocationId.value = item.storageLocationId;
   }
+
+  updateCommandEffectPreview(form);
 }
 
 function syncWithdrawalDefaults(formSelector, hint) {
@@ -1247,6 +1598,7 @@ function syncWithdrawalDefaults(formSelector, hint) {
   }
 
   validateWithdrawalStock(formSelector, hint);
+  updateCommandEffectPreview(form);
 }
 
 function validateWithdrawalStock(formSelector, hint) {
@@ -1536,52 +1888,57 @@ async function submitItem(event) {
 }
 
 async function submitPurchaseOrder(event) {
-  event.preventDefault();
-  const data = formData(event.target);
-  const body = {
-    supplierId: data.supplierId || undefined,
-    note: data.note || undefined,
-    items: [
-      {
-        inventoryItemId: data.inventoryItemId,
-        orderedQty: Number(data.orderedQty),
-        unit: data.unit
-      }
-    ]
-  };
-  await postJson("/admin/purchase-orders", body, "Bestellung angelegt.");
-  await loadMasterData();
-  setWorkspaceTab("open");
+  await submitCommandForm(event, async (data, meta) => {
+    const body = {
+      supplierId: data.supplierId || undefined,
+      note: data.note || undefined,
+      items: [
+        {
+          inventoryItemId: data.inventoryItemId,
+          orderedQty: Number(data.orderedQty),
+          unit: data.unit
+        }
+      ]
+    };
+    await postJson("/admin/purchase-orders", body, "Bestellung angelegt.", {
+      idempotencyKey: meta.idempotencyKey
+    });
+    await loadMasterData();
+    setWorkspaceTab("open");
+  });
 }
 
 async function submitGoodsReceipt(event) {
-  event.preventDefault();
-  const data = formData(event.target);
-  await createGoodsReceipt(data, "Wareneingang gebucht.");
-  await Promise.allSettled([loadGoodsReceipts(), loadMasterData()]);
-  setWorkspaceTab("receipts");
+  await submitCommandForm(event, async (data, meta) => {
+    await createGoodsReceipt(data, "Wareneingang gebucht.", meta.idempotencyKey);
+    await Promise.allSettled([loadGoodsReceipts(), loadMasterData()]);
+    setWorkspaceTab("receipts");
+  });
 }
 
 async function submitWithdrawal(event) {
-  event.preventDefault();
-  const data = formData(event.target);
-  await createWithdrawal(data, "Entnahme erfasst.");
-  await loadMasterData();
+  await submitCommandForm(event, async (data, meta) => {
+    await createWithdrawal(data, "Entnahme erfasst.", meta.idempotencyKey);
+    await loadMasterData();
+  });
 }
 
 async function submitQuickBook(event) {
-  event.preventDefault();
-  const form = event.target;
-  const data = formData(form);
-
-  if (data.movementType === "goods-receipt") {
-    await createGoodsReceipt(data, "Wareneingang gebucht.");
-    await Promise.allSettled([loadGoodsReceipts(), loadMasterData()]);
-  } else {
-    await createWithdrawal(data, "Entnahme erfasst.");
-    await loadMasterData();
+  const outcome = await submitCommandForm(event, async (data, meta) => {
+    if (data.movementType === "goods-receipt") {
+      await createGoodsReceipt(data, "Wareneingang gebucht.", meta.idempotencyKey);
+      await Promise.allSettled([loadGoodsReceipts(), loadMasterData()]);
+    } else {
+      await createWithdrawal(data, "Entnahme erfasst.", meta.idempotencyKey);
+      await loadMasterData();
+    }
+  });
+  if (!outcome.committed) {
+    return;
   }
 
+  const form = outcome.form;
+  const data = outcome.data;
   WarenwirtschaftApp.state.lastQuickBooking = {
     quantity: data.quantity,
     unit: data.unit,
@@ -1591,27 +1948,31 @@ async function submitQuickBook(event) {
   renderLastQuickBooking();
   form.reset();
   form.elements.reason.value = "Verbrauch Küche";
-  updateReasonChips("Verbrauch Küche");
+  updateReasonChips("Verbrauch Küche", form);
   form.elements.inventoryItemId.focus();
+  updateCommandEffectPreview(form);
 }
 
 async function submitCorrection(event) {
-  event.preventDefault();
-  const data = formData(event.target);
-  await postJson(
-    "/correction-requests",
-    {
-      inventoryItemId: data.inventoryItemId,
-      expectedDelta: Number(data.expectedDelta),
-      unit: data.unit,
-      reason: data.reason
-    },
-    "Korrektur beantragt."
-  );
-  await refreshReviewTasksIfAllowed();
+  await submitCommandForm(event, async (data, meta) => {
+    await postJson(
+      "/correction-requests",
+      {
+        inventoryItemId: data.inventoryItemId,
+        expectedDelta: Number(data.expectedDelta),
+        unit: data.unit,
+        reason: data.reason
+      },
+      "Korrektur beantragt.",
+      {
+        idempotencyKey: meta.idempotencyKey
+      }
+    );
+    await refreshReviewTasksIfAllowed();
+  });
 }
 
-async function createGoodsReceipt(data, successMessage) {
+async function createGoodsReceipt(data, successMessage, idempotencyKey) {
   const body = {
     purchaseOrderId: data.purchaseOrderId || undefined,
     items: [
@@ -1623,10 +1984,12 @@ async function createGoodsReceipt(data, successMessage) {
       }
     ]
   };
-  await postJson("/goods-receipts", body, successMessage);
+  await postJson("/goods-receipts", body, successMessage, {
+    idempotencyKey
+  });
 }
 
-async function createWithdrawal(data, successMessage) {
+async function createWithdrawal(data, successMessage, idempotencyKey) {
   await postJson(
     "/withdrawals",
     {
@@ -1636,7 +1999,10 @@ async function createWithdrawal(data, successMessage) {
       storageLocationId: data.storageLocationId || undefined,
       note: data.note || data.reason || undefined
     },
-    successMessage
+    successMessage,
+    {
+      idempotencyKey
+    }
   );
 }
 
@@ -1645,10 +2011,15 @@ async function submitJson(form, path, successMessage) {
   form.reset();
 }
 
-async function postJson(path, body, successMessage) {
+async function postJson(path, body, successMessage, options = {}) {
   await apiFetch(path, {
     method: "POST",
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    headers: options.idempotencyKey
+      ? {
+          "x-idempotency-key": options.idempotencyKey
+        }
+      : undefined
   });
   showToast(successMessage);
 }
@@ -1746,8 +2117,8 @@ function renderLastQuickBooking() {
   WarenwirtschaftApp.refs.quickBookingResult.textContent = `Zuletzt gebucht: ${booking.quantity} ${booking.unit} ${booking.inventoryItemId} · ${booking.reason}`;
 }
 
-function updateReasonChips(activeReason) {
-  document.querySelectorAll("[data-reason-chip]").forEach((chip) => {
+function updateReasonChips(activeReason, scope = document) {
+  scope.querySelectorAll("[data-reason-chip]").forEach((chip) => {
     chip.classList.toggle("is-active", chip.dataset.reasonChip === activeReason);
   });
 }
