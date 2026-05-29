@@ -81,6 +81,25 @@ npm run build
 npx prisma validate
 ```
 
+## Smoke Tests
+
+Run the Supabase-backed inventory API smoke test with:
+
+```bash
+npm run smoke:inventory-api
+```
+
+Prerequisite: `DATABASE_URL` must be set. The command writes scoped
+`codex-smoke-*` inventory rows to the configured Supabase database, then deletes
+them again before exit.
+
+The smoke test verifies:
+
+- `POST /admin/inventory/items` creates a smoke inventory item.
+- `GET /admin/inventory/items/:id` reads the created item.
+- `GET /admin/inventory/items` lists the created item and confirms cleanup.
+- `GET /inventory/master-data` returns HTTP 200 with a non-empty body.
+
 ## Environment
 
 Copy `.env.example` to `.env` for local development and replace every placeholder with values from the Supabase dashboard.
