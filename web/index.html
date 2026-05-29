@@ -256,12 +256,81 @@
             </section>
 
             <section class="workspace-view" id="view-stock" data-title="Bestand" data-workspace="stock">
-              <article class="panel" data-workspace-tab-panel="live">
-                <div class="panel-head">
-                  <h3>Live Bestand</h3>
+              <article class="panel stock-workspace-panel" data-workspace-tab-panel="live">
+                <div class="panel-head stock-panel-head">
+                  <div>
+                    <h3>Live Bestand</h3>
+                    <p class="panel-subtitle">Snapshot-Read-Model. Keine direkte Bestandsbearbeitung.</p>
+                  </div>
                   <button data-action="load-stock">Laden</button>
                 </div>
-                <div class="table-wrap" id="stock-table"></div>
+                <div class="stock-filter-bar" aria-label="Bestandsfilter">
+                  <label>
+                    Status
+                    <select id="stock-filter-status">
+                      <option value="">Alle Status</option>
+                      <option value="ok">OK</option>
+                      <option value="low">Niedrig</option>
+                      <option value="negative">Negativ</option>
+                      <option value="unknown">Unbekannt</option>
+                    </select>
+                  </label>
+                  <label>
+                    Lagerort
+                    <select id="stock-filter-location">
+                      <option value="">Alle Lagerorte</option>
+                    </select>
+                  </label>
+                  <label>
+                    Kategorie
+                    <select id="stock-filter-category">
+                      <option value="">Alle Kategorien</option>
+                    </select>
+                  </label>
+                  <label>
+                    Suche
+                    <input id="stock-filter-search" type="search" placeholder="Artikelname oder ID" />
+                  </label>
+                </div>
+
+                <div class="stock-layout">
+                  <div class="stock-list-pane">
+                    <div class="table-wrap" id="stock-table"></div>
+                    <div class="stock-card-list" id="stock-card-list"></div>
+                  </div>
+
+                  <aside class="stock-detail-drawer" id="stock-detail-drawer" hidden>
+                    <div class="stock-detail-header">
+                      <div>
+                        <p class="section-label">Artikel Detail</p>
+                        <h3 id="stock-detail-title">Artikel</h3>
+                      </div>
+                      <button type="button" data-action="close-stock-detail" aria-label="Detail schliessen">
+                        Schliessen
+                      </button>
+                    </div>
+
+                    <div class="stock-detail-section">
+                      <h4>Stammdaten</h4>
+                      <dl class="stock-detail-grid" id="stock-detail-master"></dl>
+                    </div>
+
+                    <div class="stock-detail-section">
+                      <h4>Snapshot</h4>
+                      <div class="stock-detail-snapshot" id="stock-detail-snapshot"></div>
+                    </div>
+
+                    <div class="stock-detail-section">
+                      <h4>Letzte Bewegungen</h4>
+                      <ol class="stock-movement-timeline" id="stock-detail-timeline"></ol>
+                    </div>
+
+                    <div class="stock-detail-cta">
+                      <button type="button" data-workspace="withdrawals">Entnahme buchen</button>
+                      <button type="button" data-workspace="corrections">Korrektur beantragen</button>
+                    </div>
+                  </aside>
+                </div>
               </article>
               <article class="panel" data-workspace-tab-panel="critical">
                 <div class="panel-head">
@@ -277,6 +346,7 @@
                   id="critical-stock-table"
                   data-empty-state="Keine kritischen Bestände. Alle Artikel liegen aktuell über Mindestbestand."
                 ></div>
+                <div class="stock-card-list" id="critical-stock-card-list"></div>
               </article>
             </section>
 

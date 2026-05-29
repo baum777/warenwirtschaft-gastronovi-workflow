@@ -237,4 +237,44 @@ describe("Warenwirtschaft web shell", () => {
     expect(styles).toContain(".workspace-context");
     expect(styles).toContain(".reason-chip");
   });
+
+  it("keeps stock workspace read-only with filters, detail drawer, and movement timeline", () => {
+    const html = readWebFile("index.html");
+    const app = readWebFile("app.js");
+    const styles = readWebFile("styles.css");
+
+    for (const id of [
+      "stock-filter-status",
+      "stock-filter-location",
+      "stock-filter-category",
+      "stock-filter-search",
+      "stock-detail-drawer",
+      "stock-detail-master",
+      "stock-detail-snapshot",
+      "stock-detail-timeline",
+      "stock-card-list",
+      "critical-stock-card-list"
+    ]) {
+      expect(html).toContain(`id="${id}"`);
+    }
+
+    expect(html).toContain("Snapshot-Read-Model. Keine direkte Bestandsbearbeitung.");
+    expect(html).toContain('data-action="close-stock-detail"');
+    expect(html).toContain('data-workspace="withdrawals"');
+    expect(html).toContain('data-workspace="corrections"');
+    expect(html).not.toContain("Bestand setzen");
+    expect(html).not.toContain("current_stock");
+
+    expect(app).toContain("bindStockWorkspaceEvents");
+    expect(app).toContain("loadStockMovements");
+    expect(app).toContain("openStockDetail");
+    expect(app).toContain("closeStockDetail");
+    expect(app).toContain("getStockTimelineEvents");
+    expect(app).toContain('data-stock-detail="');
+
+    expect(styles).toContain(".stock-filter-bar");
+    expect(styles).toContain(".stock-layout");
+    expect(styles).toContain(".stock-detail-drawer");
+    expect(styles).toContain(".stock-movement-timeline");
+  });
 });

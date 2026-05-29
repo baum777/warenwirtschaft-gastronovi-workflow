@@ -32,6 +32,17 @@ const WarenwirtschaftApp = {
       goodsReceipts: [],
       reviewTasks: []
     },
+    stockMovements: [],
+    stockMovementsLoaded: false,
+    stockUi: {
+      filters: {
+        status: "",
+        location: "",
+        category: "",
+        search: ""
+      },
+      selectedInventoryItemId: null
+    },
     dashboardMetrics: [],
     lastUpdatedAt: null
   },
@@ -55,7 +66,7 @@ function defaultApiBase() {
 
 const columns = {
   items: ["Name", "SKU", "Kategorie", "Einheit", "Min", "Status"],
-  stock: ["Artikel", "Kategorie", "Bestand", "Einheit", "Status", "Letzte Bewegung"],
+  stock: ["Artikel", "Kategorie", "Bestand", "Einheit", "Status", "Letzte Bewegung", "Detail"],
   orders: ["ID", "Status", "Lieferant", "Positionen"],
   receipts: ["ID", "Bestellung", "Empfangen von", "Positionen"],
   tasks: ["Typ", "Status", "Schwere", "Titel", "Aktion"]
@@ -346,6 +357,7 @@ async function boot() {
   bindMasterDataEvents();
   bindWorkspaceShell();
   bindReasonChips();
+  bindStockWorkspaceEvents();
   bindShellControls();
   bindConnectivityEvents();
 
@@ -374,6 +386,17 @@ function cacheRefs() {
     contextLocation: document.querySelector("#context-location"),
     contextConnection: document.querySelector("#context-connection"),
     dashboardMetricGrid: document.querySelector("#dashboard-metric-grid"),
+    stockFilterStatus: document.querySelector("#stock-filter-status"),
+    stockFilterLocation: document.querySelector("#stock-filter-location"),
+    stockFilterCategory: document.querySelector("#stock-filter-category"),
+    stockFilterSearch: document.querySelector("#stock-filter-search"),
+    stockCardList: document.querySelector("#stock-card-list"),
+    criticalStockCardList: document.querySelector("#critical-stock-card-list"),
+    stockDetailDrawer: document.querySelector("#stock-detail-drawer"),
+    stockDetailTitle: document.querySelector("#stock-detail-title"),
+    stockDetailMaster: document.querySelector("#stock-detail-master"),
+    stockDetailSnapshot: document.querySelector("#stock-detail-snapshot"),
+    stockDetailTimeline: document.querySelector("#stock-detail-timeline"),
     toast: document.querySelector("#toast"),
     devPanel: document.querySelector("#dev-panel"),
     apiBase: document.querySelector("#api-base"),
@@ -429,6 +452,8 @@ function bindDevForm() {
     localStorage.setItem("ww.apiBase", WarenwirtschaftApp.state.apiBase);
     localStorage.setItem("ww.actorId", WarenwirtschaftApp.state.actorId);
     localStorage.setItem("ww.actorRole", WarenwirtschaftApp.state.actorRole);
+    WarenwirtschaftApp.state.stockMovementsLoaded = false;
+    WarenwirtschaftApp.state.stockMovements = [];
     applyRoleDefaults();
     renderRoleNavigation();
     updateWorkspaceAccess();
@@ -560,6 +585,44 @@ function bindMasterDataEvents() {
   });
   document.querySelector("#correction-item").addEventListener("change", (event) => {
     syncItemDefaults(event.target.value, "#correction-form");
+  });
+}
+
+function bindStockWorkspaceEvents() {
+  if (
+    !WarenwirtschaftApp.refs.stockFilterStatus ||
+    !WarenwirtschaftApp.refs.stockFilterLocation ||
+    !WarenwirtschaftApp.refs.stockFilterCategory ||
+    !WarenwirtschaftApp.refs.stockFilterSearch
+  ) {
+    return;
+  }
+
+  const filters = [
+    WarenwirtschaftApp.refs.stockFilterStatus,
+    WarenwirtschaftApp.refs.stockFilterLocation,
+    WarenwirtschaftApp.refs.stockFilterCategory
+  ];
+
+  filters.forEach((select) => {
+    select.addEventListener("change", () => {
+      syncStockFiltersFromInputs();
+      renderStockViews();
+    });
+  });
+
+  WarenwirtschaftApp.refs.stockFilterSearch.addEventListener("input", () => {
+    syncStockFiltersFromInputs();
+    renderStockViews();
+  });
+
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-stock-detail]");
+    if (!button) {
+      return;
+    }
+
+    openStockDetail(button.dataset.stockDetail);
   });
 }
 
@@ -827,6 +890,7 @@ function openWorkspace(workspaceName, options = {}) {
 
 function closeWorkspace() {
   const trigger = WarenwirtschaftApp.state.lastWorkspaceTrigger;
+  closeStockDetail();
   WarenwirtschaftApp.state.activeWorkspace = null;
   WarenwirtschaftApp.state.activeWorkspaceTab = null;
   WarenwirtschaftApp.state.activeWorkspaceFilter = null;
@@ -1037,6 +1101,9 @@ async function runAction(action) {
     if (action === "close-workspace") {
       closeWorkspace();
     }
+    if (action === "close-stock-detail") {
+      closeStockDetail();
+    }
     if (action === "refresh-all") {
       await refreshDashboard();
     }
@@ -1236,7 +1303,10 @@ function renderItems() {
 async function loadStock() {
   if (!WarenwirtschaftApp.state.masterData.stock.length) {
     await loadMasterData();
-    return;
+  }
+
+  if (WarenwirtschaftApp.state.actorRole === "admin" && !WarenwirtschaftApp.state.stockMovementsLoaded) {
+    await loadStockMovements();
   }
 
   renderStockViews();
@@ -1246,9 +1316,17 @@ async function loadStock() {
 function renderStockViews() {
   const stockRows = WarenwirtschaftApp.state.masterData.stock;
   const criticalRows = getCriticalStockRows();
+  renderStockFilterOptions(stockRows);
+  syncStockFilterInputs();
+
+  const filteredRows = getFilteredStockRows(false);
+  const filteredCriticalRows = getFilteredStockRows(true);
   document.querySelector("#metric-alerts").textContent = criticalRows.length;
-  renderStockTable("#stock-table", stockRows, emptyStates.stock);
-  renderStockTable("#critical-stock-table", criticalRows, emptyStates.criticalStock);
+  renderStockTable("#stock-table", filteredRows, emptyStates.stock);
+  renderStockCardList("#stock-card-list", filteredRows, emptyStates.stock);
+  renderStockTable("#critical-stock-table", filteredCriticalRows, emptyStates.criticalStock);
+  renderStockCardList("#critical-stock-card-list", filteredCriticalRows, emptyStates.criticalStock);
+  renderStockDetailIfSelected();
   updateMetricCardTones();
 }
 
@@ -1259,8 +1337,132 @@ function renderStockTable(selector, rows, emptyMessage) {
     item.currentStock,
     item.unit,
     stockStatusBadge(item.status),
-    item.lastMovementAt || "-"
+    formatDateTime(item.lastMovementAt),
+    `<button type="button" data-stock-detail="${escapeHtml(item.inventoryItemId)}">Details</button>`
   ], emptyMessage);
+}
+
+function renderStockCardList(selector, rows, emptyMessage) {
+  const container = document.querySelector(selector);
+  if (!container) {
+    return;
+  }
+
+  if (!rows.length) {
+    container.innerHTML = `<p class="empty-state">${escapeHtml(emptyMessage)}</p>`;
+    return;
+  }
+
+  container.innerHTML = rows
+    .map(
+      (item) => `
+        <article class="panel stock-card">
+          <div class="stock-card-head">
+            <strong>${escapeHtml(item.name)}</strong>
+            ${stockStatusBadge(item.status)}
+          </div>
+          <p class="stock-card-meta">${escapeHtml(item.category || "Keine Kategorie")} · ${escapeHtml(item.storageLocationName || "Ohne Lagerort")}</p>
+          <p class="stock-card-value">${escapeHtml(String(item.currentStock))} ${escapeHtml(item.unit)}</p>
+          <p class="stock-card-meta">Letzte Bewegung: ${escapeHtml(formatDateTime(item.lastMovementAt))}</p>
+          <button type="button" data-stock-detail="${escapeHtml(item.inventoryItemId)}">Details</button>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function renderStockFilterOptions(rows) {
+  const locationSelect = WarenwirtschaftApp.refs.stockFilterLocation;
+  const categorySelect = WarenwirtschaftApp.refs.stockFilterCategory;
+  if (!locationSelect || !categorySelect) {
+    return;
+  }
+
+  const currentLocation = locationSelect.value;
+  const currentCategory = categorySelect.value;
+  const locations = Array.from(new Set(rows.map((item) => item.storageLocationName).filter(Boolean))).sort((a, b) =>
+    a.localeCompare(b, "de")
+  );
+  const categories = Array.from(new Set(rows.map((item) => item.category).filter(Boolean))).sort((a, b) =>
+    a.localeCompare(b, "de")
+  );
+
+  locationSelect.innerHTML = [`<option value="">Alle Lagerorte</option>`]
+    .concat(locations.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`))
+    .join("");
+  categorySelect.innerHTML = [`<option value="">Alle Kategorien</option>`]
+    .concat(categories.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`))
+    .join("");
+
+  if (locations.includes(currentLocation)) {
+    locationSelect.value = currentLocation;
+  }
+  if (categories.includes(currentCategory)) {
+    categorySelect.value = currentCategory;
+  }
+}
+
+function syncStockFilterInputs() {
+  WarenwirtschaftApp.refs.stockFilterStatus.value = WarenwirtschaftApp.state.stockUi.filters.status;
+  WarenwirtschaftApp.refs.stockFilterLocation.value = WarenwirtschaftApp.state.stockUi.filters.location;
+  WarenwirtschaftApp.refs.stockFilterCategory.value = WarenwirtschaftApp.state.stockUi.filters.category;
+  WarenwirtschaftApp.refs.stockFilterSearch.value = WarenwirtschaftApp.state.stockUi.filters.search;
+}
+
+function syncStockFiltersFromInputs() {
+  WarenwirtschaftApp.state.stockUi.filters = {
+    status: WarenwirtschaftApp.refs.stockFilterStatus.value,
+    location: WarenwirtschaftApp.refs.stockFilterLocation.value,
+    category: WarenwirtschaftApp.refs.stockFilterCategory.value,
+    search: WarenwirtschaftApp.refs.stockFilterSearch.value.trim()
+  };
+}
+
+function getFilteredStockRows(criticalOnly) {
+  const { status, location, category, search } = WarenwirtschaftApp.state.stockUi.filters;
+  const normalizedSearch = search.toLowerCase();
+
+  return WarenwirtschaftApp.state.masterData.stock.filter((item) => {
+    if (criticalOnly && !["low", "negative"].includes(item.status)) {
+      return false;
+    }
+
+    if (status && item.status !== status) {
+      return false;
+    }
+
+    if (location && (item.storageLocationName || "") !== location) {
+      return false;
+    }
+
+    if (category && (item.category || "") !== category) {
+      return false;
+    }
+
+    if (normalizedSearch) {
+      const haystack = [item.name, item.inventoryItemId, item.category, item.storageLocationName]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      if (!haystack.includes(normalizedSearch)) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
+async function loadStockMovements() {
+  try {
+    const payload = await apiFetch("/admin/inventory/movements");
+    WarenwirtschaftApp.state.stockMovements = payload.movements || [];
+  } catch (_error) {
+    WarenwirtschaftApp.state.stockMovements = [];
+  } finally {
+    WarenwirtschaftApp.state.stockMovementsLoaded = true;
+  }
 }
 
 async function loadPurchaseOrders() {
@@ -1560,6 +1762,148 @@ function findStock(id) {
 
 function findOrder(id) {
   return WarenwirtschaftApp.state.masterData.openPurchaseOrders.find((order) => order.purchaseOrderId === id);
+}
+
+function openStockDetail(itemId) {
+  if (!itemId) {
+    return;
+  }
+
+  WarenwirtschaftApp.state.stockUi.selectedInventoryItemId = itemId;
+  renderStockDetailIfSelected();
+}
+
+function closeStockDetail() {
+  WarenwirtschaftApp.state.stockUi.selectedInventoryItemId = null;
+  if (WarenwirtschaftApp.refs.stockDetailDrawer) {
+    WarenwirtschaftApp.refs.stockDetailDrawer.hidden = true;
+  }
+}
+
+function renderStockDetailIfSelected() {
+  const itemId = WarenwirtschaftApp.state.stockUi.selectedInventoryItemId;
+  if (!itemId) {
+    WarenwirtschaftApp.refs.stockDetailDrawer.hidden = true;
+    return;
+  }
+
+  const stock = findStock(itemId);
+  if (!stock) {
+    closeStockDetail();
+    return;
+  }
+
+  const item = findItem(itemId);
+  WarenwirtschaftApp.refs.stockDetailDrawer.hidden = false;
+  WarenwirtschaftApp.refs.stockDetailTitle.textContent = stock.name;
+  WarenwirtschaftApp.refs.stockDetailMaster.innerHTML = `
+    <dt>Artikel-ID</dt><dd>${escapeHtml(stock.inventoryItemId)}</dd>
+    <dt>Kategorie</dt><dd>${escapeHtml(stock.category || "-")}</dd>
+    <dt>Lagerort</dt><dd>${escapeHtml(stock.storageLocationName || "-")}</dd>
+    <dt>Einheit</dt><dd>${escapeHtml(stock.unit)}</dd>
+    <dt>Mindestbestand</dt><dd>${escapeHtml(item?.minStock !== undefined ? String(item.minStock) : "-")}</dd>
+  `;
+  WarenwirtschaftApp.refs.stockDetailSnapshot.innerHTML = `
+    <p><strong>${escapeHtml(String(stock.currentStock))} ${escapeHtml(stock.unit)}</strong></p>
+    <p>${stockStatusBadge(stock.status)}</p>
+    <p>Letzte Bewegung: ${escapeHtml(formatDateTime(stock.lastMovementAt))}</p>
+  `;
+
+  const timeline = getStockTimelineEvents(stock.inventoryItemId);
+  if (!timeline.length) {
+    WarenwirtschaftApp.refs.stockDetailTimeline.innerHTML = `<li>Keine Bewegungsdaten verfügbar.</li>`;
+  } else {
+    WarenwirtschaftApp.refs.stockDetailTimeline.innerHTML = timeline
+      .map(
+        (event) => `
+          <li>
+            <p>${escapeHtml(event.label)}</p>
+            <p>${escapeHtml(event.detail)}</p>
+            <p>${escapeHtml(formatDateTime(event.at))}</p>
+          </li>
+        `
+      )
+      .join("");
+  }
+}
+
+function getStockTimelineEvents(inventoryItemId) {
+  const movementEvents = WarenwirtschaftApp.state.stockMovements
+    .filter((movement) => movement.inventoryItemId === inventoryItemId)
+    .slice(0, 5)
+    .map((movement) => ({
+      at: movement.createdAt,
+      label: movementTypeLabel(movement.type),
+      detail: `${movement.quantity} ${movement.unit}${movement.note ? ` · ${movement.note}` : ""}`
+    }));
+
+  if (movementEvents.length) {
+    return movementEvents;
+  }
+
+  const receiptEvents = WarenwirtschaftApp.state.masterData.goodsReceipts
+    .flatMap((receipt) =>
+      receipt.items
+        .filter((item) => item.inventoryItemId === inventoryItemId)
+        .map((item) => ({
+          at: receipt.receivedAt || receipt.createdAt,
+          label: "Wareneingang",
+          detail: `${item.quantity} ${item.unit} · ${receipt.receivedById}`
+        }))
+    )
+    .slice(0, 5);
+
+  if (receiptEvents.length) {
+    return receiptEvents;
+  }
+
+  const stock = findStock(inventoryItemId);
+  if (!stock?.lastMovementAt) {
+    return [];
+  }
+
+  return [
+    {
+      at: stock.lastMovementAt,
+      label: "Snapshot aktualisiert",
+      detail: `${stock.currentStock} ${stock.unit} · Status ${stock.status}`
+    }
+  ];
+}
+
+function movementTypeLabel(type) {
+  const normalized = String(type || "").toLowerCase();
+
+  if (normalized.includes("removed")) {
+    return "Entnahme";
+  }
+  if (normalized.includes("received")) {
+    return "Wareneingang";
+  }
+  if (normalized.includes("correction_positive")) {
+    return "Korrektur +";
+  }
+  if (normalized.includes("correction_negative")) {
+    return "Korrektur -";
+  }
+
+  return type || "Bewegung";
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(date);
 }
 
 function setFieldError(form, name, message) {
