@@ -148,13 +148,45 @@ describe("Warenwirtschaft web shell", () => {
     const styles = readWebFile("styles.css");
 
     expect(html).toContain("workspace-card-grid");
+    expect(html).toContain("dashboard-metric-grid");
     expect(html).toContain("Bestand prüfen");
     expect(html).toContain("Kritische Bestände");
     expect(html).toContain('data-workspace-tab="critical"');
     expect(html).toContain('data-workspace-filter="critical"');
     expect(html).toContain("Touch-optimierte Sofortbuchung");
     expect(styles).toContain(".workspace-card-grid");
+    expect(styles).toContain(".dashboard-metric-grid");
     expect(styles).toContain(".status-card.is-clickable");
+  });
+
+  it("defines dashboard metric card fixtures with loading, empty, and error states", () => {
+    const html = readWebFile("index.html");
+    const app = readWebFile("app.js");
+    const styles = readWebFile("styles.css");
+
+    expect(html).toContain("Statuskarten");
+    expect(html).toContain('id="dashboard-metric-grid"');
+    expect(app).toContain("dashboardMetricFixtures");
+    for (const metricKey of [
+      "stock-critical",
+      "stock-negative",
+      "review-open",
+      "purchase-orders-open",
+      "purchase-orders-partial",
+      "goods-receipts-today",
+      "withdrawals-today",
+      "corrections-open",
+      "items-total"
+    ]) {
+      expect(app).toContain(`key: "${metricKey}"`);
+    }
+    expect(app).toContain('state: "loading"');
+    expect(app).toContain('state: "empty"');
+    expect(app).toContain('state: "error"');
+    expect(app).toContain("renderDashboardMetricCards");
+    expect(styles).toContain(".dashboard-metric-card.is-loading");
+    expect(styles).toContain(".dashboard-metric-card.is-empty");
+    expect(styles).toContain(".dashboard-metric-card.is-error");
   });
 
   it("keeps staff role focused on quick booking, own history, and hints", () => {

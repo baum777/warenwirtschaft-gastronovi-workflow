@@ -32,6 +32,7 @@ const WarenwirtschaftApp = {
       goodsReceipts: [],
       reviewTasks: []
     },
+    dashboardMetrics: [],
     lastUpdatedAt: null
   },
   refs: {}
@@ -72,6 +73,114 @@ const emptyStates = {
     "Noch keine Wareneingänge gebucht. Wähle eine offene Bestellung oder buche einen freien Wareneingang.",
   reviewTasks: "Keine offenen Prüfaufgaben. Korrekturen und Auffälligkeiten erscheinen hier."
 };
+
+const dashboardMetricFixtures = [
+  {
+    key: "stock-critical",
+    label: "Bestand kritisch",
+    description: "Artikel mit Status low oder negative",
+    value: 8,
+    tone: "warning",
+    state: "value",
+    workspace: "stock",
+    tab: "critical",
+    filter: "critical",
+    roles: ["admin", "shift_lead"]
+  },
+  {
+    key: "stock-negative",
+    label: "Negative Bestände",
+    description: "Artikel unter null Bestand",
+    value: 2,
+    tone: "danger",
+    state: "value",
+    workspace: "stock",
+    tab: "live",
+    filter: "negative",
+    roles: ["admin", "shift_lead"]
+  },
+  {
+    key: "review-open",
+    label: "Offene Reviews",
+    description: "ReviewTasks mit Status open",
+    value: 5,
+    tone: "warning",
+    state: "value",
+    workspace: "review-tasks",
+    tab: "tasks",
+    filter: "open",
+    roles: ["admin"]
+  },
+  {
+    key: "purchase-orders-open",
+    label: "Offene Bestellungen",
+    description: "Bestellungen ordered oder partially_received",
+    value: 11,
+    tone: "info",
+    state: "value",
+    workspace: "purchase-orders",
+    tab: "open",
+    filter: "open",
+    roles: ["admin", "shift_lead"]
+  },
+  {
+    key: "purchase-orders-partial",
+    label: "Teillieferungen",
+    description: "Bestellungen mit teilweiser Lieferung",
+    tone: "warning",
+    state: "loading",
+    workspace: "purchase-orders",
+    tab: "open",
+    filter: "partially_received",
+    roles: ["admin", "shift_lead"]
+  },
+  {
+    key: "goods-receipts-today",
+    label: "Wareneingänge heute",
+    description: "Heute bestätigte Wareneingänge",
+    tone: "info",
+    state: "empty",
+    workspace: "goods-receipts",
+    tab: "receipts",
+    filter: "today",
+    roles: ["admin", "shift_lead"]
+  },
+  {
+    key: "withdrawals-today",
+    label: "Entnahmen heute",
+    description: "Heute bestätigte Entnahmen",
+    value: 34,
+    tone: "info",
+    state: "value",
+    workspace: "withdrawals",
+    tab: "book",
+    filter: "today",
+    roles: ["admin", "shift_lead"]
+  },
+  {
+    key: "corrections-open",
+    label: "Korrekturen offen",
+    description: "CorrectionRequests mit Status pending",
+    tone: "danger",
+    state: "error",
+    errorMessage: "Fixture-Quelle nicht erreichbar",
+    workspace: "corrections",
+    tab: "request",
+    filter: "pending",
+    roles: ["admin", "shift_lead"]
+  },
+  {
+    key: "items-total",
+    label: "Artikel gesamt",
+    description: "Aktive Artikel im Sortiment",
+    value: 126,
+    tone: "ok",
+    state: "value",
+    workspace: "items",
+    tab: "stock",
+    roles: ["admin", "shift_lead"]
+  }
+];
 
 const stockStatusPresentation = {
   unknown: { label: "Unbekannt", tone: "neutral", icon: "?" },
@@ -246,6 +355,7 @@ async function boot() {
   renderRoleNavigation();
   syncDevForm();
   updateWorkspaceAccess();
+  renderDashboardMetricCards();
   syncShellState();
   renderTopContextBar();
   ensureRoleLanding();
@@ -263,6 +373,7 @@ function cacheRefs() {
     contextRole: document.querySelector("#context-role"),
     contextLocation: document.querySelector("#context-location"),
     contextConnection: document.querySelector("#context-connection"),
+    dashboardMetricGrid: document.querySelector("#dashboard-metric-grid"),
     toast: document.querySelector("#toast"),
     devPanel: document.querySelector("#dev-panel"),
     apiBase: document.querySelector("#api-base"),
@@ -321,6 +432,7 @@ function bindDevForm() {
     applyRoleDefaults();
     renderRoleNavigation();
     updateWorkspaceAccess();
+    renderDashboardMetricCards();
 
     if (WarenwirtschaftApp.state.activeWorkspace && !canOpenWorkspace(WarenwirtschaftApp.state.activeWorkspace)) {
       closeWorkspace();
@@ -536,6 +648,78 @@ function renderRoleNavigation() {
     WarenwirtschaftApp.refs.mobileNav.innerHTML = getMobileNavigationItems().map(navigationButtonMarkup).join("");
   }
   updateWorkspaceNavigation();
+}
+
+function getDashboardMetricFixturesForRole() {
+  return dashboardMetricFixtures.filter((metric) => metric.roles.includes(WarenwirtschaftApp.state.actorRole));
+}
+
+function dashboardMetricValue(metric) {
+  if (metric.state === "loading") {
+    return "Lädt…";
+  }
+  if (metric.state === "empty") {
+    return "Keine Daten";
+  }
+  if (metric.state === "error") {
+    return "Fehler";
+  }
+
+  return String(metric.value ?? 0);
+}
+
+function dashboardMetricSubline(metric) {
+  if (metric.state === "loading") {
+    return "Daten werden vorbereitet";
+  }
+  if (metric.state === "empty") {
+    return "Für den gewählten Zeitraum liegen keine bestätigten Bewegungen vor.";
+  }
+  if (metric.state === "error") {
+    return metric.errorMessage || "Metrik konnte nicht geladen werden.";
+  }
+
+  return metric.description;
+}
+
+function dashboardMetricCardMarkup(metric) {
+  const attributes = [
+    `type="button"`,
+    `class="status-card status-card--tone-${escapeHtml(metric.tone || "neutral")} is-clickable dashboard-metric-card is-${escapeHtml(metric.state)}"`,
+    `data-dashboard-metric-card`,
+    `data-workspace="${escapeHtml(metric.workspace)}"`,
+    `data-workspace-tab="${escapeHtml(metric.tab || "live")}"`,
+    `aria-label="${escapeHtml(`${metric.label}: ${dashboardMetricValue(metric)}. ${dashboardMetricSubline(metric)}`)}"`
+  ];
+
+  if (metric.filter) {
+    attributes.push(`data-workspace-filter="${escapeHtml(metric.filter)}"`);
+  }
+
+  return `
+    <button ${attributes.join(" ")}>
+      <span>${escapeHtml(metric.label)}</span>
+      <strong>${escapeHtml(dashboardMetricValue(metric))}</strong>
+      <p class="dashboard-metric-detail">${escapeHtml(dashboardMetricSubline(metric))}</p>
+      <small>Öffnen</small>
+    </button>
+  `;
+}
+
+function renderDashboardMetricCards() {
+  if (!WarenwirtschaftApp.refs.dashboardMetricGrid) {
+    return;
+  }
+
+  const fixtures = getDashboardMetricFixturesForRole();
+  WarenwirtschaftApp.state.dashboardMetrics = fixtures;
+
+  if (!fixtures.length) {
+    WarenwirtschaftApp.refs.dashboardMetricGrid.innerHTML = `<p class="empty-state">Keine Statuskarten für diese Rolle.</p>`;
+    return;
+  }
+
+  WarenwirtschaftApp.refs.dashboardMetricGrid.innerHTML = fixtures.map(dashboardMetricCardMarkup).join("");
 }
 
 function getActiveNavigationId() {
@@ -768,7 +952,11 @@ function updateWorkspaceAccess() {
     element.disabled = !isAllowed;
     element.setAttribute("aria-disabled", String(!isAllowed));
 
-    if (element.matches("[data-dashboard-card], .quick-actions button, .status-strip [data-workspace]")) {
+    if (
+      element.matches(
+        "[data-dashboard-card], [data-dashboard-metric-card], .quick-actions button, .status-strip [data-workspace]"
+      )
+    ) {
       element.hidden = !isAllowed;
     }
   });
@@ -830,6 +1018,8 @@ async function apiFetch(path, options = {}) {
 }
 
 async function refreshDashboard() {
+  renderDashboardMetricCards();
+
   const results = await Promise.allSettled([
     loadMasterData(),
     canOpenWorkspace("goods-receipts") ? loadGoodsReceipts() : Promise.resolve(),
@@ -864,6 +1054,10 @@ async function runAction(action) {
     }
     if (action === "load-review-tasks") {
       await loadReviewTasks();
+    }
+    if (action === "refresh-dashboard-metrics") {
+      renderDashboardMetricCards();
+      showToast("Dashboard-Statuskarten aus Fixtures aktualisiert.");
     }
   } catch (error) {
     showToast(error.message, true);
