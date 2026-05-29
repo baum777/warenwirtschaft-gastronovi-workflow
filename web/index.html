@@ -9,6 +9,14 @@
   <body class="warenwirtschaft-app">
     <div class="app-shell" id="app">
       <aside class="sidebar" id="sidebar" aria-label="Hauptnavigation">
+        <button
+          class="sidebar-close"
+          id="sidebar-close"
+          type="button"
+          aria-label="Navigation schließen"
+        >
+          ×
+        </button>
         <div class="brand">
           <div class="brand-mark" aria-hidden="true">W</div>
           <div>
@@ -36,25 +44,6 @@
             </div>
             <h2 id="view-title">Übersicht</h2>
           </div>
-          <form class="actor-panel dev-form" id="dev-form">
-            <label>
-              API
-              <input id="api-base" name="apiBase" value="http://localhost:4000" />
-            </label>
-            <label>
-              Actor
-              <input id="actor-id" name="actorId" value="demo-admin" />
-            </label>
-            <label>
-              Rolle
-              <select id="actor-role" name="actorRole">
-                <option value="admin">admin</option>
-                <option value="shift_lead">shift_lead</option>
-                <option value="staff">staff</option>
-              </select>
-            </label>
-            <button type="submit">Speichern</button>
-          </form>
         </header>
 
         <section class="top-context-bar" id="top-context-bar" aria-label="Aktiver Kontext">
@@ -88,7 +77,13 @@
           </div>
         </section>
 
-        <section class="toast-zone" id="toast-zone" aria-live="polite" aria-relevant="additions text"></section>
+        <section
+          class="toast-zone"
+          id="toast-zone"
+          aria-live="polite"
+          aria-relevant="additions text"
+          aria-atomic="false"
+        ></section>
 
         <section
           class="view is-active"
@@ -237,7 +232,14 @@
           type="button"
           aria-label="Arbeitsbereich schliessen"
         ></button>
-        <section class="workspace-panel" role="dialog" aria-modal="true" aria-labelledby="workspace-title">
+        <section
+          class="workspace-panel"
+          id="workspace-panel"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="workspace-title"
+          tabindex="-1"
+        >
           <header class="workspace-header">
             <div>
               <p class="section-label">Arbeitsbereich</p>
@@ -319,7 +321,15 @@
                     <div class="stock-card-list" id="stock-card-list"></div>
                   </div>
 
-                  <aside class="stock-detail-drawer" id="stock-detail-drawer" hidden>
+                  <aside
+                    class="stock-detail-drawer"
+                    id="stock-detail-drawer"
+                    role="dialog"
+                    aria-modal="false"
+                    aria-labelledby="stock-detail-title"
+                    tabindex="-1"
+                    hidden
+                  >
                     <div class="stock-detail-header">
                       <div>
                         <p class="section-label">Artikel Detail</p>
@@ -749,7 +759,15 @@
                 </div>
                 <div class="review-queue-layout">
                   <div class="review-card-list" id="review-task-card-list" aria-live="polite"></div>
-                  <aside class="review-task-drawer" id="review-task-drawer" hidden>
+                  <aside
+                    class="review-task-drawer"
+                    id="review-task-drawer"
+                    role="dialog"
+                    aria-modal="false"
+                    aria-labelledby="review-task-title"
+                    tabindex="-1"
+                    hidden
+                  >
                     <div class="review-task-drawer-head">
                       <div>
                         <p class="section-label">Review Detail</p>
@@ -829,7 +847,15 @@
                     <div class="table-wrap" id="audit-events-table"></div>
                     <ol class="movement-timeline" id="movement-timeline"></ol>
                   </div>
-                  <aside class="audit-detail-drawer" id="audit-detail-drawer" hidden>
+                  <aside
+                    class="audit-detail-drawer"
+                    id="audit-detail-drawer"
+                    role="dialog"
+                    aria-modal="false"
+                    aria-labelledby="audit-detail-title"
+                    tabindex="-1"
+                    hidden
+                  >
                     <div class="audit-detail-head">
                       <div>
                         <p class="section-label">Movement Detail</p>

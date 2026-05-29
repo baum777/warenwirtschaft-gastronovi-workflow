@@ -31,6 +31,10 @@ describe("Warenwirtschaft web shell", () => {
     expect(html).not.toContain("MVP Cockpit");
     expect(html).toContain("Betriebsübersicht");
     expect(html).toContain('id="dev-panel"');
+    expect(html).not.toContain('id="dev-form"');
+    expect(html).not.toContain('id="api-base"');
+    expect(html).not.toContain('id="actor-id"');
+    expect(html).not.toContain('id="actor-role"');
     expect(html).not.toContain('id="actor-form"');
     expect(html).not.toContain("Lieferant-ID");
     expect(html).not.toContain("Lagerort-ID");
@@ -223,15 +227,22 @@ describe("Warenwirtschaft web shell", () => {
   it("renders role-based nav state with aria-current and a top context bar", () => {
     const html = readWebFile("index.html");
     const app = readWebFile("app.js");
+    const styles = readWebFile("styles.css");
 
     expect(html).toContain('id="sidebar-nav-list"');
+    expect(html).toContain('id="sidebar-close"');
+    expect(html).toContain('aria-label="Navigation schließen"');
     expect(html).toContain('id="mobile-nav"');
     expect(html).toContain('id="context-role"');
     expect(html).toContain('id="context-location"');
     expect(html).toContain('id="context-connection"');
+    expect(app).toContain("sidebarClose");
+    expect(app).toContain('localStorage.setItem("ww.sidebarCollapsed", "1")');
     expect(app).toContain("renderRoleNavigation");
     expect(app).toContain('item.setAttribute("aria-current", "page")');
     expect(app).toContain("renderTopContextBar");
+    expect(styles).toContain(".sidebar-close");
+    expect(styles).toContain(".app-shell.is-sidebar-collapsed .sidebar-close");
   });
 
   it("keeps sidebar workspace routing keys for corrections and review explicit", () => {
@@ -562,5 +573,37 @@ describe("Warenwirtschaft web shell", () => {
     expect(styles).toContain(".mobile-success-screen");
     expect(styles).toContain(".command-form.is-mobile-staff-mode .sticky-action-footer");
     expect(styles).toContain("min-height: 48px");
+  });
+
+  it("hardens accessibility focus-flow, responsive breakpoints, and post-commit refresh edge cases", () => {
+    const html = readWebFile("index.html");
+    const app = readWebFile("app.js");
+    const styles = readWebFile("styles.css");
+
+    expect(html).toContain('id="workspace-panel"');
+    expect(html).toContain('id="toast-zone"');
+    expect(html).toContain('aria-live="polite"');
+    expect(html).toContain('aria-atomic="false"');
+    expect(html).toContain('id="stock-detail-drawer"');
+    expect(html).toContain('aria-labelledby="stock-detail-title"');
+    expect(html).toContain('id="review-task-drawer"');
+    expect(html).toContain('aria-labelledby="review-task-title"');
+    expect(html).toContain('id="audit-detail-drawer"');
+    expect(html).toContain('aria-labelledby="audit-detail-title"');
+
+    expect(app).toContain("activateFocusTrap");
+    expect(app).toContain("releaseFocusTrap");
+    expect(app).toContain("handleFocusTrapTabKey");
+    expect(app).toContain("runPostCommitRefresh");
+    expect(app).toContain("postCommitRefreshFailureMessage");
+    expect(app).toContain("normalizeUnitLabel");
+    expect(app).toContain("Rolle gewechselt:");
+
+    expect(styles).toContain("input:focus-visible");
+    expect(styles).toContain(".workspace-panel:focus-visible");
+    expect(styles).toMatch(/\[hidden\]\s*\{\s*display:\s*none\s*!important;\s*\}/);
+    expect(styles).toContain("@media (min-width: 480px) and (max-width: 1023px)");
+    expect(styles).toContain("@media (min-width: 1024px) and (max-width: 1439px)");
+    expect(styles).toContain("@media (min-width: 1440px)");
   });
 });

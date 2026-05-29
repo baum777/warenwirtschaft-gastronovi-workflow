@@ -7,7 +7,8 @@ const WarenwirtschaftApp = {
     connectionStatus: navigator.onLine ? "online" : "offline",
     ui: {
       isSidebarCollapsed: localStorage.getItem("ww.sidebarCollapsed") === "1",
-      isSidebarOpenMobile: false
+      isSidebarOpenMobile: false,
+      focusTrapStack: []
     },
     appContext: {
       demoMode: false,
@@ -41,10 +42,12 @@ const WarenwirtschaftApp = {
         category: "",
         search: ""
       },
-      selectedInventoryItemId: null
+      selectedInventoryItemId: null,
+      lastDetailTrigger: null
     },
     reviewUi: {
-      selectedTaskId: null
+      selectedTaskId: null,
+      lastDrawerTrigger: null
     },
     auditUi: {
       filters: {
@@ -55,7 +58,8 @@ const WarenwirtschaftApp = {
         actorUserId: "",
         storageLocationName: ""
       },
-      selectedMovementId: null
+      selectedMovementId: null,
+      lastDrawerTrigger: null
     },
     mobileUi: {
       quickBookingStep: 0,
@@ -273,6 +277,11 @@ const commandFormStatusLabel = {
 };
 
 const commandRequestTimeoutMs = 10000;
+const fallbackUnitLabel = "Einheit fehlt";
+const postCommitRefreshFailureMessage =
+  "Command gespeichert, aber UI-Reload fehlgeschlagen. Daten bitte neu laden.";
+const focusableElementsSelector =
+  "a[href], button:not([disabled]), input:not([disabled]):not([type='hidden']), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
 const navigationItems = [
   { id: "dashboard", label: "Übersicht", icon: "⌂", target: "view", view: "dashboard", roles: ["admin", "shift_lead"] },
@@ -454,6 +463,7 @@ function cacheRefs() {
     sidebarNav: document.querySelector("#sidebar-nav-list"),
     mobileNav: document.querySelector("#mobile-nav"),
     sidebarToggle: document.querySelector("#sidebar-toggle"),
+    sidebarClose: document.querySelector("#sidebar-close"),
     title: document.querySelector("#view-title"),
     contextRole: document.querySelector("#context-role"),
     contextLocation: document.querySelector("#context-location"),
@@ -483,6 +493,7 @@ function cacheRefs() {
     withdrawalStockHint: document.querySelector("#withdrawal-stock-hint"),
     quickBookingStockHint: document.querySelector("#quick-booking-stock-hint"),
     overlay: document.querySelector("#workspace-overlay"),
+    workspacePanel: document.querySelector("#workspace-panel"),
     backdrop: document.querySelector("#workspace-backdrop"),
     workspaceTitle: document.querySelector("#workspace-title"),
     workspaceContext: document.querySelector("#workspace-context"),
@@ -525,6 +536,125 @@ function cacheRefs() {
   };
 }
 
+function isElementVisibleForFocus(element) {
+  if (!element) {
+    return false;
+  }
+
+  if (element.hidden || element.closest("[hidden]")) {
+    return false;
+  }
+
+  return element.getClientRects().length > 0;
+}
+
+function getFocusableElements(container) {
+  if (!container) {
+    return [];
+  }
+
+  return Array.from(container.querySelectorAll(focusableElementsSelector)).filter((element) =>
+    isElementVisibleForFocus(element)
+  );
+}
+
+function focusFirstInContainer(container) {
+  const focusable = getFocusableElements(container);
+  if (!focusable.length) {
+    container?.focus();
+    return;
+  }
+
+  focusable[0].focus();
+}
+
+function getTopFocusTrapEntry() {
+  const stack = WarenwirtschaftApp.state.ui.focusTrapStack;
+  return stack.length ? stack[stack.length - 1] : null;
+}
+
+function activateFocusTrap(container, options = {}) {
+  if (!container) {
+    return;
+  }
+
+  const stack = WarenwirtschaftApp.state.ui.focusTrapStack;
+  const existing = stack.find((entry) => entry.container === container);
+  if (existing) {
+    existing.onEscape = options.onEscape || existing.onEscape || null;
+    existing.returnFocusTo = options.returnFocusTo || existing.returnFocusTo || null;
+    return;
+  }
+
+  stack.push({
+    container,
+    onEscape: options.onEscape || null,
+    returnFocusTo: options.returnFocusTo || document.activeElement || null
+  });
+
+  if (options.focusOnActivate) {
+    focusFirstInContainer(container);
+  }
+}
+
+function releaseFocusTrap(container, options = {}) {
+  if (!container) {
+    return;
+  }
+
+  const stack = WarenwirtschaftApp.state.ui.focusTrapStack;
+  const index = stack.findIndex((entry) => entry.container === container);
+  if (index < 0) {
+    return;
+  }
+
+  const [{ returnFocusTo }] = stack.splice(index, 1);
+  const shouldRestore = options.restoreFocus !== false;
+  if (shouldRestore && returnFocusTo && returnFocusTo.isConnected && isElementVisibleForFocus(returnFocusTo)) {
+    returnFocusTo.focus();
+  }
+}
+
+function handleFocusTrapTabKey(event) {
+  if (event.key !== "Tab") {
+    return false;
+  }
+
+  const entry = getTopFocusTrapEntry();
+  if (!entry || !entry.container || !isElementVisibleForFocus(entry.container)) {
+    return false;
+  }
+
+  const focusable = getFocusableElements(entry.container);
+  if (!focusable.length) {
+    event.preventDefault();
+    entry.container.focus();
+    return true;
+  }
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = document.activeElement;
+  const outsideTrap = !entry.container.contains(active);
+
+  if (event.shiftKey) {
+    if (outsideTrap || active === first) {
+      event.preventDefault();
+      last.focus();
+      return true;
+    }
+    return false;
+  }
+
+  if (outsideTrap || active === last) {
+    event.preventDefault();
+    first.focus();
+    return true;
+  }
+
+  return false;
+}
+
 function bindNavigation() {
   document.addEventListener("click", (event) => {
     const element = event.target.closest("[data-view], [data-view-link], [data-workspace]");
@@ -552,11 +682,18 @@ function bindNavigation() {
 }
 
 function bindDevForm() {
-  document.querySelector("#dev-form").addEventListener("submit", async (event) => {
+  const devForm = document.querySelector("#dev-form");
+  if (!devForm) {
+    return;
+  }
+
+  devForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const previousRole = WarenwirtschaftApp.state.actorRole;
     WarenwirtschaftApp.state.apiBase = WarenwirtschaftApp.refs.apiBase.value.trim();
     WarenwirtschaftApp.state.actorId = WarenwirtschaftApp.refs.actorId.value.trim();
     WarenwirtschaftApp.state.actorRole = WarenwirtschaftApp.refs.actorRole.value;
+    const roleChanged = previousRole !== WarenwirtschaftApp.state.actorRole;
     localStorage.setItem("ww.apiBase", WarenwirtschaftApp.state.apiBase);
     localStorage.setItem("ww.actorId", WarenwirtschaftApp.state.actorId);
     localStorage.setItem("ww.actorRole", WarenwirtschaftApp.state.actorRole);
@@ -573,7 +710,13 @@ function bindDevForm() {
 
     ensureRoleLanding();
     renderTopContextBar();
-    showToast("Actor-Kontext gespeichert.");
+    if (roleChanged) {
+      const fromLabel = rolePresentation[previousRole] || previousRole;
+      const toLabel = rolePresentation[WarenwirtschaftApp.state.actorRole] || WarenwirtschaftApp.state.actorRole;
+      showToast(`Rolle gewechselt: ${fromLabel} → ${toLabel}. Sichtbare Bereiche wurden aktualisiert.`, { tone: "info" });
+    } else {
+      showToast("Actor-Kontext gespeichert.");
+    }
     await refreshDashboard();
   });
 }
@@ -612,13 +755,70 @@ function bindWorkspaceShell() {
       setWorkspaceTab(button.dataset.workspaceTab);
     }
   });
+  WarenwirtschaftApp.refs.workspaceTabs.addEventListener("keydown", (event) => {
+    const current = event.target.closest("[data-workspace-tab]");
+    if (!current) {
+      return;
+    }
+
+    const tabs = Array.from(WarenwirtschaftApp.refs.workspaceTabs.querySelectorAll("[data-workspace-tab]"));
+    if (!tabs.length) {
+      return;
+    }
+
+    const currentIndex = tabs.indexOf(current);
+    if (currentIndex < 0) {
+      return;
+    }
+
+    let nextIndex = null;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      nextIndex = (currentIndex + 1) % tabs.length;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = tabs.length - 1;
+    }
+
+    if (nextIndex === null) {
+      return;
+    }
+
+    event.preventDefault();
+    const nextTab = tabs[nextIndex];
+    nextTab.focus();
+    setWorkspaceTab(nextTab.dataset.workspaceTab);
+  });
+
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && WarenwirtschaftApp.state.activeWorkspace) {
+    if (handleFocusTrapTabKey(event)) {
+      return;
+    }
+
+    if (event.key !== "Escape") {
+      return;
+    }
+
+    if (WarenwirtschaftApp.refs.confirmCommandDialog?.open) {
+      return;
+    }
+
+    const trapEntry = getTopFocusTrapEntry();
+    if (trapEntry?.onEscape) {
+      event.preventDefault();
+      trapEntry.onEscape();
+      return;
+    }
+
+    if (WarenwirtschaftApp.state.activeWorkspace) {
+      event.preventDefault();
       closeWorkspace();
       return;
     }
 
-    if (event.key === "Escape" && WarenwirtschaftApp.state.ui.isSidebarOpenMobile) {
+    if (WarenwirtschaftApp.state.ui.isSidebarOpenMobile) {
       closeSidebarOnMobile();
     }
   });
@@ -633,6 +833,21 @@ function bindShellControls() {
       localStorage.setItem("ww.sidebarCollapsed", WarenwirtschaftApp.state.ui.isSidebarCollapsed ? "1" : "0");
     }
     syncShellState();
+  });
+
+  WarenwirtschaftApp.refs.sidebarClose?.addEventListener("click", () => {
+    if (isMobileViewport()) {
+      WarenwirtschaftApp.state.ui.isSidebarOpenMobile = false;
+    } else {
+      WarenwirtschaftApp.state.ui.isSidebarCollapsed = true;
+      localStorage.setItem("ww.sidebarCollapsed", "1");
+    }
+
+    syncShellState();
+
+    if (isElementVisibleForFocus(WarenwirtschaftApp.refs.sidebarToggle)) {
+      WarenwirtschaftApp.refs.sidebarToggle.focus();
+    }
   });
 
   window.addEventListener("resize", () => {
@@ -1028,7 +1243,7 @@ function setQuickBookingMobileSuccess(outcome) {
     before: formatEffectNumber(outcome.effect.before),
     delta: formatEffectNumber(outcome.effect.delta, true),
     after: formatEffectNumber(outcome.effect.after),
-    unit: outcome.effect.unit || outcome.data.unit || "-"
+    unit: normalizeUnitLabel(outcome.effect.unit || outcome.data.unit)
   };
   renderQuickBookingMobileSuccess();
   applyQuickBookingMobileStepVisibility();
@@ -1237,7 +1452,7 @@ function updateCommandEffectPreview(form) {
       <p><span>Before</span><strong>${escapeHtml(formatEffectNumber(effect.before))}</strong></p>
       <p><span>Delta</span><strong>${escapeHtml(formatEffectNumber(effect.delta, true))}</strong></p>
       <p><span>After</span><strong>${escapeHtml(formatEffectNumber(effect.after))}</strong></p>
-      <p><span>Unit</span><strong>${escapeHtml(effect.unit || "-")}</strong></p>
+      <p><span>Unit</span><strong>${escapeHtml(normalizeUnitLabel(effect.unit))}</strong></p>
       <p><span>Status</span><strong>${escapeHtml(effectStatusLabel(effect.status))}</strong></p>
     </div>
   `;
@@ -1278,38 +1493,54 @@ function effectStatusLabel(status) {
 }
 
 function getStockWarningMessage(commandFormName, effect, data) {
+  const warnings = [];
+  const item = findItem(data.inventoryItemId);
+  const stock = findStock(data.inventoryItemId);
+  const hasItemSelected = Boolean(data.inventoryItemId);
+
+  if (hasItemSelected && item?.isActive === false) {
+    warnings.push("Hinweis: Artikel ist inaktiv. Buchung nur mit expliziter Freigabe fortsetzen.");
+  }
+
+  const unitCandidate = data.unit || stock?.unit || item?.defaultUnit;
+  if (hasItemSelected && !String(unitCandidate || "").trim()) {
+    warnings.push("Warnung: Einheit fehlt. Vor Submit eine gültige Einheit wählen.");
+  }
+
   if (commandFormName !== "withdrawal" && commandFormName !== "quick-booking") {
-    return "";
+    return warnings.join(" ");
   }
 
   if (commandFormName === "quick-booking" && data.movementType === "goods-receipt") {
-    return "";
+    return warnings.join(" ");
   }
 
-  const stock = findStock(data.inventoryItemId);
   if (!stock) {
-    return "Warnung: Kein Snapshot-Bestand für diesen Artikel gefunden.";
+    warnings.push("Warnung: Kein Snapshot-Bestand für diesen Artikel gefunden.");
+    return warnings.join(" ");
   }
 
   if (effect.after !== null && Number(effect.after) < 0) {
-    return "Warnung: Entnahme führt zu negativem Bestand.";
+    warnings.push("Warnung: Entnahme führt zu negativem Bestand.");
+    return warnings.join(" ");
   }
 
   if (stock.status === "negative") {
-    return "Warnung: Artikel ist bereits im negativen Bestand.";
+    warnings.push("Warnung: Artikel ist bereits im negativen Bestand.");
+    return warnings.join(" ");
   }
 
   if (stock.status === "low") {
-    return "Warnung: Artikel ist bereits unter Mindestbestand.";
+    warnings.push("Warnung: Artikel ist bereits unter Mindestbestand.");
   }
 
-  return "";
+  return warnings.join(" ");
 }
 
 function calculateCommandEffect(commandFormName, data) {
   const stock = findStock(data.inventoryItemId);
   const before = stock ? Number(stock.currentStock) : null;
-  const commandUnit = data.unit || stock?.unit || "-";
+  const commandUnit = normalizeUnitLabel(data.unit || stock?.unit);
   const readQuantity = (value) => {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) {
@@ -1435,6 +1666,7 @@ async function openConfirmCommandDialog({ title, message, actionLabel }) {
     return window.confirm(`${title}\n\n${message}`);
   }
 
+  const returnFocusTo = document.activeElement;
   if (dialog.open) {
     dialog.close("cancel");
   }
@@ -1449,18 +1681,24 @@ async function openConfirmCommandDialog({ title, message, actionLabel }) {
   return new Promise((resolve) => {
     const handleClose = () => {
       dialog.removeEventListener("close", handleClose);
+      if (returnFocusTo && returnFocusTo.isConnected && isElementVisibleForFocus(returnFocusTo)) {
+        returnFocusTo.focus();
+      }
       resolve(dialog.returnValue === "confirm");
     };
 
     dialog.addEventListener("close", handleClose);
     dialog.showModal();
+    window.requestAnimationFrame(() => {
+      (confirmButton || dialog.querySelector("[value='cancel']"))?.focus();
+    });
   });
 }
 
 function buildCommandConfirmMessage(form, effect) {
   const data = formData(form);
   const label = form.querySelector("h3")?.textContent || "Command";
-  const unit = effect.unit || "-";
+  const unit = normalizeUnitLabel(effect.unit);
   const warning = getStockWarningMessage(form.dataset.commandForm, effect, data);
   const core = `${label} · ${commandBehaviorText(form.dataset.commandForm, data)} · Before ${formatEffectNumber(effect.before)} ${unit}, Delta ${formatEffectNumber(effect.delta, true)} ${unit}, After ${formatEffectNumber(effect.after)} ${unit}, Status ${effectStatusLabel(effect.status)}.`;
 
@@ -1473,11 +1711,16 @@ function formatSignedQuantity(quantity, unit, sign = "") {
   const formatted = new Intl.NumberFormat("de-DE", {
     maximumFractionDigits: 2
   }).format(absolute);
-  return `${sign}${formatted} ${unit || "-"}`;
+  return `${sign}${formatted} ${normalizeUnitLabel(unit)}`;
+}
+
+function normalizeUnitLabel(value) {
+  const unit = String(value || "").trim();
+  return unit || fallbackUnitLabel;
 }
 
 function buildCommandSuccessMessage(formName, data, effect) {
-  const unit = effect.unit || data.unit || "-";
+  const unit = normalizeUnitLabel(effect.unit || data.unit);
 
   if (formName === "goods-receipt" || (formName === "quick-booking" && data.movementType === "goods-receipt")) {
     return `Wareneingang gebucht. Bestand ${formatSignedQuantity(data.quantity, unit, "+")}. Weiteren Wareneingang buchen?`;
@@ -1646,6 +1889,17 @@ async function submitCommandForm(event, execute) {
   }
 }
 
+async function runPostCommitRefresh(refreshTasks) {
+  const settled = await Promise.allSettled(refreshTasks);
+  const failed = settled.filter((result) => result.status === "rejected");
+  if (!failed.length) {
+    return true;
+  }
+
+  showToast(postCommitRefreshFailureMessage, { tone: "warning", durationMs: 9000 });
+  return false;
+}
+
 function bindMasterDataEvents() {
   document.querySelector("#purchase-order-item").addEventListener("change", (event) => {
     syncItemDefaults(event.target.value, "#purchase-order-form");
@@ -1742,7 +1996,7 @@ function bindStockWorkspaceEvents() {
       return;
     }
 
-    openStockDetail(button.dataset.stockDetail);
+    openStockDetail(button.dataset.stockDetail, { trigger: button });
   });
 }
 
@@ -1750,7 +2004,7 @@ function bindReviewWorkspaceEvents() {
   document.addEventListener("click", (event) => {
     const openButton = event.target.closest("[data-review-task-open]");
     if (openButton) {
-      openReviewTaskDrawer(openButton.dataset.reviewTaskOpen);
+      openReviewTaskDrawer(openButton.dataset.reviewTaskOpen, { trigger: openButton });
       return;
     }
 
@@ -1791,13 +2045,13 @@ function bindAuditWorkspaceEvents() {
   document.addEventListener("click", (event) => {
     const openButton = event.target.closest("[data-audit-event-open]");
     if (openButton) {
-      openAuditDetail(openButton.dataset.auditEventOpen);
+      openAuditDetail(openButton.dataset.auditEventOpen, { trigger: openButton });
       return;
     }
 
     const linkedButton = event.target.closest("[data-audit-linked-open]");
     if (linkedButton) {
-      openAuditDetail(linkedButton.dataset.auditLinkedOpen);
+      openAuditDetail(linkedButton.dataset.auditLinkedOpen, { trigger: linkedButton });
     }
   });
 }
@@ -1838,6 +2092,10 @@ function applyRoleDefaults() {
 }
 
 function syncDevForm() {
+  if (!WarenwirtschaftApp.refs.apiBase || !WarenwirtschaftApp.refs.actorId || !WarenwirtschaftApp.refs.actorRole) {
+    return;
+  }
+
   WarenwirtschaftApp.refs.apiBase.value = WarenwirtschaftApp.state.apiBase;
   WarenwirtschaftApp.refs.actorId.value = WarenwirtschaftApp.state.actorId;
   WarenwirtschaftApp.refs.actorRole.value = WarenwirtschaftApp.state.actorRole;
@@ -2052,7 +2310,7 @@ function openWorkspace(workspaceName, options = {}) {
   WarenwirtschaftApp.state.activeWorkspaceTab = nextTab;
   WarenwirtschaftApp.state.activeWorkspaceFilter =
     options.filter || workspace.tabs.find((tab) => tab.name === nextTab)?.filter || null;
-  WarenwirtschaftApp.state.lastWorkspaceTrigger = options.trigger || null;
+  WarenwirtschaftApp.state.lastWorkspaceTrigger = options.trigger || document.activeElement || null;
   WarenwirtschaftApp.refs.overlay.hidden = false;
   WarenwirtschaftApp.refs.overlay.setAttribute("aria-hidden", "false");
   document.body.classList.add("has-workspace-open");
@@ -2061,19 +2319,24 @@ function openWorkspace(workspaceName, options = {}) {
   updateWorkspaceNavigation();
   loadWorkspace(normalizedWorkspaceName);
   syncMobileStaffQuickBookingMode();
-  document.querySelector("[data-action='close-workspace']").focus();
+  activateFocusTrap(WarenwirtschaftApp.refs.workspacePanel, {
+    onEscape: closeWorkspace,
+    returnFocusTo: WarenwirtschaftApp.state.lastWorkspaceTrigger,
+    focusOnActivate: true
+  });
   return true;
 }
 
 function closeWorkspace() {
   const trigger = WarenwirtschaftApp.state.lastWorkspaceTrigger;
-  closeStockDetail();
-  closeReviewTaskDrawer();
-  closeAuditDetail();
+  closeStockDetail({ restoreFocus: false });
+  closeReviewTaskDrawer({ restoreFocus: false });
+  closeAuditDetail({ restoreFocus: false });
   WarenwirtschaftApp.state.activeWorkspace = null;
   WarenwirtschaftApp.state.activeWorkspaceTab = null;
   WarenwirtschaftApp.state.activeWorkspaceFilter = null;
   WarenwirtschaftApp.state.lastWorkspaceTrigger = null;
+  releaseFocusTrap(WarenwirtschaftApp.refs.workspacePanel, { restoreFocus: false });
 
   if (WarenwirtschaftApp.refs.overlay) {
     WarenwirtschaftApp.refs.overlay.hidden = true;
@@ -2135,6 +2398,7 @@ function renderWorkspaceShell(workspaceName) {
           role="tab"
           class="workspace-tab ${tab.name === WarenwirtschaftApp.state.activeWorkspaceTab ? "is-active" : ""}"
           aria-selected="${tab.name === WarenwirtschaftApp.state.activeWorkspaceTab ? "true" : "false"}"
+          tabindex="${tab.name === WarenwirtschaftApp.state.activeWorkspaceTab ? "0" : "-1"}"
           data-workspace-tab="${escapeHtml(tab.name)}"
         >
           ${escapeHtml(tab.label)}
@@ -2535,14 +2799,16 @@ function fillSelect(selector, rows, valueKey, label, emptyLabel) {
 }
 
 function itemOptionText(item) {
-  return `${item.name} · ${item.defaultUnit}${item.storageLocationName ? ` · ${item.storageLocationName}` : ""}`;
+  const unit = normalizeUnitLabel(item.defaultUnit);
+  const stateLabel = item.isActive === false ? " · inaktiv" : "";
+  return `${item.name} · ${unit}${item.storageLocationName ? ` · ${item.storageLocationName}` : ""}${stateLabel}`;
 }
 
 function orderOptionText(order) {
   const supplier = order.supplierName || "Ohne Lieferant";
   const positions = order.items
     .filter((item) => item.pendingQty > 0)
-    .map((item) => `${item.inventoryItemName || item.inventoryItemId} ${item.pendingQty} ${item.unit}`)
+    .map((item) => `${item.inventoryItemName || item.inventoryItemId} ${item.pendingQty} ${normalizeUnitLabel(item.unit)}`)
     .join(", ");
 
   return `${supplier} · ${positions || order.status}`;
@@ -2578,7 +2844,7 @@ function syncItemDefaults(itemId, formSelector) {
 
   const form = document.querySelector(formSelector);
   if (form.elements.unit) {
-    form.elements.unit.value = item.defaultUnit;
+    form.elements.unit.value = normalizeUnitLabel(item.defaultUnit);
   }
   if (form.elements.storageLocationId) {
     form.elements.storageLocationId.value = item.storageLocationId || "";
@@ -2593,7 +2859,7 @@ function syncWithdrawalDefaults(formSelector, hint) {
 
   if (item) {
     if (form.elements.unit) {
-      form.elements.unit.value = item.defaultUnit;
+      form.elements.unit.value = normalizeUnitLabel(item.defaultUnit);
     }
     if (form.elements.storageLocationId) {
       form.elements.storageLocationId.value = item.storageLocationId || "";
@@ -2626,15 +2892,15 @@ function validateWithdrawalStock(formSelector, hint) {
     return true;
   }
 
-  hint.textContent = `Verfügbar: ${stock.currentStock} ${stock.unit}`;
+  hint.textContent = `Verfügbar: ${stock.currentStock} ${normalizeUnitLabel(stock.unit)}`;
 
   if (form.elements.movementType?.value === "goods-receipt") {
-    hint.textContent = `Aktueller Bestand: ${stock.currentStock} ${stock.unit}. Wareneingang erhöht den Bestand.`;
+    hint.textContent = `Aktueller Bestand: ${stock.currentStock} ${normalizeUnitLabel(stock.unit)}. Wareneingang erhöht den Bestand.`;
     return true;
   }
 
   if (quantity > stock.currentStock) {
-    const message = `Maximal verfügbar: ${stock.currentStock} ${stock.unit}.`;
+    const message = `Maximal verfügbar: ${stock.currentStock} ${normalizeUnitLabel(stock.unit)}.`;
     quantityInput.setCustomValidity(message);
     setFieldError(form, "quantity", message);
     return false;
@@ -2702,7 +2968,7 @@ function renderStockTable(selector, rows, emptyMessage) {
     item.name,
     item.category || "-",
     item.currentStock,
-    item.unit,
+    normalizeUnitLabel(item.unit),
     stockStatusBadge(item.status),
     formatDateTime(item.lastMovementAt),
     `<button type="button" data-stock-detail="${escapeHtml(item.inventoryItemId)}">Details</button>`
@@ -2729,7 +2995,7 @@ function renderStockCardList(selector, rows, emptyMessage) {
             ${stockStatusBadge(item.status)}
           </div>
           <p class="stock-card-meta">${escapeHtml(item.category || "Keine Kategorie")} · ${escapeHtml(item.storageLocationName || "Ohne Lagerort")}</p>
-          <p class="stock-card-value">${escapeHtml(String(item.currentStock))} ${escapeHtml(item.unit)}</p>
+          <p class="stock-card-value">${escapeHtml(String(item.currentStock))} ${escapeHtml(normalizeUnitLabel(item.unit))}</p>
           <p class="stock-card-meta">Letzte Bewegung: ${escapeHtml(formatDateTime(item.lastMovementAt))}</p>
           <button type="button" data-stock-detail="${escapeHtml(item.inventoryItemId)}">Details</button>
         </article>
@@ -2847,7 +3113,9 @@ function renderPurchaseOrders() {
     order.purchaseOrderId,
     purchaseOrderStatusBadge(order.status),
     order.supplierName || order.supplierId || "-",
-    order.items.map((item) => `${item.inventoryItemName || item.inventoryItemId}: ${item.pendingQty} ${item.unit}`).join(", "),
+    order.items
+      .map((item) => `${item.inventoryItemName || item.inventoryItemId}: ${item.pendingQty} ${normalizeUnitLabel(item.unit)}`)
+      .join(", "),
     purchaseOrderActions(order)
   ], emptyStates.purchaseOrders);
 }
@@ -2872,7 +3140,9 @@ async function loadGoodsReceipts() {
     receipt.goodsReceiptId,
     receipt.purchaseOrderId || "-",
     receipt.receivedById,
-    receipt.items.map((item) => `${item.inventoryItemName || item.inventoryItemId}: ${item.quantity} ${item.unit}`).join(", ")
+    receipt.items
+      .map((item) => `${item.inventoryItemName || item.inventoryItemId}: ${item.quantity} ${normalizeUnitLabel(item.unit)}`)
+      .join(", ")
   ], emptyStates.goodsReceipts);
   renderActiveWorkspaceContext();
 }
@@ -2973,7 +3243,7 @@ function AuditEventRow(movement) {
     escapeHtml(formatDateTime(movement.createdAt)),
     escapeHtml(movement.inventoryItemName || movement.inventoryItemId),
     escapeHtml(movementTypeLabel(movement.type)),
-    escapeHtml(`${movement.quantity} ${movement.unit}`),
+    escapeHtml(`${movement.quantity} ${normalizeUnitLabel(movement.unit)}`),
     escapeHtml(movement.actorUserId),
     escapeHtml(movement.storageLocationName || "-"),
     escapeHtml(linkedLabel),
@@ -3026,7 +3296,7 @@ function MovementTimeline(rows) {
       return `
         <li>
           <button type="button" data-audit-event-open="${escapeHtml(movement.id)}">
-            ${escapeHtml(formatDateTime(movement.createdAt))} · ${escapeHtml(movementTypeLabel(movement.type))} · ${escapeHtml(`${movement.quantity} ${movement.unit}`)}
+            ${escapeHtml(formatDateTime(movement.createdAt))} · ${escapeHtml(movementTypeLabel(movement.type))} · ${escapeHtml(`${movement.quantity} ${normalizeUnitLabel(movement.unit)}`)}
           </button>
           <p>${escapeHtml(movement.inventoryItemName || movement.inventoryItemId)} · ${escapeHtml(movement.actorUserId)}${escapeHtml(linkedHint)}</p>
         </li>
@@ -3062,20 +3332,23 @@ function getLinkedMovements(movement) {
   );
 }
 
-function openAuditDetail(movementId) {
+function openAuditDetail(movementId, options = {}) {
   if (!movementId) {
     return;
   }
 
+  WarenwirtschaftApp.state.auditUi.lastDrawerTrigger = options.trigger || document.activeElement || null;
   WarenwirtschaftApp.state.auditUi.selectedMovementId = movementId;
   renderAuditDetailIfSelected();
 }
 
-function closeAuditDetail() {
+function closeAuditDetail(options = {}) {
   WarenwirtschaftApp.state.auditUi.selectedMovementId = null;
   if (WarenwirtschaftApp.refs.auditDetailDrawer) {
     WarenwirtschaftApp.refs.auditDetailDrawer.hidden = true;
   }
+  releaseFocusTrap(WarenwirtschaftApp.refs.auditDetailDrawer, options);
+  WarenwirtschaftApp.state.auditUi.lastDrawerTrigger = null;
 }
 
 function renderAuditDetailIfSelected() {
@@ -3093,6 +3366,11 @@ function renderAuditDetailIfSelected() {
   }
 
   drawer.hidden = false;
+  activateFocusTrap(drawer, {
+    onEscape: closeAuditDetail,
+    returnFocusTo: WarenwirtschaftApp.state.auditUi.lastDrawerTrigger,
+    focusOnActivate: true
+  });
   if (WarenwirtschaftApp.refs.auditDetailTitle) {
     WarenwirtschaftApp.refs.auditDetailTitle.textContent = `${movementTypeLabel(movement.type)} · ${movement.id}`;
   }
@@ -3106,7 +3384,7 @@ function renderAuditDetailIfSelected() {
       <dt>source_id</dt><dd>${escapeHtml(movement.sourceId || movement.id)}</dd>
       <dt>Artikel</dt><dd>${escapeHtml(movement.inventoryItemName || movement.inventoryItemId)}</dd>
       <dt>Typ</dt><dd>${escapeHtml(movementTypeLabel(movement.type))}</dd>
-      <dt>Menge</dt><dd>${escapeHtml(`${movement.quantity} ${movement.unit}`)}</dd>
+      <dt>Menge</dt><dd>${escapeHtml(`${movement.quantity} ${normalizeUnitLabel(movement.unit)}`)}</dd>
       <dt>Actor</dt><dd>${escapeHtml(movement.actorUserId)}</dd>
       <dt>Lagerort</dt><dd>${escapeHtml(movement.storageLocationName || "-")}</dd>
       <dt>Zeitpunkt</dt><dd>${escapeHtml(formatDateTime(movement.createdAt))}</dd>
@@ -3127,7 +3405,7 @@ function renderAuditDetailIfSelected() {
               (entry) => `
                 <li>
                   <button type="button" data-audit-linked-open="${escapeHtml(entry.id)}">
-                    ${escapeHtml(entry.id)} · ${escapeHtml(movementTypeLabel(entry.type))} · ${escapeHtml(`${entry.quantity} ${entry.unit}`)}
+                    ${escapeHtml(entry.id)} · ${escapeHtml(movementTypeLabel(entry.type))} · ${escapeHtml(`${entry.quantity} ${normalizeUnitLabel(entry.unit)}`)}
                   </button>
                 </li>
               `
@@ -3290,7 +3568,7 @@ async function submitPurchaseOrder(event) {
     await postJson("/admin/purchase-orders", body, "", {
       idempotencyKey: meta.idempotencyKey
     });
-    await loadMasterData();
+    await runPostCommitRefresh([loadMasterData()]);
     setWorkspaceTab("open");
   });
 }
@@ -3299,7 +3577,7 @@ async function submitGoodsReceipt(event) {
   await submitCommandForm(event, async (data, meta) => {
     const command = buildRecordGoodsReceiptCommand(data);
     await createGoodsReceipt(command, meta.idempotencyKey);
-    await Promise.allSettled([loadGoodsReceipts(), loadMasterData()]);
+    await runPostCommitRefresh([loadGoodsReceipts(), loadMasterData()]);
     setWorkspaceTab("receipts");
   });
 }
@@ -3308,7 +3586,7 @@ async function submitWithdrawal(event) {
   await submitCommandForm(event, async (data, meta) => {
     const command = buildRecordWithdrawalCommand(data);
     await createWithdrawal(command, meta.idempotencyKey);
-    await loadMasterData();
+    await runPostCommitRefresh([loadMasterData()]);
   });
 }
 
@@ -3320,11 +3598,11 @@ async function submitQuickBook(event) {
         receiptMode: "free"
       });
       await createGoodsReceipt(command, meta.idempotencyKey);
-      await Promise.allSettled([loadGoodsReceipts(), loadMasterData()]);
+      await runPostCommitRefresh([loadGoodsReceipts(), loadMasterData()]);
     } else {
       const command = buildRecordWithdrawalCommand(data);
       await createWithdrawal(command, meta.idempotencyKey);
-      await loadMasterData();
+      await runPostCommitRefresh([loadMasterData()]);
     }
   });
   if (!outcome.committed) {
@@ -3373,7 +3651,7 @@ async function submitCorrection(event) {
       }
     );
     rememberCorrectionReviewMapping(result, command);
-    await refreshReviewTasksIfAllowed();
+    await runPostCommitRefresh([refreshReviewTasksIfAllowed()]);
   });
 }
 
@@ -3674,25 +3952,28 @@ function extractCorrectionReviewContext(task) {
     inventoryItemId: remembered.inventoryItemId || stock?.inventoryItemId || null,
     itemName: itemFromId?.name || stock?.name || itemName || "-",
     expectedDelta,
-    unit: remembered.unit || deltaFromText.unit || stock?.unit || itemFromId?.defaultUnit || "-",
+    unit: normalizeUnitLabel(remembered.unit || deltaFromText.unit || stock?.unit || itemFromId?.defaultUnit),
     reason: remembered.reason || description || "-"
   };
 }
 
-function openReviewTaskDrawer(taskId) {
+function openReviewTaskDrawer(taskId, options = {}) {
   if (!taskId) {
     return;
   }
 
+  WarenwirtschaftApp.state.reviewUi.lastDrawerTrigger = options.trigger || document.activeElement || null;
   WarenwirtschaftApp.state.reviewUi.selectedTaskId = taskId;
   renderReviewTaskDrawer();
 }
 
-function closeReviewTaskDrawer() {
+function closeReviewTaskDrawer(options = {}) {
   WarenwirtschaftApp.state.reviewUi.selectedTaskId = null;
   if (WarenwirtschaftApp.refs.reviewTaskDrawer) {
     WarenwirtschaftApp.refs.reviewTaskDrawer.hidden = true;
   }
+  releaseFocusTrap(WarenwirtschaftApp.refs.reviewTaskDrawer, options);
+  WarenwirtschaftApp.state.reviewUi.lastDrawerTrigger = null;
 }
 
 function renderReviewTaskDrawer() {
@@ -3711,6 +3992,11 @@ function renderReviewTaskDrawer() {
 
   const correctionContext = isCorrectionReviewTask(task) ? extractCorrectionReviewContext(task) : null;
   drawer.hidden = false;
+  activateFocusTrap(drawer, {
+    onEscape: closeReviewTaskDrawer,
+    returnFocusTo: WarenwirtschaftApp.state.reviewUi.lastDrawerTrigger,
+    focusOnActivate: true
+  });
   WarenwirtschaftApp.refs.reviewTaskTitle.textContent = task.title;
   WarenwirtschaftApp.refs.reviewTaskContext.innerHTML = `
     <dt>Typ</dt><dd>${escapeHtml(reviewTypeLabel(task.type))}</dd>
@@ -3718,7 +4004,7 @@ function renderReviewTaskDrawer() {
     <dt>Schwere</dt><dd>${reviewSeverityBadge(task.severity)}</dd>
     <dt>Erstellt</dt><dd>${escapeHtml(formatDateTime(task.createdAt))}</dd>
     <dt>Artikel</dt><dd>${escapeHtml(correctionContext?.itemName || "-")}</dd>
-    <dt>Bestand</dt><dd>${escapeHtml(correctionContext?.inventoryItemId ? formatEffectNumber(findStock(correctionContext.inventoryItemId)?.currentStock) : "-")} ${escapeHtml(correctionContext?.unit || "-")}</dd>
+    <dt>Bestand</dt><dd>${escapeHtml(correctionContext?.inventoryItemId ? formatEffectNumber(findStock(correctionContext.inventoryItemId)?.currentStock) : "-")} ${escapeHtml(normalizeUnitLabel(correctionContext?.unit))}</dd>
     <dt>Auslöser</dt><dd>${escapeHtml(task.description || "-")}</dd>
     <dt>Notiz</dt><dd>${escapeHtml(correctionContext?.reason || "-")}</dd>
   `;
@@ -3744,7 +4030,7 @@ function renderReviewTaskDrawer() {
 
   if (isCorrectionReviewTask(task) && correctionContext?.expectedDelta !== null && correctionContext?.expectedDelta !== undefined) {
     const direction = Number(correctionContext.expectedDelta) > 0 ? "steigt" : "sinkt";
-    const formattedDelta = formatSignedQuantity(correctionContext.expectedDelta, correctionContext.unit, "");
+    const formattedDelta = formatSignedQuantity(correctionContext.expectedDelta, normalizeUnitLabel(correctionContext.unit), "");
     WarenwirtschaftApp.refs.reviewTaskStockImpact.textContent = `Bei Freigabe ${direction} der Bestand um ${formattedDelta}.`;
     WarenwirtschaftApp.refs.reviewTaskStockImpact.hidden = false;
   } else if (isCorrectionReviewTask(task)) {
@@ -3922,20 +4208,23 @@ async function submitReviewCommand(button) {
   }
 }
 
-function openStockDetail(itemId) {
+function openStockDetail(itemId, options = {}) {
   if (!itemId) {
     return;
   }
 
+  WarenwirtschaftApp.state.stockUi.lastDetailTrigger = options.trigger || document.activeElement || null;
   WarenwirtschaftApp.state.stockUi.selectedInventoryItemId = itemId;
   renderStockDetailIfSelected();
 }
 
-function closeStockDetail() {
+function closeStockDetail(options = {}) {
   WarenwirtschaftApp.state.stockUi.selectedInventoryItemId = null;
   if (WarenwirtschaftApp.refs.stockDetailDrawer) {
     WarenwirtschaftApp.refs.stockDetailDrawer.hidden = true;
   }
+  releaseFocusTrap(WarenwirtschaftApp.refs.stockDetailDrawer, options);
+  WarenwirtschaftApp.state.stockUi.lastDetailTrigger = null;
 }
 
 function renderStockDetailIfSelected() {
@@ -3953,16 +4242,21 @@ function renderStockDetailIfSelected() {
 
   const item = findItem(itemId);
   WarenwirtschaftApp.refs.stockDetailDrawer.hidden = false;
+  activateFocusTrap(WarenwirtschaftApp.refs.stockDetailDrawer, {
+    onEscape: closeStockDetail,
+    returnFocusTo: WarenwirtschaftApp.state.stockUi.lastDetailTrigger,
+    focusOnActivate: true
+  });
   WarenwirtschaftApp.refs.stockDetailTitle.textContent = stock.name;
   WarenwirtschaftApp.refs.stockDetailMaster.innerHTML = `
     <dt>Artikel-ID</dt><dd>${escapeHtml(stock.inventoryItemId)}</dd>
     <dt>Kategorie</dt><dd>${escapeHtml(stock.category || "-")}</dd>
     <dt>Lagerort</dt><dd>${escapeHtml(stock.storageLocationName || "-")}</dd>
-    <dt>Einheit</dt><dd>${escapeHtml(stock.unit)}</dd>
+    <dt>Einheit</dt><dd>${escapeHtml(normalizeUnitLabel(stock.unit))}</dd>
     <dt>Mindestbestand</dt><dd>${escapeHtml(item?.minStock !== undefined ? String(item.minStock) : "-")}</dd>
   `;
   WarenwirtschaftApp.refs.stockDetailSnapshot.innerHTML = `
-    <p><strong>${escapeHtml(String(stock.currentStock))} ${escapeHtml(stock.unit)}</strong></p>
+    <p><strong>${escapeHtml(String(stock.currentStock))} ${escapeHtml(normalizeUnitLabel(stock.unit))}</strong></p>
     <p>${stockStatusBadge(stock.status)}</p>
     <p>Letzte Bewegung: ${escapeHtml(formatDateTime(stock.lastMovementAt))}</p>
   `;
@@ -3992,7 +4286,7 @@ function getStockTimelineEvents(inventoryItemId) {
     .map((movement) => ({
       at: movement.createdAt,
       label: movementTypeLabel(movement.type),
-      detail: `${movement.quantity} ${movement.unit}${movement.note ? ` · ${movement.note}` : ""}`
+      detail: `${movement.quantity} ${normalizeUnitLabel(movement.unit)}${movement.note ? ` · ${movement.note}` : ""}`
     }));
 
   if (movementEvents.length) {
@@ -4006,7 +4300,7 @@ function getStockTimelineEvents(inventoryItemId) {
         .map((item) => ({
           at: receipt.receivedAt || receipt.createdAt,
           label: "Wareneingang",
-          detail: `${item.quantity} ${item.unit} · ${receipt.receivedById}`
+          detail: `${item.quantity} ${normalizeUnitLabel(item.unit)} · ${receipt.receivedById}`
         }))
     )
     .slice(0, 5);
@@ -4024,7 +4318,7 @@ function getStockTimelineEvents(inventoryItemId) {
     {
       at: stock.lastMovementAt,
       label: "Snapshot aktualisiert",
-      detail: `${stock.currentStock} ${stock.unit} · Status ${stock.status}`
+      detail: `${stock.currentStock} ${normalizeUnitLabel(stock.unit)} · Status ${stock.status}`
     }
   ];
 }
