@@ -1,6 +1,15 @@
+import { createSupabaseAuthClient } from "./auth-client.js";
+
 const WarenwirtschaftApp = {
   state: {
     apiBase: localStorage.getItem("ww.apiBase") || defaultApiBase(),
+    session: readStoredSession(),
+    currentUser: null,
+    profile: null,
+    activeTeam: null,
+    authMode: "demo_headers",
+    registrationMode: "first_admin",
+    authClient: null,
     actorId: localStorage.getItem("ww.actorId") || "demo-admin",
     actorRole: localStorage.getItem("ww.actorRole") || "admin",
     currentLocation: localStorage.getItem("ww.currentLocation") || "Hauptlager",
@@ -86,6 +95,25 @@ function defaultApiBase() {
   }
 
   return window.location.origin;
+}
+
+function readStoredSession() {
+  try {
+    const stored = localStorage.getItem("ww.supabaseSession");
+    return stored ? JSON.parse(stored) : null;
+  } catch (_error) {
+    localStorage.removeItem("ww.supabaseSession");
+    return null;
+  }
+}
+
+function storeSession(session) {
+  WarenwirtschaftApp.state.session = session;
+  if (session) {
+    localStorage.setItem("ww.supabaseSession", JSON.stringify(session));
+  } else {
+    localStorage.removeItem("ww.supabaseSession");
+  }
 }
 
 const columns = {
@@ -308,6 +336,7 @@ const navigationItems = [
   { id: "corrections", label: "Korrekturen", icon: "△", target: "workspace", workspace: "corrections", roles: ["admin", "shift_lead"] },
   { id: "review-tasks", label: "Prüfung", icon: "✓", target: "workspace", workspace: "review-tasks", roles: ["admin"] },
   { id: "audit-trail", label: "Audit", icon: "≣", target: "workspace", workspace: "audit-trail", roles: ["admin", "shift_lead"] },
+  { id: "profile", label: "Profil", icon: "○", target: "workspace", workspace: "profile", roles: ["admin", "shift_lead", "staff"] },
   { id: "staff-history", label: "Eigener Verlauf", icon: "◷", target: "workspace", workspace: "staff-history", roles: ["staff"] },
   { id: "staff-hints", label: "Hinweise", icon: "ⓘ", target: "workspace", workspace: "staff-hints", roles: ["staff"] }
 ];
@@ -410,6 +439,12 @@ const workspaces = {
     tabs: [{ name: "timeline", label: "Timeline", load: loadAuditTrail }],
     load: loadAuditTrail
   },
+  profile: {
+    title: "Profil",
+    roles: ["admin", "shift_lead", "staff"],
+    tabs: [{ name: "account", label: "Account", load: loadProfile }],
+    load: loadProfile
+  },
   "staff-history": {
     title: "Eigener Verlauf",
     roles: ["staff"],
@@ -428,6 +463,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function boot() {
   cacheRefs();
+  bindAuthForms();
   bindNavigation();
   bindDevForm();
   bindForms();
@@ -442,6 +478,21 @@ async function boot() {
   bindAuditWorkspaceEvents();
   bindShellControls();
   bindConnectivityEvents();
+
+  await loadAuthPublicConfig();
+  if (requiresAuthSession() && !WarenwirtschaftApp.state.session) {
+    showAuthView("login");
+    return;
+  }
+
+  await completeAppBoot();
+}
+
+async function completeAppBoot() {
+  showAuthenticatedShell();
+  if (requiresAuthSession()) {
+    await bootstrapAuthenticatedSession();
+  }
 
   await loadAppContext();
   applyAppContext();
@@ -459,6 +510,17 @@ async function boot() {
 function cacheRefs() {
   WarenwirtschaftApp.refs = {
     appShell: document.querySelector("#app"),
+    loginView: document.querySelector("#view-login"),
+    registerView: document.querySelector("#view-register"),
+    loginForm: document.querySelector("#login-form"),
+    registerForm: document.querySelector("#register-form"),
+    profileForm: document.querySelector("#profile-form"),
+    profileDisplayName: document.querySelector("#profile-display-name"),
+    profileEmail: document.querySelector("#profile-email"),
+    profileTeam: document.querySelector("#profile-team"),
+    profileRole: document.querySelector("#profile-role"),
+    profileLocation: document.querySelector("#profile-location"),
+    profileStartPage: document.querySelector("#profile-start-page"),
     sidebar: document.querySelector("#sidebar"),
     sidebarNav: document.querySelector("#sidebar-nav-list"),
     mobileNav: document.querySelector("#mobile-nav"),
@@ -678,6 +740,25 @@ function bindNavigation() {
       });
       closeSidebarOnMobile();
     }
+  });
+}
+
+function bindAuthForms() {
+  WarenwirtschaftApp.refs.loginForm?.addEventListener("submit", submitLogin);
+  WarenwirtschaftApp.refs.registerForm?.addEventListener("submit", submitRegister);
+  WarenwirtschaftApp.refs.profileForm?.addEventListener("submit", submitProfile);
+
+  document.querySelectorAll("[data-auth-view]").forEach((button) => {
+    button.addEventListener("click", () => {
+      showAuthView(button.dataset.authView);
+    });
+  });
+
+  document.querySelector("[data-auth-action='logout']")?.addEventListener("click", async () => {
+    storeSession(null);
+    WarenwirtschaftApp.state.profile = null;
+    WarenwirtschaftApp.state.activeTeam = null;
+    showAuthView("login");
   });
 }
 
@@ -2063,6 +2144,7 @@ async function loadAppContext() {
     });
   } catch (_error) {
     WarenwirtschaftApp.state.appContext = {
+      authMode: WarenwirtschaftApp.state.authMode,
       demoMode: false,
       devPanelEnabled: window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1",
       defaultActor: {
@@ -2073,20 +2155,225 @@ async function loadAppContext() {
   }
 }
 
+async function loadAuthPublicConfig() {
+  try {
+    const response = await fetch(`${WarenwirtschaftApp.state.apiBase}/auth/public-config`, {
+      headers: {
+        "content-type": "application/json"
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const config = await response.json();
+    WarenwirtschaftApp.state.authMode = config.authMode || "demo_headers";
+    WarenwirtschaftApp.state.registrationMode = config.registrationMode || "first_admin";
+    if (
+      WarenwirtschaftApp.state.authMode === "supabase" &&
+      config.supabaseUrl &&
+      config.supabasePublishableKey
+    ) {
+      WarenwirtschaftApp.state.authClient = createSupabaseAuthClient(config);
+    }
+  } catch (_error) {
+    WarenwirtschaftApp.state.authMode = "demo_headers";
+    WarenwirtschaftApp.state.registrationMode = "first_admin";
+    WarenwirtschaftApp.state.authClient = null;
+  }
+}
+
+function requiresAuthSession() {
+  return WarenwirtschaftApp.state.authMode === "supabase";
+}
+
+function showAuthView(viewName) {
+  const normalizedViewName = viewName === "register" ? "register" : "login";
+  WarenwirtschaftApp.refs.loginView.hidden = normalizedViewName !== "login";
+  WarenwirtschaftApp.refs.registerView.hidden = normalizedViewName !== "register";
+  WarenwirtschaftApp.refs.appShell.hidden = true;
+}
+
+function showAuthenticatedShell() {
+  WarenwirtschaftApp.refs.loginView.hidden = true;
+  WarenwirtschaftApp.refs.registerView.hidden = true;
+  WarenwirtschaftApp.refs.appShell.hidden = false;
+}
+
+async function submitLogin(event) {
+  event.preventDefault();
+  if (!WarenwirtschaftApp.state.authClient) {
+    showToast("Supabase Auth ist nicht konfiguriert.", { tone: "error" });
+    return;
+  }
+
+  const form = event.currentTarget;
+  const email = form.elements.email.value.trim();
+  const password = form.elements.password.value;
+
+  try {
+    const session = await WarenwirtschaftApp.state.authClient.signInWithPassword({ email, password });
+    storeSession(session);
+    await bootstrapAuthenticatedSession();
+    await completeAppBoot();
+  } catch (error) {
+    showToast(error.message || "Login fehlgeschlagen.", { tone: "error" });
+  }
+}
+
+async function submitRegister(event) {
+  event.preventDefault();
+  if (!WarenwirtschaftApp.state.authClient) {
+    showToast("Supabase Auth ist nicht konfiguriert.", { tone: "error" });
+    return;
+  }
+
+  const form = event.currentTarget;
+  const displayName = form.elements.displayName.value.trim();
+  const email = form.elements.email.value.trim();
+  const password = form.elements.password.value;
+  const passwordRepeat = form.elements.passwordRepeat.value;
+  const teamName = form.elements.teamName.value.trim();
+
+  if (password !== passwordRepeat) {
+    showToast("Passwörter stimmen nicht überein.", { tone: "error" });
+    return;
+  }
+
+  try {
+    const session = await WarenwirtschaftApp.state.authClient.signUp({
+      email,
+      password,
+      displayName
+    });
+
+    if (!session.access_token) {
+      showToast("Account erstellt. Bitte E-Mail bestätigen und danach einloggen.", { tone: "info" });
+      showAuthView("login");
+      return;
+    }
+
+    storeSession(session);
+    await bootstrapAuthenticatedSession({
+      displayName,
+      teamName,
+      createFirstAdmin: Boolean(teamName)
+    });
+    await completeAppBoot();
+  } catch (error) {
+    showToast(error.message || "Registrierung fehlgeschlagen.", { tone: "error" });
+  }
+}
+
+async function bootstrapAuthenticatedSession(input = {}) {
+  if (!requiresAuthSession()) {
+    return null;
+  }
+
+  const context = await apiFetch("/auth/bootstrap", {
+    method: "POST",
+    includeActor: false,
+    body: JSON.stringify(input)
+  });
+  applyProfileContext(context);
+  return context;
+}
+
+async function loadProfile() {
+  if (!requiresAuthSession()) {
+    renderProfileForm();
+    return null;
+  }
+
+  const context = await apiFetch("/me", {
+    includeActor: false
+  });
+  applyProfileContext(context);
+  renderProfileForm();
+  return context;
+}
+
+async function submitProfile(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+
+  try {
+    const context = await apiFetch("/me/profile", {
+      method: "PATCH",
+      includeActor: false,
+      body: JSON.stringify({
+        displayName: form.elements.displayName.value.trim(),
+        preferredStorageLocationId: form.elements.preferredStorageLocationId.value || null
+      })
+    });
+    applyProfileContext(context);
+    renderProfileForm();
+    showToast("Profil gespeichert.");
+  } catch (error) {
+    showToast(error.message || "Profil konnte nicht gespeichert werden.", { tone: "error" });
+  }
+}
+
+function applyProfileContext(context) {
+  if (!context) {
+    return;
+  }
+
+  WarenwirtschaftApp.state.profile = context.profile || null;
+  WarenwirtschaftApp.state.activeTeam = context.activeTeam || null;
+  WarenwirtschaftApp.state.currentUser = context.profile || null;
+
+  if (context.effectiveActor) {
+    WarenwirtschaftApp.state.actorId = context.effectiveActor.userId || context.effectiveActor.profileId;
+    WarenwirtschaftApp.state.actorRole = context.effectiveActor.role;
+  } else if (context.activeTeam) {
+    WarenwirtschaftApp.state.actorRole = context.activeTeam.role;
+  }
+
+  if (context.profile?.preferredStorageLocationId) {
+    WarenwirtschaftApp.state.currentLocation = context.profile.preferredStorageLocationId;
+  }
+}
+
+function renderProfileForm() {
+  const profile = WarenwirtschaftApp.state.profile;
+  const activeTeam = WarenwirtschaftApp.state.activeTeam;
+
+  if (!WarenwirtschaftApp.refs.profileForm || !profile) {
+    return;
+  }
+
+  WarenwirtschaftApp.refs.profileDisplayName.value = profile.displayName || "";
+  WarenwirtschaftApp.refs.profileEmail.value = profile.email || "";
+  WarenwirtschaftApp.refs.profileTeam.value = activeTeam?.name || "";
+  WarenwirtschaftApp.refs.profileRole.value = rolePresentation[activeTeam?.role] || activeTeam?.role || "";
+  WarenwirtschaftApp.refs.profileLocation.value = profile.preferredStorageLocationId || "";
+  WarenwirtschaftApp.refs.profileStartPage.value = profile.preferences?.startPage || "dashboard";
+}
+
 function applyAppContext() {
   const context = WarenwirtschaftApp.state.appContext;
+  if (context.authMode) {
+    WarenwirtschaftApp.state.authMode = context.authMode;
+  }
   WarenwirtschaftApp.refs.devPanel.hidden = !context.devPanelEnabled;
 
-  if (!localStorage.getItem("ww.actorId")) {
+  if (context.defaultActor && !localStorage.getItem("ww.actorId")) {
     WarenwirtschaftApp.state.actorId = context.defaultActor.userId;
   }
 
-  if (!localStorage.getItem("ww.actorRole")) {
+  if (context.defaultActor && !localStorage.getItem("ww.actorRole")) {
     WarenwirtschaftApp.state.actorRole = context.defaultActor.role;
   }
 }
 
 function applyRoleDefaults() {
+  if (WarenwirtschaftApp.state.profile?.preferredStorageLocationId) {
+    WarenwirtschaftApp.state.currentLocation = WarenwirtschaftApp.state.profile.preferredStorageLocationId;
+    return;
+  }
+
   WarenwirtschaftApp.state.currentLocation = roleDefaultLocation[WarenwirtschaftApp.state.actorRole] || "Hauptlager";
   localStorage.setItem("ww.currentLocation", WarenwirtschaftApp.state.currentLocation);
 }
@@ -2524,6 +2811,8 @@ async function apiFetch(path, options = {}) {
   let timeoutHandle = null;
   const timeoutController = typeof timeoutMs === "number" && timeoutMs > 0 ? new AbortController() : null;
   const requestSignal = timeoutController ? timeoutController.signal : fetchOptions.signal;
+  const token = WarenwirtschaftApp.state.session?.access_token;
+  const useDemoActorHeaders = includeActor && WarenwirtschaftApp.state.authMode === "demo_headers";
 
   try {
     if (timeoutController) {
@@ -2537,7 +2826,8 @@ async function apiFetch(path, options = {}) {
       signal: requestSignal,
       headers: {
         "content-type": "application/json",
-        ...(includeActor
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...(useDemoActorHeaders
           ? {
               "x-actor-id": WarenwirtschaftApp.state.actorId,
               "x-actor-role": WarenwirtschaftApp.state.actorRole
@@ -2588,10 +2878,13 @@ async function apiFetch(path, options = {}) {
 
 async function apiTextFetch(path, options = {}) {
   const { includeActor = true, ...fetchOptions } = options;
+  const token = WarenwirtschaftApp.state.session?.access_token;
+  const useDemoActorHeaders = includeActor && WarenwirtschaftApp.state.authMode === "demo_headers";
   const response = await fetch(`${WarenwirtschaftApp.state.apiBase}${path}`, {
     ...fetchOptions,
     headers: {
-      ...(includeActor
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...(useDemoActorHeaders
         ? {
             "x-actor-id": WarenwirtschaftApp.state.actorId,
             "x-actor-role": WarenwirtschaftApp.state.actorRole

@@ -34,9 +34,9 @@ Status-Legende:
 | Entnahmen | **Vorhanden** | Admin, Shift-Lead und Staff können backendseitig Entnahmen buchen. Die aktuelle Web-Navigation gibt Staff dafür vor allem den Schnellbuchen-Weg. |
 | Korrekturen | **Vorhanden** | Korrekturen starten als Antrag und ändern Bestand erst nach Admin-Freigabe. |
 | Prüfung / Review | **Vorhanden** | Admin kann Prüfaufgaben starten, lösen, verwerfen sowie Korrekturen genehmigen oder ablehnen. Shift-Lead hat aktuell keine Review-Freigabe. |
-| Rollenbasierte Bedienung | **Teilweise vorhanden** | UI und API kennen `admin`, `shift_lead`, `staff` und `system`. Zugriff wird aktuell über Actor-Header gesteuert, nicht über produktionsreifes Login. |
-| Login / Registrierung | **Geplant** | Es gibt noch kein echtes Login und keine Registrierung. Der aktuelle Kontext nutzt `x-actor-id` und `x-actor-role`. |
-| Profil / Settings | **Geplant** | Noch keine fertigen Profil- oder Einstellungsseiten. Der Dev-/Demo-Kontext wird über `/app-context` bereitgestellt. |
+| Rollenbasierte Bedienung | **Teilweise vorhanden** | UI und API kennen `admin`, `shift_lead`, `staff` und `system`. `AUTH_MODE=demo_headers` nutzt Actor-Header; `AUTH_MODE=supabase` löst Actor und Rolle serverseitig aus `UserProfile` und `TeamMember` auf. |
+| Login / Registrierung | **Teilweise vorhanden** | Supabase Login/Registration, öffentliche Auth-Konfiguration, Bootstrap und Logout sind vorhanden. Invite-Flows und E-Mail-Versand bleiben späterer Umfang. |
+| Profil / Settings | **Teilweise vorhanden** | `/me`, Profil- und Präferenzrouten sowie ein Profil-Workspace sind vorhanden. Team-Settings und Rollenverwaltung bleiben späterer Umfang. |
 | Eigener Verlauf / Hinweise für Staff | **Teilweise vorhanden** | UI-Flächen sind vorhanden, aber als read-only bzw. noch nicht vollständig an das Audit-Read-Model angebunden. |
 | CSV Import / Export / Reset | **Vorhanden** | Admin kann Inventardaten exportieren, importieren und zurücksetzen. |
 | Gastronovi-Anbindung | **Teilweise vorhanden** | Raw-Payload-Speicherung, Hashing und Sync-Run-Boundaries existieren. Live-Zugriff, Normalisierung und produktive Connectoren sind späterer Umfang. |
@@ -79,9 +79,17 @@ UPSTASH_REDIS_REST_TOKEN=...
 GASTRONOVI_API_BASE_URL=...
 GASTRONOVI_API_KEY=...
 GASTRONOVI_TENANT_ID=...
+AUTH_MODE=...
+REGISTRATION_MODE=...
+SUPABASE_URL=...
+SUPABASE_PUBLISHABLE_KEY=...
 ```
 
 `DATABASE_URL` wird für App/Runtime genutzt. `DIRECT_URL` wird für Prisma-CLI- und Migrationsabläufe genutzt, wenn eine direkte Datenbankverbindung erforderlich ist.
+
+`AUTH_MODE` steuert, ob die lokale Demo-Header-Variante oder Supabase Auth genutzt wird. Bei `AUTH_MODE=supabase` müssen `SUPABASE_URL` und `SUPABASE_PUBLISHABLE_KEY` gesetzt sein; der Browser sendet dann Bearer Tokens, aber keine autoritativen Rollen. Rollen kommen serverseitig aus `TeamMember`. Bei Supabase Auth dürfen nur öffentliche Browser-Konfigurationen im Frontend landen; geheime Service-Keys gehören nicht in diese App-Oberfläche.
+
+`REGISTRATION_MODE=first_admin` erlaubt den ersten Team-Admin-Bootstrap. `open` erlaubt direkte Team-Erstellung nach Registrierung. `invite_only` blockiert direkte Team-Erstellung bis zum Invite-Patch.
 
 ### Lokaler Start
 
@@ -131,7 +139,8 @@ Der Smoke-Test benötigt eine gültige Supabase-basierte `DATABASE_URL`. Er schr
 - Supabase Postgres ist die kanonische Datenbank. Lokale Postgres-Setups nur bewusst und nach expliziter Freigabe nutzen.
 - Smoke-Tests können gegen die konfigurierte Datenbank schreiben. Vor Ausführung Zielumgebung prüfen.
 - Rollen und Berechtigungen müssen vor Produktiveinsatz fachlich und technisch geprüft werden.
-- Der aktuelle Rollen-Kontext über Actor-Header ist kein vollständiges produktives Auth-System.
+- Der Demo-Rollen-Kontext über Actor-Header ist kein vollständiges produktives Auth-System.
+- Supabase Auth ist backendseitig vorbereitet, muss aber vor Produktiveinsatz mit echter Rollen-/Teamverwaltung geprüft werden.
 - Raw Payloads und externe POS-Daten können sensible Betriebsinformationen enthalten und dürfen nicht ungefiltert in UI, Logs oder Reports erscheinen.
 
 ## Roadmap / Nächste Schritte

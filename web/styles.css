@@ -68,6 +68,51 @@ body {
   display: none !important;
 }
 
+.auth-view {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.auth-card {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 22px;
+}
+
+.auth-card h1,
+.auth-card p {
+  margin: 0;
+}
+
+.auth-card h1 {
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+.auth-card p {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.auth-card > button[type="submit"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.auth-link-row {
+  display: flex;
+  justify-content: flex-start;
+}
+
 button,
 input,
 select {
@@ -343,6 +388,33 @@ select {
   color: var(--text);
   padding: 0 10px;
   font-size: 13px;
+}
+
+input[readonly] {
+  color: var(--muted);
+  background: var(--surface-2);
+}
+
+.profile-form {
+  display: grid;
+  gap: 18px;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.profile-grid section {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.profile-grid h4 {
+  margin: 0;
+  font-size: 14px;
 }
 
 button:focus-visible,

@@ -23,6 +23,10 @@
       "dest": "/web/app.js"
     },
     {
+      "src": "/auth-client.js",
+      "dest": "/web/auth-client.js"
+    },
+    {
       "src": "/styles.css",
       "dest": "/web/styles.css"
     },
@@ -71,7 +75,7 @@
       "dest": "/web/mstile-150x150.png"
     },
     {
-      "src": "/(health|app-context|inventory(?:/.*)?|admin(?:/.*)?|goods-receipts(?:/.*)?|withdrawals(?:/.*)?|correction-requests(?:/.*)?)",
+      "src": "/(health|app-context|auth(?:/.*)?|me(?:/.*)?|inventory(?:/.*)?|admin(?:/.*)?|goods-receipts(?:/.*)?|withdrawals(?:/.*)?|correction-requests(?:/.*)?)",
       "dest": "/api/index.ts"
     }
   ]

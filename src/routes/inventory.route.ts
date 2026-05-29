@@ -2,8 +2,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import {
   ActorAuthError,
-  parseActorFromHeaders,
   requireActorRole,
+  resolveActorFromRequest,
+  type ActorAuthDependencies,
   type Role
 } from "../modules/auth/actor.js";
 import {
@@ -35,6 +36,7 @@ export type InventoryRouteDependencies = {
   reviewTaskService: ReviewTaskServicePort;
   inventoryReadService: InventoryReadServicePort;
   inventoryCsvService: InventoryCsvServicePort;
+  actorAuth?: ActorAuthDependencies;
 };
 
 const adminOnlyRoles = ["admin"] as const satisfies readonly Role[];
@@ -46,7 +48,7 @@ export async function inventoryRoute(
   dependencies: InventoryRouteDependencies
 ): Promise<void> {
   app.get("/inventory/master-data", async (request, reply) => {
-    const actor = authenticate(request, reply, operationalRoles);
+    const actor = await authenticate(request, reply, dependencies, operationalRoles);
 
     if (!actor) {
       return reply;
@@ -56,7 +58,7 @@ export async function inventoryRoute(
   });
 
   app.get("/admin/inventory/stock", async (request, reply) => {
-    const actor = authenticate(request, reply, operationalRoles);
+    const actor = await authenticate(request, reply, dependencies, operationalRoles);
 
     if (!actor) {
       return reply;
@@ -68,7 +70,7 @@ export async function inventoryRoute(
   });
 
   app.get("/admin/inventory/movements", async (request, reply) => {
-    const actor = authenticate(request, reply, leadRoles);
+    const actor = await authenticate(request, reply, dependencies, leadRoles);
 
     if (!actor) {
       return reply;
@@ -80,7 +82,7 @@ export async function inventoryRoute(
   });
 
   app.get("/admin/inventory/csv", async (request, reply) => {
-    const actor = authenticate(request, reply, adminOnlyRoles);
+    const actor = await authenticate(request, reply, dependencies, adminOnlyRoles);
 
     if (!actor) {
       return reply;
@@ -95,7 +97,7 @@ export async function inventoryRoute(
   });
 
   app.post("/admin/inventory/csv-import", async (request, reply) => {
-    const actor = authenticate(request, reply, adminOnlyRoles);
+    const actor = await authenticate(request, reply, dependencies, adminOnlyRoles);
 
     if (!actor) {
       return reply;
@@ -114,7 +116,7 @@ export async function inventoryRoute(
   });
 
   app.post("/admin/inventory/reset", async (request, reply) => {
-    const actor = authenticate(request, reply, adminOnlyRoles);
+    const actor = await authenticate(request, reply, dependencies, adminOnlyRoles);
 
     if (!actor) {
       return reply;
@@ -124,7 +126,7 @@ export async function inventoryRoute(
   });
 
   app.get("/admin/review-tasks", async (request, reply) => {
-    const actor = authenticate(request, reply, adminOnlyRoles);
+    const actor = await authenticate(request, reply, dependencies, adminOnlyRoles);
 
     if (!actor) {
       return reply;
@@ -136,7 +138,7 @@ export async function inventoryRoute(
   });
 
   app.post("/admin/inventory/items", async (request, reply) => {
-    const actor = authenticate(request, reply, adminOnlyRoles);
+    const actor = await authenticate(request, reply, dependencies, adminOnlyRoles);
 
     if (!actor) {
       return reply;
@@ -154,7 +156,7 @@ export async function inventoryRoute(
   });
 
   app.get("/admin/inventory/items", async (request, reply) => {
-    const actor = authenticate(request, reply, adminOnlyRoles);
+    const actor = await authenticate(request, reply, dependencies, adminOnlyRoles);
 
     if (!actor) {
       return reply;
@@ -166,7 +168,7 @@ export async function inventoryRoute(
   });
 
   app.get("/admin/inventory/items/:id", async (request, reply) => {
-    const actor = authenticate(request, reply, adminOnlyRoles);
+    const actor = await authenticate(request, reply, dependencies, adminOnlyRoles);
 
     if (!actor) {
       return reply;
@@ -185,7 +187,7 @@ export async function inventoryRoute(
   });
 
   app.patch("/admin/inventory/items/:id", async (request, reply) => {
-    const actor = authenticate(request, reply, adminOnlyRoles);
+    const actor = await authenticate(request, reply, dependencies, adminOnlyRoles);
 
     if (!actor) {
       return reply;
@@ -210,7 +212,7 @@ export async function inventoryRoute(
   });
 
   app.post("/admin/inventory/items/:id/deactivate", async (request, reply) => {
-    const actor = authenticate(request, reply, adminOnlyRoles);
+    const actor = await authenticate(request, reply, dependencies, adminOnlyRoles);
 
     if (!actor) {
       return reply;
@@ -229,7 +231,7 @@ export async function inventoryRoute(
   });
 
   app.post("/admin/purchase-orders", async (request, reply) => {
-    const actor = authenticate(request, reply, leadRoles);
+    const actor = await authenticate(request, reply, dependencies, leadRoles);
 
     if (!actor) {
       return reply;
@@ -247,7 +249,7 @@ export async function inventoryRoute(
   });
 
   app.post("/admin/purchase-orders/:id/mark-ordered", async (request, reply) => {
-    const actor = authenticate(request, reply, ["admin", "shift_lead"]);
+    const actor = await authenticate(request, reply, dependencies, ["admin", "shift_lead"]);
 
     if (!actor) {
       return reply;
@@ -266,7 +268,7 @@ export async function inventoryRoute(
   });
 
   app.post("/admin/purchase-orders/:id/cancel", async (request, reply) => {
-    const actor = authenticate(request, reply, ["admin", "shift_lead"]);
+    const actor = await authenticate(request, reply, dependencies, ["admin", "shift_lead"]);
 
     if (!actor) {
       return reply;
@@ -285,7 +287,7 @@ export async function inventoryRoute(
   });
 
   app.get("/admin/purchase-orders", async (request, reply) => {
-    const actor = authenticate(request, reply, leadRoles);
+    const actor = await authenticate(request, reply, dependencies, leadRoles);
 
     if (!actor) {
       return reply;
@@ -297,7 +299,7 @@ export async function inventoryRoute(
   });
 
   app.get("/admin/purchase-orders/:id", async (request, reply) => {
-    const actor = authenticate(request, reply, leadRoles);
+    const actor = await authenticate(request, reply, dependencies, leadRoles);
 
     if (!actor) {
       return reply;
@@ -316,7 +318,7 @@ export async function inventoryRoute(
   });
 
   app.post("/goods-receipts", async (request, reply) => {
-    const actor = authenticate(request, reply, leadRoles);
+    const actor = await authenticate(request, reply, dependencies, leadRoles);
 
     if (!actor) {
       return reply;
@@ -334,7 +336,7 @@ export async function inventoryRoute(
   });
 
   app.get("/goods-receipts", async (request, reply) => {
-    const actor = authenticate(request, reply, leadRoles);
+    const actor = await authenticate(request, reply, dependencies, leadRoles);
 
     if (!actor) {
       return reply;
@@ -346,7 +348,7 @@ export async function inventoryRoute(
   });
 
   app.get("/goods-receipts/:id", async (request, reply) => {
-    const actor = authenticate(request, reply, leadRoles);
+    const actor = await authenticate(request, reply, dependencies, leadRoles);
 
     if (!actor) {
       return reply;
@@ -365,7 +367,7 @@ export async function inventoryRoute(
   });
 
   app.post("/withdrawals", async (request, reply) => {
-    const actor = authenticate(request, reply, operationalRoles);
+    const actor = await authenticate(request, reply, dependencies, operationalRoles);
 
     if (!actor) {
       return reply;
@@ -383,7 +385,7 @@ export async function inventoryRoute(
   });
 
   app.post("/correction-requests", async (request, reply) => {
-    const actor = authenticate(request, reply, operationalRoles);
+    const actor = await authenticate(request, reply, dependencies, operationalRoles);
 
     if (!actor) {
       return reply;
@@ -401,7 +403,7 @@ export async function inventoryRoute(
   });
 
   app.post("/admin/correction-requests/:id/approve", async (request, reply) => {
-    const actor = authenticate(request, reply, adminOnlyRoles);
+    const actor = await authenticate(request, reply, dependencies, adminOnlyRoles);
 
     if (!actor) {
       return reply;
@@ -420,7 +422,7 @@ export async function inventoryRoute(
   });
 
   app.post("/admin/correction-requests/:id/reject", async (request, reply) => {
-    const actor = authenticate(request, reply, adminOnlyRoles);
+    const actor = await authenticate(request, reply, dependencies, adminOnlyRoles);
 
     if (!actor) {
       return reply;
@@ -439,7 +441,7 @@ export async function inventoryRoute(
   });
 
   app.post("/admin/review-tasks/:id/start-review", async (request, reply) => {
-    const actor = authenticate(request, reply, adminOnlyRoles);
+    const actor = await authenticate(request, reply, dependencies, adminOnlyRoles);
 
     if (!actor) {
       return reply;
@@ -458,7 +460,7 @@ export async function inventoryRoute(
   });
 
   app.post("/admin/review-tasks/:id/resolve", async (request, reply) => {
-    const actor = authenticate(request, reply, adminOnlyRoles);
+    const actor = await authenticate(request, reply, dependencies, adminOnlyRoles);
 
     if (!actor) {
       return reply;
@@ -477,7 +479,7 @@ export async function inventoryRoute(
   });
 
   app.post("/admin/review-tasks/:id/dismiss", async (request, reply) => {
-    const actor = authenticate(request, reply, adminOnlyRoles);
+    const actor = await authenticate(request, reply, dependencies, adminOnlyRoles);
 
     if (!actor) {
       return reply;
@@ -496,13 +498,19 @@ export async function inventoryRoute(
   });
 }
 
-function authenticate(
+async function authenticate(
   request: FastifyRequest,
   reply: FastifyReply,
+  dependencies: InventoryRouteDependencies,
   allowedRoles: readonly Role[]
-) {
+): Promise<ReturnType<typeof requireActorRole> | undefined> {
   try {
-    const actor = parseActorFromHeaders(request.headers);
+    const actor = await resolveActorFromRequest(
+      request,
+      dependencies.actorAuth ?? {
+        authMode: "demo_headers"
+      }
+    );
 
     return requireActorRole(actor, allowedRoles);
   } catch (error) {

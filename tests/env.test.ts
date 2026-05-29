@@ -17,6 +17,10 @@ const exampleEnv = {
   GASTRONOVI_TENANT_ID: "",
   SYNC_DEFAULT_LOOKBACK_DAYS: "7",
   SYNC_ENABLE_SCHEDULED_JOBS: "false",
+  AUTH_MODE: "demo_headers",
+  REGISTRATION_MODE: "first_admin",
+  SUPABASE_URL: "",
+  SUPABASE_PUBLISHABLE_KEY: "",
   LOG_LEVEL: "info"
 };
 
@@ -37,6 +41,10 @@ describe("parseEnv", () => {
       GASTRONOVI_TENANT_ID: undefined,
       SYNC_DEFAULT_LOOKBACK_DAYS: 7,
       SYNC_ENABLE_SCHEDULED_JOBS: false,
+      AUTH_MODE: "demo_headers",
+      REGISTRATION_MODE: "first_admin",
+      SUPABASE_URL: undefined,
+      SUPABASE_PUBLISHABLE_KEY: undefined,
       LOG_LEVEL: "info",
       DEMO_MODE: false
     });
@@ -66,6 +74,30 @@ describe("parseEnv", () => {
     expect(() => parseEnv({ ...exampleEnv, SYNC_ENABLE_SCHEDULED_JOBS: "yes" })).toThrow(
       /SYNC_ENABLE_SCHEDULED_JOBS/
     );
+  });
+
+  it("requires Supabase public auth configuration in supabase auth mode", () => {
+    expect(() =>
+      parseEnv({
+        ...exampleEnv,
+        AUTH_MODE: "supabase",
+        SUPABASE_URL: "",
+        SUPABASE_PUBLISHABLE_KEY: ""
+      })
+    ).toThrow(/SUPABASE_URL.*SUPABASE_PUBLISHABLE_KEY/);
+
+    expect(
+      parseEnv({
+        ...exampleEnv,
+        AUTH_MODE: "supabase",
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_PUBLISHABLE_KEY: "publishable-key"
+      })
+    ).toMatchObject({
+      AUTH_MODE: "supabase",
+      SUPABASE_URL: "https://project.supabase.co",
+      SUPABASE_PUBLISHABLE_KEY: "publishable-key"
+    });
   });
 
   it("requires database and redis configuration in production", () => {

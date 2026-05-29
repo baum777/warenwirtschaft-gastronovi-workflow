@@ -15,6 +15,41 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body class="warenwirtschaft-app">
+    <section class="auth-view" id="view-login" hidden>
+      <form id="login-form" class="auth-card">
+        <div>
+          <h1>Warenwirtschaft</h1>
+          <p>Operatives Lager-Cockpit</p>
+        </div>
+        <label>E-Mail<input name="email" type="email" autocomplete="email" required /></label>
+        <label>Passwort<input name="password" type="password" autocomplete="current-password" required /></label>
+        <button type="submit">Einloggen</button>
+        <div class="auth-link-row">
+          <button type="button" data-auth-view="register">Registrieren</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="auth-view" id="view-register" hidden>
+      <form id="register-form" class="auth-card">
+        <div>
+          <h1>Registrieren</h1>
+          <p>Erstes Team anlegen oder später per Invite beitreten.</p>
+        </div>
+        <label>Name<input name="displayName" autocomplete="name" required /></label>
+        <label>E-Mail<input name="email" type="email" autocomplete="email" required /></label>
+        <label>Passwort<input name="password" type="password" autocomplete="new-password" required /></label>
+        <label>
+          Passwort wiederholen<input name="passwordRepeat" type="password" autocomplete="new-password" required />
+        </label>
+        <label>Teamname<input name="teamName" /></label>
+        <button type="submit">Konto erstellen</button>
+        <div class="auth-link-row">
+          <button type="button" data-auth-view="login">Einloggen</button>
+        </div>
+      </form>
+    </section>
+
     <div class="app-shell" id="app">
       <aside class="sidebar" id="sidebar" aria-label="Hauptnavigation">
         <button
@@ -263,6 +298,44 @@
           <div class="workspace-tabs" id="workspace-tabs" role="tablist" aria-label="Arbeitsbereich Tabs"></div>
 
           <div class="workspace-body" id="workspace-body">
+            <section class="workspace-view" id="view-profile" data-title="Profil" data-workspace="profile">
+              <form class="panel form-panel profile-form" id="profile-form" data-workspace-tab-panel="account">
+                <div class="panel-head">
+                  <div>
+                    <h3>Profil</h3>
+                    <p class="panel-subtitle">Account, Team-Kontext und App-Startverhalten.</p>
+                  </div>
+                  <button type="button" data-auth-action="logout">Abmelden</button>
+                </div>
+                <div class="profile-grid">
+                  <section>
+                    <h4>Account</h4>
+                    <label>Name<input id="profile-display-name" name="displayName" required /></label>
+                    <label>E-Mail<input id="profile-email" name="email" type="email" readonly /></label>
+                  </section>
+                  <section>
+                    <h4>Team</h4>
+                    <label>Aktives Team<input id="profile-team" name="activeTeam" readonly /></label>
+                    <label>Rolle<input id="profile-role" name="role" readonly /></label>
+                    <label>Lagerort<input id="profile-location" name="preferredStorageLocationId" /></label>
+                  </section>
+                  <section>
+                    <h4>App</h4>
+                    <label>
+                      Startseite
+                      <select id="profile-start-page" name="startPage">
+                        <option value="dashboard">Dashboard</option>
+                        <option value="quick-booking">Schnellbuchen</option>
+                      </select>
+                    </label>
+                  </section>
+                </div>
+                <div class="sticky-action-footer">
+                  <button type="submit">Speichern</button>
+                </div>
+              </form>
+            </section>
+
             <section class="workspace-view" id="view-items" data-title="Artikel" data-workspace="items">
               <form class="panel form-panel" id="item-form" data-workspace-tab-panel="create">
                 <h3>Artikel anlegen</h3>

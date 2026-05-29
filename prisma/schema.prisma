@@ -77,6 +77,85 @@ model WorkflowTask {
   @@index([workflowEventId])
 }
 
+model UserProfile {
+  id                         String   @id @default(cuid())
+  authUserId                 String   @unique @db.Uuid
+  email                      String   @unique
+  displayName                String?
+  avatarUrl                  String?
+  defaultTeamId              String?
+  preferredStorageLocationId String?
+  preferencesJson            Json?
+  isActive                   Boolean  @default(true)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  defaultTeam Team?        @relation("DefaultTeam", fields: [defaultTeamId], references: [id])
+  memberships TeamMember[]
+  sentInvites TeamInvite[] @relation("InviteSender")
+
+  @@index([defaultTeamId])
+  @@index([preferredStorageLocationId])
+}
+
+model Team {
+  id                 String   @id @default(cuid())
+  name               String
+  slug               String   @unique
+  defaultLocationId  String?
+  createdByProfileId String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  defaultForProfiles UserProfile[] @relation("DefaultTeam")
+  defaultLocation    StorageLocation? @relation("TeamDefaultLocation", fields: [defaultLocationId], references: [id])
+  members            TeamMember[]
+  invites            TeamInvite[]
+
+  @@index([slug])
+  @@index([defaultLocationId])
+  @@index([createdByProfileId])
+}
+
+model TeamMember {
+  id        String           @id @default(cuid())
+  teamId    String
+  profileId String
+  role      TeamRole
+  status    TeamMemberStatus @default(active)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  team    Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  profile UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, profileId])
+  @@index([profileId])
+  @@index([teamId, role])
+  @@index([teamId, status])
+}
+
+model TeamInvite {
+  id                 String           @id @default(cuid())
+  teamId             String
+  email              String
+  role               TeamRole
+  tokenHash          String           @unique
+  status             TeamMemberStatus @default(invited)
+  invitedByProfileId String
+  expiresAt          DateTime
+  acceptedAt         DateTime?
+  revokedAt          DateTime?
+  createdAt          DateTime         @default(now())
+
+  team      Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  invitedBy UserProfile @relation("InviteSender", fields: [invitedByProfileId], references: [id])
+
+  @@index([teamId])
+  @@index([email])
+  @@index([status, expiresAt])
+}
+
 model InventoryItem {
   id                String           @id @default(cuid())
   name              String
@@ -125,6 +204,7 @@ model StorageLocation {
   receiptItems   GoodsReceiptItem[]
   movements      InventoryMovement[]
   stockSnapshots InventoryStockSnapshot[]
+  defaultForTeams Team[] @relation("TeamDefaultLocation")
 }
 
 model PurchaseOrder {
@@ -266,6 +346,18 @@ enum WorkflowTaskStatus {
   in_review
   resolved
   dismissed
+}
+
+enum TeamRole {
+  admin
+  shift_lead
+  staff
+}
+
+enum TeamMemberStatus {
+  invited
+  active
+  suspended
 }
 
 enum PurchaseOrderStatus {

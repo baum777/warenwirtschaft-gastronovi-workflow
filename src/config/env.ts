@@ -42,6 +42,8 @@ const optionalNonEmptyString = z.preprocess(
 );
 
 const optionalUrl = z.preprocess(emptyToUndefined, z.string().trim().url().optional());
+const authModeSchema = z.enum(["demo_headers", "supabase"]).default("demo_headers");
+const registrationModeSchema = z.enum(["open", "invite_only", "first_admin"]).default("first_admin");
 
 const rawEnvSchema = z
   .object({
@@ -57,6 +59,10 @@ const rawEnvSchema = z
     GASTRONOVI_TENANT_ID: optionalNonEmptyString,
     SYNC_DEFAULT_LOOKBACK_DAYS: integerEnv("SYNC_DEFAULT_LOOKBACK_DAYS", 1, 365, 7),
     SYNC_ENABLE_SCHEDULED_JOBS: booleanEnv("SYNC_ENABLE_SCHEDULED_JOBS", false),
+    AUTH_MODE: authModeSchema,
+    REGISTRATION_MODE: registrationModeSchema,
+    SUPABASE_URL: optionalUrl,
+    SUPABASE_PUBLISHABLE_KEY: optionalNonEmptyString,
     DEMO_MODE: booleanEnv("DEMO_MODE", false),
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info")
   })
@@ -75,6 +81,10 @@ export type Env = {
   GASTRONOVI_TENANT_ID?: string;
   SYNC_DEFAULT_LOOKBACK_DAYS: number;
   SYNC_ENABLE_SCHEDULED_JOBS: boolean;
+  AUTH_MODE: "demo_headers" | "supabase";
+  REGISTRATION_MODE: "open" | "invite_only" | "first_admin";
+  SUPABASE_URL?: string;
+  SUPABASE_PUBLISHABLE_KEY?: string;
   DEMO_MODE: boolean;
   LOG_LEVEL: "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
 };
@@ -99,7 +109,9 @@ export function parseEnv(input: NodeJS.ProcessEnv = process.env): Env {
   const missingRequiredValues = [
     data.DATABASE_URL ? undefined : "DATABASE_URL",
     data.DIRECT_URL ? undefined : "DIRECT_URL",
-    data.NODE_ENV === "production" && !hasProductionRedis ? "REDIS_URL or UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN" : undefined
+    data.NODE_ENV === "production" && !hasProductionRedis ? "REDIS_URL or UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN" : undefined,
+    data.AUTH_MODE === "supabase" && !data.SUPABASE_URL ? "SUPABASE_URL" : undefined,
+    data.AUTH_MODE === "supabase" && !data.SUPABASE_PUBLISHABLE_KEY ? "SUPABASE_PUBLISHABLE_KEY" : undefined
   ].filter((value): value is string => Boolean(value));
 
   if (missingRequiredValues.length > 0) {
@@ -123,6 +135,10 @@ export function parseEnv(input: NodeJS.ProcessEnv = process.env): Env {
     GASTRONOVI_TENANT_ID: data.GASTRONOVI_TENANT_ID,
     SYNC_DEFAULT_LOOKBACK_DAYS: data.SYNC_DEFAULT_LOOKBACK_DAYS,
     SYNC_ENABLE_SCHEDULED_JOBS: data.SYNC_ENABLE_SCHEDULED_JOBS,
+    AUTH_MODE: data.AUTH_MODE,
+    REGISTRATION_MODE: data.REGISTRATION_MODE,
+    SUPABASE_URL: data.SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY: data.SUPABASE_PUBLISHABLE_KEY,
     DEMO_MODE: data.DEMO_MODE,
     LOG_LEVEL: data.LOG_LEVEL
   };

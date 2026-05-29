@@ -21,6 +21,7 @@ describe("GET /app-context", () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.json()).toEqual({
+        authMode: "demo_headers",
         demoMode: false,
         devPanelEnabled: false,
         defaultActor: {

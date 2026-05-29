@@ -7,6 +7,10 @@ function readWebFile(path: string): string {
   return readFileSync(join(process.cwd(), "web", path), "utf8");
 }
 
+function readRepoFile(path: string): string {
+  return readFileSync(join(process.cwd(), path), "utf8");
+}
+
 describe("Warenwirtschaft web shell", () => {
   it("defines the static web app entry files", () => {
     expect(readWebFile("index.html")).toContain('id="app"');
@@ -17,12 +21,50 @@ describe("Warenwirtschaft web shell", () => {
     expect(readWebFile("app.js")).toContain("WarenwirtschaftApp");
   });
 
-  it("sends actor headers with API requests", () => {
+  it("uses bearer auth in supabase mode and actor headers only in demo header mode", () => {
     const app = readWebFile("app.js");
 
+    expect(app).toContain("session");
+    expect(app).toContain("authMode");
+    expect(app).toContain("authorization");
+    expect(app).toContain("Bearer ${token}");
+    expect(app).toContain('authMode === "demo_headers"');
     expect(app).toContain('"x-actor-id"');
     expect(app).toContain('"x-actor-role"');
     expect(app).toContain("apiFetch");
+  });
+
+  it("defines login, registration, and profile shell surfaces", () => {
+    const html = readWebFile("index.html");
+    const app = readWebFile("app.js");
+    const styles = readWebFile("styles.css");
+
+    for (const id of ["view-login", "view-register", "view-profile", "login-form", "register-form", "profile-form"]) {
+      expect(html).toContain(`id="${id}"`);
+    }
+
+    expect(html).toContain('data-auth-view="register"');
+    expect(html).toContain("Aktives Team");
+    expect(html).toContain("Rolle");
+    expect(html).toContain("Profil");
+    expect(app).toContain("/auth/public-config");
+    expect(app).toContain("/auth/bootstrap");
+    expect(app).toContain("/me");
+    expect(app).toContain("loadAuthPublicConfig");
+    expect(app).toContain("submitLogin");
+    expect(app).toContain("submitRegister");
+    expect(app).toContain("submitProfile");
+    expect(styles).toContain(".auth-view");
+    expect(styles).toContain(".auth-card");
+    expect(styles).toContain(".profile-grid");
+  });
+
+  it("routes auth shell assets and auth API endpoints through Vercel", () => {
+    const vercel = readRepoFile("vercel.json");
+
+    expect(vercel).toContain("/auth-client.js");
+    expect(vercel).toContain("auth(?:/.*)?");
+    expect(vercel).toContain("me(?:/.*)?");
   });
 
   it("keeps production dashboard free of visible development controls", () => {

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { parseActorFromHeaders, requireActorRole } from "../src/modules/auth/actor.js";
+import {
+  parseActorFromHeaders,
+  requireActorRole,
+  resolveActorFromRequest
+} from "../src/modules/auth/actor.js";
 
 describe("temporary actor header guard", () => {
   it("fails closed when actor headers are missing", () => {
@@ -29,5 +33,52 @@ describe("temporary actor header guard", () => {
     expect(() => requireActorRole({ userId: "staff-1", role: "staff" }, ["admin"])).toThrow(
       "actor role is not permitted"
     );
+  });
+
+  it("ignores browser-supplied actor role headers in supabase auth mode", async () => {
+    const actor = await resolveActorFromRequest(
+      {
+        headers: {
+          authorization: "Bearer valid-token",
+          "x-actor-id": "browser-admin",
+          "x-actor-role": "admin"
+        }
+      },
+      {
+        authMode: "supabase",
+        supabaseAuthService: {
+          async verifyAccessToken(token) {
+            expect(token).toBe("valid-token");
+            return {
+              id: "auth-user-1",
+              email: "staff@example.com",
+              userMetadata: {
+                role: "admin"
+              }
+            };
+          }
+        },
+        profileService: {
+          async resolveActorForAuthUser(authUser) {
+            expect(authUser.id).toBe("auth-user-1");
+            return {
+              authUserId: "auth-user-1",
+              profileId: "profile-1",
+              teamId: "team-1",
+              userId: "profile-1",
+              role: "staff"
+            };
+          }
+        }
+      }
+    );
+
+    expect(actor).toEqual({
+      authUserId: "auth-user-1",
+      profileId: "profile-1",
+      teamId: "team-1",
+      userId: "profile-1",
+      role: "staff"
+    });
   });
 });
