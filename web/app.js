@@ -43,6 +43,10 @@ const WarenwirtschaftApp = {
       },
       selectedInventoryItemId: null
     },
+    reviewUi: {
+      selectedTaskId: null
+    },
+    correctionReviewIndex: {},
     commandForms: {},
     dashboardMetrics: [],
     lastUpdatedAt: null
@@ -247,8 +251,12 @@ const commandFormStatusLabel = {
   validating: "Eingaben prüfen",
   submitting: "Command wird gesendet",
   committed: "Command bestätigt",
+  duplicate: "Bereits gebucht",
+  rejected: "Nicht erlaubt",
   failed: "Command fehlgeschlagen"
 };
+
+const commandRequestTimeoutMs = 10000;
 
 const navigationItems = [
   { id: "dashboard", label: "Übersicht", icon: "⌂", target: "view", view: "dashboard", roles: ["admin", "shift_lead"] },
@@ -333,7 +341,7 @@ const workspaces = {
   },
   corrections: {
     title: "Korrekturen",
-    roles: ["admin", "shift_lead"],
+    roles: ["admin", "shift_lead", "staff"],
     tabs: [{ name: "request", label: "Beantragen" }]
   },
   "review-tasks": {
@@ -369,6 +377,7 @@ async function boot() {
   bindWorkspaceShell();
   bindReasonChips();
   bindStockWorkspaceEvents();
+  bindReviewWorkspaceEvents();
   bindShellControls();
   bindConnectivityEvents();
 
@@ -408,7 +417,7 @@ function cacheRefs() {
     stockDetailMaster: document.querySelector("#stock-detail-master"),
     stockDetailSnapshot: document.querySelector("#stock-detail-snapshot"),
     stockDetailTimeline: document.querySelector("#stock-detail-timeline"),
-    toast: document.querySelector("#toast"),
+    toastZone: document.querySelector("#toast-zone"),
     devPanel: document.querySelector("#dev-panel"),
     apiBase: document.querySelector("#api-base"),
     actorId: document.querySelector("#actor-id"),
@@ -416,6 +425,8 @@ function cacheRefs() {
     metricItemsCard: document.querySelector("#metric-items-card"),
     metricAlertsCard: document.querySelector("#metric-alerts-card"),
     metricTasksCard: document.querySelector("#metric-tasks-card"),
+    goodsReceiptMode: document.querySelector("#goods-receipt-mode"),
+    goodsReceiptModeHint: document.querySelector("#goods-receipt-mode-hint"),
     withdrawalStockHint: document.querySelector("#withdrawal-stock-hint"),
     quickBookingStockHint: document.querySelector("#quick-booking-stock-hint"),
     overlay: document.querySelector("#workspace-overlay"),
@@ -425,6 +436,13 @@ function cacheRefs() {
     workspaceTabs: document.querySelector("#workspace-tabs"),
     workspaceBody: document.querySelector("#workspace-body"),
     quickBookingResult: document.querySelector("#quick-booking-result"),
+    reviewTaskCardList: document.querySelector("#review-task-card-list"),
+    reviewTaskDrawer: document.querySelector("#review-task-drawer"),
+    reviewTaskTitle: document.querySelector("#review-task-title"),
+    reviewTaskContext: document.querySelector("#review-task-context"),
+    reviewTaskHistory: document.querySelector("#review-task-history"),
+    reviewTaskStockImpact: document.querySelector("#review-task-stock-impact"),
+    reviewTaskActions: document.querySelector("#review-task-actions"),
     confirmCommandDialog: document.querySelector("#confirm-command-dialog"),
     confirmCommandTitle: document.querySelector("#confirm-command-title"),
     confirmCommandMessage: document.querySelector("#confirm-command-message")
@@ -601,6 +619,8 @@ function initializeCommandForm(form) {
 
   ensureCommandFormState(form);
   setCommandFormStatus(form, "idle");
+  setCommandRetryAvailable(form, false);
+  clearCommandWarningBanner(form);
   refreshCommandIdempotencyKey(form);
   updateCommandEffectPreview(form);
 
@@ -615,6 +635,22 @@ function initializeCommandForm(form) {
 
   form.addEventListener("input", sync);
   form.addEventListener("change", sync);
+
+  const retryButton = form.querySelector("[data-command-retry]");
+  if (retryButton) {
+    retryButton.addEventListener("click", () => {
+      if (form.dataset.commandState === "submitting") {
+        return;
+      }
+
+      if (typeof form.requestSubmit === "function") {
+        form.requestSubmit();
+        return;
+      }
+
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+  }
 }
 
 function ensureCommandFormState(form) {
@@ -627,7 +663,9 @@ function ensureCommandFormState(form) {
     WarenwirtschaftApp.state.commandForms[formName] = {
       status: "idle",
       idempotencyKey: "",
-      statusMessage: ""
+      statusMessage: "",
+      retryable: false,
+      lastCommittedIdempotencyKey: ""
     };
   }
 
@@ -656,6 +694,53 @@ function setCommandFormStatus(form, status, message = "") {
     primary.disabled = status === "submitting";
     primary.setAttribute("aria-disabled", String(status === "submitting"));
   }
+
+  const retryButton = form.querySelector("[data-command-retry]");
+  if (retryButton) {
+    const showRetry = status === "failed" && Boolean(formState.retryable);
+    retryButton.hidden = !showRetry;
+    retryButton.disabled = status === "submitting";
+  }
+}
+
+function setCommandRetryAvailable(form, retryable) {
+  const formState = ensureCommandFormState(form);
+  if (!formState) {
+    return;
+  }
+
+  formState.retryable = Boolean(retryable);
+  if (form.dataset.commandState) {
+    setCommandFormStatus(form, form.dataset.commandState, formState.statusMessage);
+  }
+}
+
+function setCommandWarningBanner(form, message, tone = "warning") {
+  const warningBanner = form?.querySelector("[data-command-warning-banner]");
+  if (!warningBanner) {
+    return;
+  }
+
+  warningBanner.classList.remove("is-error", "is-info");
+  warningBanner.textContent = message || "";
+  warningBanner.hidden = !message;
+
+  if (!message) {
+    return;
+  }
+
+  if (tone === "error") {
+    warningBanner.classList.add("is-error");
+    return;
+  }
+
+  if (tone === "info") {
+    warningBanner.classList.add("is-info");
+  }
+}
+
+function clearCommandWarningBanner(form) {
+  setCommandWarningBanner(form, "");
 }
 
 function markCommandFormAsFilling(form) {
@@ -668,6 +753,8 @@ function markCommandFormAsFilling(form) {
     return;
   }
 
+  setCommandRetryAvailable(form, false);
+  clearCommandWarningBanner(form);
   setCommandFormStatus(form, "filling");
 }
 
@@ -689,16 +776,92 @@ function updateCommandEffectPreview(form) {
 
   const data = formData(form);
   const effect = calculateCommandEffect(form.dataset.commandForm, data);
+  const behavior = commandBehaviorText(form.dataset.commandForm, data);
+  const payloadName = form.dataset.commandPayload || "";
+  const warning = getStockWarningMessage(form.dataset.commandForm, effect, data);
+  const warningElement = form.querySelector("[data-command-stock-warning]");
+
+  if (warningElement) {
+    warningElement.textContent = warning || "";
+    warningElement.classList.toggle("is-warning", Boolean(warning));
+    warningElement.hidden = !warning;
+  }
+
   preview.innerHTML = `
     <h4>Effect Preview</h4>
+    <p class="command-effect-intent">${escapeHtml(behavior)}</p>
+    ${payloadName ? `<p class="command-effect-payload">Payload: ${escapeHtml(payloadName)}</p>` : ""}
     <div class="command-effect-grid">
       <p><span>Before</span><strong>${escapeHtml(formatEffectNumber(effect.before))}</strong></p>
       <p><span>Delta</span><strong>${escapeHtml(formatEffectNumber(effect.delta, true))}</strong></p>
       <p><span>After</span><strong>${escapeHtml(formatEffectNumber(effect.after))}</strong></p>
       <p><span>Unit</span><strong>${escapeHtml(effect.unit || "-")}</strong></p>
-      <p><span>Status</span><strong>${escapeHtml(effect.status || "n/a")}</strong></p>
+      <p><span>Status</span><strong>${escapeHtml(effectStatusLabel(effect.status))}</strong></p>
     </div>
   `;
+}
+
+function commandBehaviorText(commandFormName, data = {}) {
+  if (commandFormName === "goods-receipt") {
+    return "Bestand steigt";
+  }
+  if (commandFormName === "quick-booking") {
+    return data.movementType === "goods-receipt" ? "Bestand steigt" : "Bestand sinkt";
+  }
+  if (commandFormName === "withdrawal") {
+    return "Bestand sinkt";
+  }
+  if (commandFormName === "purchase-order") {
+    return "Bestellung verändert Bestand nicht";
+  }
+  if (commandFormName === "correction") {
+    return "Bestand ändert sich erst nach Admin-Freigabe";
+  }
+
+  return "Bestandsauswirkung wird geprüft";
+}
+
+function effectStatusLabel(status) {
+  const normalized = String(status || "n/a");
+  const mapping = {
+    projected: "Projektiert",
+    no_snapshot: "Kein Snapshot",
+    below_zero: "Unter Null",
+    pending_review: "Review ausstehend",
+    no_stock_effect: "Kein Bestands-Effekt",
+    "n/a": "n/a"
+  };
+
+  return mapping[normalized] || normalized;
+}
+
+function getStockWarningMessage(commandFormName, effect, data) {
+  if (commandFormName !== "withdrawal" && commandFormName !== "quick-booking") {
+    return "";
+  }
+
+  if (commandFormName === "quick-booking" && data.movementType === "goods-receipt") {
+    return "";
+  }
+
+  const stock = findStock(data.inventoryItemId);
+  if (!stock) {
+    return "Warnung: Kein Snapshot-Bestand für diesen Artikel gefunden.";
+  }
+
+  if (effect.after !== null && Number(effect.after) < 0) {
+    return "Warnung: Entnahme führt zu negativem Bestand.";
+  }
+
+  if (stock.status === "negative") {
+    return "Warnung: Artikel ist bereits im negativen Bestand.";
+  }
+
+  if (stock.status === "low") {
+    return "Warnung: Artikel ist bereits unter Mindestbestand.";
+  }
+
+  return "";
 }
 
 function calculateCommandEffect(commandFormName, data) {
@@ -853,9 +1016,124 @@ async function openConfirmCommandDialog({ title, message, actionLabel }) {
 }
 
 function buildCommandConfirmMessage(form, effect) {
+  const data = formData(form);
   const label = form.querySelector("h3")?.textContent || "Command";
   const unit = effect.unit || "-";
-  return `${label} · Before ${formatEffectNumber(effect.before)} ${unit}, Delta ${formatEffectNumber(effect.delta, true)} ${unit}, After ${formatEffectNumber(effect.after)} ${unit}, Status ${effect.status}.`;
+  const warning = getStockWarningMessage(form.dataset.commandForm, effect, data);
+  const core = `${label} · ${commandBehaviorText(form.dataset.commandForm, data)} · Before ${formatEffectNumber(effect.before)} ${unit}, Delta ${formatEffectNumber(effect.delta, true)} ${unit}, After ${formatEffectNumber(effect.after)} ${unit}, Status ${effectStatusLabel(effect.status)}.`;
+
+  return warning ? `${core}\n\n${warning}` : core;
+}
+
+function formatSignedQuantity(quantity, unit, sign = "") {
+  const numeric = Number(quantity);
+  const absolute = Number.isFinite(numeric) ? Math.abs(numeric) : 0;
+  const formatted = new Intl.NumberFormat("de-DE", {
+    maximumFractionDigits: 2
+  }).format(absolute);
+  return `${sign}${formatted} ${unit || "-"}`;
+}
+
+function buildCommandSuccessMessage(formName, data, effect) {
+  const unit = effect.unit || data.unit || "-";
+
+  if (formName === "goods-receipt" || (formName === "quick-booking" && data.movementType === "goods-receipt")) {
+    return `Wareneingang gebucht. Bestand ${formatSignedQuantity(data.quantity, unit, "+")}. Weiteren Wareneingang buchen?`;
+  }
+
+  if (formName === "withdrawal" || (formName === "quick-booking" && data.movementType !== "goods-receipt")) {
+    return `Entnahme gespeichert. Bestand ${formatSignedQuantity(data.quantity, unit, "−")}. Weitere Entnahme?`;
+  }
+
+  if (formName === "correction") {
+    return "Korrektur beantragt. Admin prüft, kein Bestandseffekt. Status in Korrekturen verfolgen.";
+  }
+
+  if (formName === "purchase-order") {
+    return "Bestellung gespeichert. Bestand unverändert. Als bestellt markieren?";
+  }
+
+  return "Aktion gespeichert. Bestand unverändert.";
+}
+
+function normalizeSentence(message, fallback) {
+  const text = String(message || "").trim();
+  if (!text) {
+    return fallback;
+  }
+
+  return /[.!?]$/.test(text) ? text : `${text}.`;
+}
+
+function isDuplicateCommandError(error) {
+  const statusCode = Number(error?.statusCode || 0);
+  const message = String(error?.message || "").toLowerCase();
+
+  if (statusCode === 409 && /(duplicate|idempot|bereits|already)/.test(message)) {
+    return true;
+  }
+
+  return /(bereits gebucht|bereits verarbeitet|already processed)/.test(message);
+}
+
+function isTimeoutError(error) {
+  return Boolean(error?.isTimeout || error?.code === "timeout");
+}
+
+function isRoleRejectedError(error) {
+  const statusCode = Number(error?.statusCode || 0);
+  return statusCode === 401 || statusCode === 403;
+}
+
+function buildCommandFailureFeedback(error) {
+  if (isDuplicateCommandError(error)) {
+    const duplicateMessage = "Bereits gebucht. Bestand wurde nicht erneut verändert. Verlauf prüfen.";
+    return {
+      status: "duplicate",
+      statusMessage: "Bereits gebucht",
+      retryable: false,
+      toastTone: "warning",
+      toastMessage: duplicateMessage,
+      bannerTone: "info",
+      bannerMessage: duplicateMessage
+    };
+  }
+
+  if (isTimeoutError(error)) {
+    return {
+      status: "failed",
+      statusMessage: "Zeitüberschreitung",
+      retryable: true,
+      toastTone: "warning",
+      toastMessage: "Netzwerk-Timeout. Bestand wurde nicht verändert. Erneut versuchen?",
+      bannerTone: "warning",
+      bannerMessage: "Verbindung langsam. Bitte warte oder versuche es erneut. Bestand wurde nicht verändert."
+    };
+  }
+
+  if (isRoleRejectedError(error)) {
+    return {
+      status: "rejected",
+      statusMessage: "Nicht erlaubt",
+      retryable: false,
+      toastTone: "warning",
+      toastMessage: "Diese Aktion ist für deine aktuelle Rolle nicht verfügbar. Bestand wurde nicht verändert.",
+      bannerTone: "error",
+      bannerMessage: "Diese Aktion ist für deine aktuelle Rolle nicht verfügbar. Bestand wurde nicht verändert."
+    };
+  }
+
+  const statusCode = Number(error?.statusCode || 0);
+  const base = normalizeSentence(error?.message, "Buchung fehlgeschlagen.");
+  return {
+    status: "failed",
+    statusMessage: base,
+    retryable: !statusCode || statusCode >= 500,
+    toastTone: "error",
+    toastMessage: `${base} Bestand wurde nicht verändert. Erneut versuchen?`,
+    bannerTone: "error",
+    bannerMessage: `${base} Bestand wurde nicht verändert.`
+  };
 }
 
 async function submitCommandForm(event, execute) {
@@ -866,8 +1144,11 @@ async function submitCommandForm(event, execute) {
   }
 
   setCommandFormStatus(form, "validating");
+  setCommandRetryAvailable(form, false);
+  clearCommandWarningBanner(form);
   if (!form.reportValidity()) {
     setCommandFormStatus(form, "failed", "Pflichtfelder prüfen");
+    setCommandWarningBanner(form, "Pflichtfelder prüfen. Bestand wurde nicht verändert.", "warning");
     return { committed: false };
   }
 
@@ -884,6 +1165,16 @@ async function submitCommandForm(event, execute) {
   }
 
   const idempotencyKey = getCommandIdempotencyKey(form);
+  const formState = ensureCommandFormState(form);
+  if (formState?.lastCommittedIdempotencyKey === idempotencyKey) {
+    const duplicateMessage = "Bereits gebucht. Bestand wurde nicht erneut verändert. Verlauf prüfen.";
+    setCommandRetryAvailable(form, false);
+    setCommandFormStatus(form, "duplicate", "Bereits gebucht");
+    setCommandWarningBanner(form, duplicateMessage, "info");
+    showToast(duplicateMessage, { tone: "warning" });
+    return { committed: false, duplicate: true };
+  }
+
   setCommandFormStatus(form, "submitting");
 
   try {
@@ -892,14 +1183,23 @@ async function submitCommandForm(event, execute) {
       idempotencyKey,
       effect
     });
+    const successMessage = buildCommandSuccessMessage(form.dataset.commandForm, data, effect);
+    setCommandRetryAvailable(form, false);
+    clearCommandWarningBanner(form);
     setCommandFormStatus(form, "committed");
+    if (formState) {
+      formState.lastCommittedIdempotencyKey = idempotencyKey;
+    }
+    showToast(successMessage, { tone: "success" });
     refreshCommandIdempotencyKey(form);
     updateCommandEffectPreview(form);
     return { committed: true, data, form, effect, idempotencyKey };
   } catch (error) {
-    const message = error?.message || "Command fehlgeschlagen";
-    setCommandFormStatus(form, "failed", message);
-    showToast(message, true);
+    const feedback = buildCommandFailureFeedback(error);
+    setCommandRetryAvailable(form, feedback.retryable);
+    setCommandFormStatus(form, feedback.status, feedback.statusMessage);
+    setCommandWarningBanner(form, feedback.bannerMessage, feedback.bannerTone);
+    showToast(feedback.toastMessage, { tone: feedback.toastTone });
     return { committed: false };
   }
 }
@@ -909,6 +1209,10 @@ function bindMasterDataEvents() {
     syncItemDefaults(event.target.value, "#purchase-order-form");
   });
   document.querySelector("#goods-receipt-order").addEventListener("change", prefillReceiptFromOrder);
+  WarenwirtschaftApp.refs.goodsReceiptMode?.addEventListener("change", () => {
+    applyGoodsReceiptMode();
+    markCommandFormAsFilling(document.querySelector("#goods-receipt-form"));
+  });
   document.querySelector("#goods-receipt-item").addEventListener("change", (event) => {
     syncItemDefaults(event.target.value, "#goods-receipt-form");
   });
@@ -927,6 +1231,36 @@ function bindMasterDataEvents() {
   document.querySelector("#correction-item").addEventListener("change", (event) => {
     syncItemDefaults(event.target.value, "#correction-form");
   });
+
+  applyGoodsReceiptMode();
+}
+
+function applyGoodsReceiptMode() {
+  const form = document.querySelector("#goods-receipt-form");
+  if (!form) {
+    return;
+  }
+
+  const mode = form.elements.receiptMode?.value || "with-order";
+  const orderSelect = form.elements.purchaseOrderId;
+  const hint = WarenwirtschaftApp.refs.goodsReceiptModeHint;
+  const isFree = mode === "free";
+
+  if (orderSelect) {
+    orderSelect.disabled = isFree;
+    orderSelect.required = !isFree;
+    if (isFree) {
+      orderSelect.value = "";
+    }
+  }
+
+  if (hint) {
+    hint.textContent = isFree
+      ? "Freier Wareneingang: ohne Bestellung. Bestand steigt nach bestätigtem Command."
+      : "Mit Bestellung: offene Bestellung wählen. Bestand steigt nach bestätigtem Command.";
+  }
+
+  updateCommandEffectPreview(form);
 }
 
 function bindStockWorkspaceEvents() {
@@ -964,6 +1298,27 @@ function bindStockWorkspaceEvents() {
     }
 
     openStockDetail(button.dataset.stockDetail);
+  });
+}
+
+function bindReviewWorkspaceEvents() {
+  document.addEventListener("click", (event) => {
+    const openButton = event.target.closest("[data-review-task-open]");
+    if (openButton) {
+      openReviewTaskDrawer(openButton.dataset.reviewTaskOpen);
+      return;
+    }
+
+    const closeButton = event.target.closest("[data-action='close-review-task-drawer']");
+    if (closeButton) {
+      closeReviewTaskDrawer();
+      return;
+    }
+
+    const commandButton = event.target.closest("[data-review-command]");
+    if (commandButton) {
+      void submitReviewCommand(commandButton);
+    }
   });
 }
 
@@ -1232,6 +1587,7 @@ function openWorkspace(workspaceName, options = {}) {
 function closeWorkspace() {
   const trigger = WarenwirtschaftApp.state.lastWorkspaceTrigger;
   closeStockDetail();
+  closeReviewTaskDrawer();
   WarenwirtschaftApp.state.activeWorkspace = null;
   WarenwirtschaftApp.state.activeWorkspaceTab = null;
   WarenwirtschaftApp.state.activeWorkspaceFilter = null;
@@ -1387,13 +1743,29 @@ function loadWorkspace(workspaceName) {
   return workspace.load().catch((error) => showToast(error.message, true));
 }
 
+function createAppError(message, details = {}) {
+  const error = new Error(message);
+  Object.assign(error, details);
+  return error;
+}
+
 async function apiFetch(path, options = {}) {
-  const { includeActor = true, ...fetchOptions } = options;
+  const { includeActor = true, timeoutMs, ...fetchOptions } = options;
   let response;
+  let timeoutHandle = null;
+  const timeoutController = typeof timeoutMs === "number" && timeoutMs > 0 ? new AbortController() : null;
+  const requestSignal = timeoutController ? timeoutController.signal : fetchOptions.signal;
 
   try {
+    if (timeoutController) {
+      timeoutHandle = window.setTimeout(() => {
+        timeoutController.abort();
+      }, timeoutMs);
+    }
+
     response = await fetch(`${WarenwirtschaftApp.state.apiBase}${path}`, {
       ...fetchOptions,
+      signal: requestSignal,
       headers: {
         "content-type": "application/json",
         ...(includeActor
@@ -1407,15 +1779,38 @@ async function apiFetch(path, options = {}) {
     });
   } catch (error) {
     updateConnectionStatus(navigator.onLine ? "degraded" : "offline");
-    throw error;
+    if (error?.name === "AbortError" && timeoutController) {
+      throw createAppError("Netzwerk-Timeout", {
+        code: "timeout",
+        isTimeout: true
+      });
+    }
+
+    throw createAppError(error?.message || "Netzwerkfehler", {
+      code: "network_error"
+    });
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
   }
 
   const text = await response.text();
-  const payload = text ? JSON.parse(text) : {};
+  let payload = {};
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch (_error) {
+      payload = {};
+    }
+  }
 
   if (!response.ok) {
     updateConnectionStatus(response.status >= 500 ? "degraded" : "online");
-    throw new Error(payload.message || `HTTP ${response.status}`);
+    throw createAppError(payload.message || `HTTP ${response.status}`, {
+      statusCode: response.status,
+      responsePayload: payload
+    });
   }
 
   updateConnectionStatus("online");
@@ -1444,6 +1839,9 @@ async function runAction(action, source = null) {
     }
     if (action === "close-stock-detail") {
       closeStockDetail();
+    }
+    if (action === "close-review-task-drawer") {
+      closeReviewTaskDrawer();
     }
     if (action === "refresh-all") {
       await refreshDashboard();
@@ -1510,6 +1908,7 @@ function renderMasterDataControls() {
   fillSelect("#correction-item", data.items, "inventoryItemId", itemOptionText, "Artikel wählen");
   fillSelect("#quick-booking-item", data.items, "inventoryItemId", itemOptionText, "Artikel wählen");
   fillSelect("#quick-booking-location", data.storageLocations, "storageLocationId", "name", "Kein Lagerort");
+  applyGoodsReceiptMode();
   syncWithdrawalDefaults("#withdrawal-form", WarenwirtschaftApp.refs.withdrawalStockHint);
   syncWithdrawalDefaults("#quick-booking-form", WarenwirtschaftApp.refs.quickBookingStockHint);
 }
@@ -1550,6 +1949,11 @@ function orderOptionText(order) {
 }
 
 function prefillReceiptFromOrder(event) {
+  const form = document.querySelector("#goods-receipt-form");
+  if (form?.elements?.receiptMode?.value === "free") {
+    return;
+  }
+
   const order = findOrder(event.target.value);
   if (!order) {
     return;
@@ -1560,7 +1964,6 @@ function prefillReceiptFromOrder(event) {
     return;
   }
 
-  const form = document.querySelector("#goods-receipt-form");
   form.elements.inventoryItemId.value = firstPendingItem.inventoryItemId;
   form.elements.quantity.value = firstPendingItem.pendingQty || firstPendingItem.orderedQty;
   form.elements.unit.value = firstPendingItem.unit;
@@ -1851,32 +2254,66 @@ async function loadGoodsReceipts() {
 
 async function loadReviewTasks() {
   const payload = await apiFetch("/admin/review-tasks");
-  WarenwirtschaftApp.state.masterData.reviewTasks = payload.tasks;
+  const tasks = payload.tasks || [];
+  WarenwirtschaftApp.state.masterData.reviewTasks = tasks;
+  hydrateCorrectionReviewIndexFromTasks(tasks);
   markUpdated();
-  document.querySelector("#metric-tasks").textContent = payload.tasks.length;
-  renderReviewTasks("#review-tasks-table", payload.tasks);
-  renderReviewTasks("#dashboard-review-table", payload.tasks.slice(0, 5));
+  document.querySelector("#metric-tasks").textContent = tasks.length;
+  renderReviewTaskCards(tasks);
+  renderReviewTaskTable("#dashboard-review-table", tasks.slice(0, 5));
   updateMetricCardTones();
   renderActiveWorkspaceContext();
 }
 
-function renderReviewTasks(selector, tasks) {
+function renderReviewTaskTable(selector, tasks) {
   renderTable(selector, columns.tasks, tasks, (task) => [
     task.type,
     reviewTaskStatusBadge(task.status),
     reviewSeverityBadge(task.severity),
     task.title,
-    actionButtons(task.id)
+    `<button type="button" data-workspace="review-tasks" data-workspace-tab="tasks" data-review-task-open="${escapeHtml(task.id)}">Öffnen</button>`
   ], emptyStates.reviewTasks);
 }
 
-function actionButtons(id) {
+function renderReviewTaskCards(tasks) {
+  const container = WarenwirtschaftApp.refs.reviewTaskCardList;
+  if (!container) {
+    return;
+  }
+
+  if (!tasks.length) {
+    container.innerHTML = `<p class="empty-state">${escapeHtml(emptyStates.reviewTasks)}</p>`;
+    closeReviewTaskDrawer();
+    return;
+  }
+
+  container.innerHTML = tasks.map((task) => reviewCardMarkup(task)).join("");
+
+  if (
+    WarenwirtschaftApp.state.reviewUi.selectedTaskId &&
+    !tasks.some((task) => task.id === WarenwirtschaftApp.state.reviewUi.selectedTaskId)
+  ) {
+    closeReviewTaskDrawer();
+  } else if (WarenwirtschaftApp.state.reviewUi.selectedTaskId) {
+    renderReviewTaskDrawer();
+  }
+}
+
+function reviewCardMarkup(task) {
   return `
-    <span class="row-actions">
-      <button data-task-action="start-review" data-task-id="${escapeHtml(id)}">Start</button>
-      <button data-task-action="resolve" data-task-id="${escapeHtml(id)}">Lösen</button>
-      <button data-task-action="dismiss" data-task-id="${escapeHtml(id)}">Verwerfen</button>
-    </span>
+    <article class="review-card">
+      <div class="review-card-head">
+        <p class="review-card-type">${escapeHtml(reviewTypeLabel(task.type))}</p>
+        ${reviewTaskStatusBadge(task.status)}
+      </div>
+      <h4>${escapeHtml(task.title)}</h4>
+      <p class="review-card-meta">
+        ${reviewSeverityBadge(task.severity)}
+        <span>${escapeHtml(formatDateTime(task.createdAt))}</span>
+      </p>
+      <p class="review-card-description">${escapeHtml(task.description || "Keine Zusatznotiz vorhanden.")}</p>
+      <button type="button" data-review-task-open="${escapeHtml(task.id)}">Review öffnen</button>
+    </article>
   `;
 }
 
@@ -1885,6 +2322,82 @@ async function submitItem(event) {
   await submitJson(event.target, "/admin/inventory/items", "Artikel angelegt.");
   await loadMasterData();
   setWorkspaceTab("stock");
+}
+
+function buildRecordGoodsReceiptCommand(data) {
+  const mode = data.receiptMode === "free" ? "free" : "with-order";
+  return {
+    commandType: "RecordGoodsReceiptCommand",
+    mode,
+    purchaseOrderId: mode === "with-order" ? data.purchaseOrderId || undefined : undefined,
+    items: [
+      {
+        inventoryItemId: data.inventoryItemId,
+        quantity: Number(data.quantity),
+        unit: data.unit,
+        storageLocationId: data.storageLocationId || undefined
+      }
+    ]
+  };
+}
+
+function toGoodsReceiptRequest(command) {
+  return {
+    purchaseOrderId: command.purchaseOrderId,
+    items: command.items
+  };
+}
+
+function buildRecordWithdrawalCommand(data) {
+  return {
+    commandType: "RecordWithdrawalCommand",
+    inventoryItemId: data.inventoryItemId,
+    quantity: Number(data.quantity),
+    unit: data.unit,
+    storageLocationId: data.storageLocationId || undefined,
+    reason: data.reason || "",
+    note: data.note || ""
+  };
+}
+
+function composeWithdrawalNote(reason, note) {
+  const normalizedReason = String(reason || "").trim();
+  const normalizedNote = String(note || "").trim();
+
+  if (normalizedReason && normalizedNote) {
+    return `${normalizedReason} · ${normalizedNote}`;
+  }
+
+  return normalizedReason || normalizedNote || undefined;
+}
+
+function toWithdrawalRequest(command) {
+  return {
+    inventoryItemId: command.inventoryItemId,
+    quantity: command.quantity,
+    unit: command.unit,
+    storageLocationId: command.storageLocationId,
+    note: composeWithdrawalNote(command.reason, command.note)
+  };
+}
+
+function buildRequestCorrectionCommand(data) {
+  return {
+    commandType: "RequestCorrectionCommand",
+    inventoryItemId: data.inventoryItemId,
+    expectedDelta: Number(data.expectedDelta),
+    unit: data.unit,
+    reason: data.reason
+  };
+}
+
+function toCorrectionRequest(command) {
+  return {
+    inventoryItemId: command.inventoryItemId,
+    expectedDelta: command.expectedDelta,
+    unit: command.unit,
+    reason: command.reason
+  };
 }
 
 async function submitPurchaseOrder(event) {
@@ -1900,7 +2413,7 @@ async function submitPurchaseOrder(event) {
         }
       ]
     };
-    await postJson("/admin/purchase-orders", body, "Bestellung angelegt.", {
+    await postJson("/admin/purchase-orders", body, "", {
       idempotencyKey: meta.idempotencyKey
     });
     await loadMasterData();
@@ -1910,7 +2423,8 @@ async function submitPurchaseOrder(event) {
 
 async function submitGoodsReceipt(event) {
   await submitCommandForm(event, async (data, meta) => {
-    await createGoodsReceipt(data, "Wareneingang gebucht.", meta.idempotencyKey);
+    const command = buildRecordGoodsReceiptCommand(data);
+    await createGoodsReceipt(command, meta.idempotencyKey);
     await Promise.allSettled([loadGoodsReceipts(), loadMasterData()]);
     setWorkspaceTab("receipts");
   });
@@ -1918,7 +2432,8 @@ async function submitGoodsReceipt(event) {
 
 async function submitWithdrawal(event) {
   await submitCommandForm(event, async (data, meta) => {
-    await createWithdrawal(data, "Entnahme erfasst.", meta.idempotencyKey);
+    const command = buildRecordWithdrawalCommand(data);
+    await createWithdrawal(command, meta.idempotencyKey);
     await loadMasterData();
   });
 }
@@ -1926,10 +2441,15 @@ async function submitWithdrawal(event) {
 async function submitQuickBook(event) {
   const outcome = await submitCommandForm(event, async (data, meta) => {
     if (data.movementType === "goods-receipt") {
-      await createGoodsReceipt(data, "Wareneingang gebucht.", meta.idempotencyKey);
+      const command = buildRecordGoodsReceiptCommand({
+        ...data,
+        receiptMode: "free"
+      });
+      await createGoodsReceipt(command, meta.idempotencyKey);
       await Promise.allSettled([loadGoodsReceipts(), loadMasterData()]);
     } else {
-      await createWithdrawal(data, "Entnahme erfasst.", meta.idempotencyKey);
+      const command = buildRecordWithdrawalCommand(data);
+      await createWithdrawal(command, meta.idempotencyKey);
       await loadMasterData();
     }
   });
@@ -1955,51 +2475,32 @@ async function submitQuickBook(event) {
 
 async function submitCorrection(event) {
   await submitCommandForm(event, async (data, meta) => {
-    await postJson(
+    const command = buildRequestCorrectionCommand(data);
+    const result = await postJson(
       "/correction-requests",
-      {
-        inventoryItemId: data.inventoryItemId,
-        expectedDelta: Number(data.expectedDelta),
-        unit: data.unit,
-        reason: data.reason
-      },
-      "Korrektur beantragt.",
+      toCorrectionRequest(command),
+      "",
       {
         idempotencyKey: meta.idempotencyKey
       }
     );
+    rememberCorrectionReviewMapping(result, command);
     await refreshReviewTasksIfAllowed();
   });
 }
 
-async function createGoodsReceipt(data, successMessage, idempotencyKey) {
-  const body = {
-    purchaseOrderId: data.purchaseOrderId || undefined,
-    items: [
-      {
-        inventoryItemId: data.inventoryItemId,
-        quantity: Number(data.quantity),
-        unit: data.unit,
-        storageLocationId: data.storageLocationId || undefined
-      }
-    ]
-  };
-  await postJson("/goods-receipts", body, successMessage, {
+async function createGoodsReceipt(command, idempotencyKey) {
+  const body = toGoodsReceiptRequest(command);
+  await postJson("/goods-receipts", body, "", {
     idempotencyKey
   });
 }
 
-async function createWithdrawal(data, successMessage, idempotencyKey) {
+async function createWithdrawal(command, idempotencyKey) {
   await postJson(
     "/withdrawals",
-    {
-      inventoryItemId: data.inventoryItemId,
-      quantity: Number(data.quantity),
-      unit: data.unit,
-      storageLocationId: data.storageLocationId || undefined,
-      note: data.note || data.reason || undefined
-    },
-    successMessage,
+    toWithdrawalRequest(command),
+    "",
     {
       idempotencyKey
     }
@@ -2012,16 +2513,21 @@ async function submitJson(form, path, successMessage) {
 }
 
 async function postJson(path, body, successMessage, options = {}) {
-  await apiFetch(path, {
+  const payload = await apiFetch(path, {
     method: "POST",
     body: JSON.stringify(body),
+    timeoutMs: options.timeoutMs ?? commandRequestTimeoutMs,
     headers: options.idempotencyKey
       ? {
           "x-idempotency-key": options.idempotencyKey
         }
       : undefined
   });
-  showToast(successMessage);
+  if (successMessage) {
+    showToast(successMessage);
+  }
+
+  return payload;
 }
 
 function refreshReviewTasksIfAllowed() {
@@ -2133,6 +2639,396 @@ function findStock(id) {
 
 function findOrder(id) {
   return WarenwirtschaftApp.state.masterData.openPurchaseOrders.find((order) => order.purchaseOrderId === id);
+}
+
+function findStockByName(name) {
+  const normalized = String(name || "").trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  return (
+    WarenwirtschaftApp.state.masterData.stock.find((stock) => String(stock.name || "").trim().toLowerCase() === normalized) ||
+    null
+  );
+}
+
+function getReviewTaskById(taskId) {
+  return WarenwirtschaftApp.state.masterData.reviewTasks.find((task) => task.id === taskId) || null;
+}
+
+function isCorrectionReviewTask(task) {
+  return String(task?.type || "").toLowerCase() === "inventory.correction_request";
+}
+
+function parseCorrectionRequestIdFromText(text) {
+  const normalized = String(text || "");
+  if (!normalized) {
+    return null;
+  }
+
+  const match = normalized.match(/(?:correctionrequestid|korrektur-id)\s*[:=]\s*([A-Za-z0-9_-]+)/i);
+  return match?.[1] || null;
+}
+
+function parseCorrectionDeltaFromText(text) {
+  const normalized = String(text || "");
+  const match = normalized.match(/Korrektur um\s+(-?\d+(?:[.,]\d+)?)\s*([^\s.,;]+)/i);
+  if (!match) {
+    return {
+      expectedDelta: null,
+      unit: null
+    };
+  }
+
+  const numeric = Number(match[1].replace(",", "."));
+  return {
+    expectedDelta: Number.isFinite(numeric) ? numeric : null,
+    unit: match[2] || null
+  };
+}
+
+function normalizeReviewDescription(description) {
+  return String(description || "")
+    .replace(/\s*\[(?:correctionRequestId|Korrektur-ID)\s*[:=]\s*[A-Za-z0-9_-]+\]\s*/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function reviewTypeLabel(type) {
+  const normalized = String(type || "").toLowerCase();
+  if (normalized === "inventory.correction_request") {
+    return "Korrekturprüfung";
+  }
+  if (normalized === "inventory.negative_stock_risk") {
+    return "Negativbestand-Risiko";
+  }
+  if (normalized === "inventory.unlinked_receipt") {
+    return "Wareneingang ohne Bestellung";
+  }
+  if (normalized === "inventory.overdelivery") {
+    return "Überlieferung";
+  }
+
+  return type || "Review";
+}
+
+function hydrateCorrectionReviewIndexFromTasks(tasks) {
+  tasks.forEach((task) => {
+    if (!isCorrectionReviewTask(task)) {
+      return;
+    }
+
+    const existing = WarenwirtschaftApp.state.correctionReviewIndex[task.id] || {};
+    const description = normalizeReviewDescription(task.description || task.title || "");
+    const parsedCorrectionRequestId = parseCorrectionRequestIdFromText(task.description || "");
+    const parsedDelta = parseCorrectionDeltaFromText(description);
+    const itemNameMatch = description.match(/^([^:]+):\s*Korrektur um/i);
+    const stockFromName = itemNameMatch ? findStockByName(itemNameMatch[1]) : null;
+
+    WarenwirtschaftApp.state.correctionReviewIndex[task.id] = {
+      ...existing,
+      correctionRequestId: existing.correctionRequestId || parsedCorrectionRequestId || null,
+      inventoryItemId: existing.inventoryItemId || stockFromName?.inventoryItemId || null,
+      expectedDelta:
+        typeof existing.expectedDelta === "number" && Number.isFinite(existing.expectedDelta)
+          ? existing.expectedDelta
+          : parsedDelta.expectedDelta,
+      unit: existing.unit || parsedDelta.unit || stockFromName?.unit || null,
+      reason: existing.reason || description || null
+    };
+  });
+}
+
+function rememberCorrectionReviewMapping(result, command) {
+  if (!result?.reviewTaskId || !result?.correctionRequestId) {
+    return;
+  }
+
+  WarenwirtschaftApp.state.correctionReviewIndex[result.reviewTaskId] = {
+    correctionRequestId: result.correctionRequestId,
+    inventoryItemId: command.inventoryItemId,
+    expectedDelta: command.expectedDelta,
+    unit: command.unit,
+    reason: command.reason
+  };
+}
+
+function extractCorrectionReviewContext(task) {
+  const remembered = WarenwirtschaftApp.state.correctionReviewIndex[task.id] || {};
+  const description = normalizeReviewDescription(task.description || task.title || "");
+  const deltaFromText = parseCorrectionDeltaFromText(description);
+  const correctionRequestId = remembered.correctionRequestId || parseCorrectionRequestIdFromText(task.description || "");
+  const expectedDelta =
+    typeof remembered.expectedDelta === "number" && Number.isFinite(remembered.expectedDelta)
+      ? remembered.expectedDelta
+      : deltaFromText.expectedDelta;
+  const itemFromId = remembered.inventoryItemId ? findItem(remembered.inventoryItemId) : null;
+  let stock = remembered.inventoryItemId ? findStock(remembered.inventoryItemId) : null;
+  let itemName = itemFromId?.name || stock?.name || null;
+
+  if (!itemName) {
+    const itemNameMatch = description.match(/^([^:]+):\s*Korrektur um/i);
+    if (itemNameMatch) {
+      itemName = itemNameMatch[1].trim();
+    }
+  }
+
+  if (!stock && itemName) {
+    stock = findStockByName(itemName);
+  }
+
+  return {
+    correctionRequestId: correctionRequestId || null,
+    inventoryItemId: remembered.inventoryItemId || stock?.inventoryItemId || null,
+    itemName: itemFromId?.name || stock?.name || itemName || "-",
+    expectedDelta,
+    unit: remembered.unit || deltaFromText.unit || stock?.unit || itemFromId?.defaultUnit || "-",
+    reason: remembered.reason || description || "-"
+  };
+}
+
+function openReviewTaskDrawer(taskId) {
+  if (!taskId) {
+    return;
+  }
+
+  WarenwirtschaftApp.state.reviewUi.selectedTaskId = taskId;
+  renderReviewTaskDrawer();
+}
+
+function closeReviewTaskDrawer() {
+  WarenwirtschaftApp.state.reviewUi.selectedTaskId = null;
+  if (WarenwirtschaftApp.refs.reviewTaskDrawer) {
+    WarenwirtschaftApp.refs.reviewTaskDrawer.hidden = true;
+  }
+}
+
+function renderReviewTaskDrawer() {
+  const drawer = WarenwirtschaftApp.refs.reviewTaskDrawer;
+  const taskId = WarenwirtschaftApp.state.reviewUi.selectedTaskId;
+  if (!drawer || !taskId) {
+    closeReviewTaskDrawer();
+    return;
+  }
+
+  const task = getReviewTaskById(taskId);
+  if (!task) {
+    closeReviewTaskDrawer();
+    return;
+  }
+
+  const correctionContext = isCorrectionReviewTask(task) ? extractCorrectionReviewContext(task) : null;
+  drawer.hidden = false;
+  WarenwirtschaftApp.refs.reviewTaskTitle.textContent = task.title;
+  WarenwirtschaftApp.refs.reviewTaskContext.innerHTML = `
+    <dt>Typ</dt><dd>${escapeHtml(reviewTypeLabel(task.type))}</dd>
+    <dt>Status</dt><dd>${reviewTaskStatusBadge(task.status)}</dd>
+    <dt>Schwere</dt><dd>${reviewSeverityBadge(task.severity)}</dd>
+    <dt>Erstellt</dt><dd>${escapeHtml(formatDateTime(task.createdAt))}</dd>
+    <dt>Artikel</dt><dd>${escapeHtml(correctionContext?.itemName || "-")}</dd>
+    <dt>Bestand</dt><dd>${escapeHtml(correctionContext?.inventoryItemId ? formatEffectNumber(findStock(correctionContext.inventoryItemId)?.currentStock) : "-")} ${escapeHtml(correctionContext?.unit || "-")}</dd>
+    <dt>Auslöser</dt><dd>${escapeHtml(task.description || "-")}</dd>
+    <dt>Notiz</dt><dd>${escapeHtml(correctionContext?.reason || "-")}</dd>
+  `;
+
+  if (correctionContext?.inventoryItemId) {
+    const history = getStockTimelineEvents(correctionContext.inventoryItemId);
+    WarenwirtschaftApp.refs.reviewTaskHistory.innerHTML = history.length
+      ? `<ol class="stock-movement-timeline">${history
+          .map(
+            (event) => `
+              <li>
+                <p>${escapeHtml(event.label)}</p>
+                <p>${escapeHtml(event.detail)}</p>
+                <p>${escapeHtml(formatDateTime(event.at))}</p>
+              </li>
+            `
+          )
+          .join("")}</ol>`
+      : `<p class="empty-state">Keine Historie für diesen Artikel verfügbar.</p>`;
+  } else {
+    WarenwirtschaftApp.refs.reviewTaskHistory.innerHTML = `<p class="empty-state">Artikelkontext nicht verfügbar.</p>`;
+  }
+
+  if (isCorrectionReviewTask(task) && correctionContext?.expectedDelta !== null && correctionContext?.expectedDelta !== undefined) {
+    const direction = Number(correctionContext.expectedDelta) > 0 ? "steigt" : "sinkt";
+    const formattedDelta = formatSignedQuantity(correctionContext.expectedDelta, correctionContext.unit, "");
+    WarenwirtschaftApp.refs.reviewTaskStockImpact.textContent = `Bei Freigabe ${direction} der Bestand um ${formattedDelta}.`;
+    WarenwirtschaftApp.refs.reviewTaskStockImpact.hidden = false;
+  } else if (isCorrectionReviewTask(task)) {
+    WarenwirtschaftApp.refs.reviewTaskStockImpact.textContent =
+      "Bei Freigabe wird eine Korrekturbewegung erzeugt. Bestand ändert sich erst danach.";
+    WarenwirtschaftApp.refs.reviewTaskStockImpact.hidden = false;
+  } else {
+    WarenwirtschaftApp.refs.reviewTaskStockImpact.hidden = true;
+    WarenwirtschaftApp.refs.reviewTaskStockImpact.textContent = "";
+  }
+
+  WarenwirtschaftApp.refs.reviewTaskActions.innerHTML = reviewTaskActionsMarkup(task, correctionContext);
+}
+
+function reviewTaskActionsMarkup(task, correctionContext) {
+  if (WarenwirtschaftApp.state.actorRole !== "admin") {
+    return `<p class="empty-state">Review-Entscheidungen sind nur für Admin sichtbar.</p>`;
+  }
+
+  const actions = [];
+  if (isCorrectionReviewTask(task)) {
+    if (correctionContext?.correctionRequestId) {
+      actions.push(
+        `<button type="button" data-review-command="approve-correction" data-task-id="${escapeHtml(task.id)}" data-correction-request-id="${escapeHtml(correctionContext.correctionRequestId)}">Korrektur freigeben</button>`,
+        `<button type="button" data-review-command="reject-correction" data-task-id="${escapeHtml(task.id)}" data-correction-request-id="${escapeHtml(correctionContext.correctionRequestId)}">Korrektur ablehnen</button>`
+      );
+    } else {
+      actions.push(
+        `<p class="warning-banner is-info">Korrektur-ID fehlt. Aufgabe zuerst mit aktuellem Request neu laden.</p>`
+      );
+    }
+  }
+
+  if (task.status === "open") {
+    actions.push(
+      `<button type="button" data-review-command="start-review" data-task-id="${escapeHtml(task.id)}">Review starten</button>`
+    );
+  }
+
+  if (task.status === "open" || task.status === "in_review") {
+    actions.push(
+      `<button type="button" data-review-command="resolve-review" data-task-id="${escapeHtml(task.id)}">Review abschließen</button>`,
+      `<button type="button" data-review-command="dismiss-review" data-task-id="${escapeHtml(task.id)}">Review verwerfen</button>`
+    );
+  }
+
+  return `<div class="row-actions review-task-action-grid">${actions.join("")}</div>`;
+}
+
+function buildResolveReviewTaskCommand(task) {
+  return {
+    commandType: "ResolveReviewTaskCommand",
+    reviewTaskId: task.id
+  };
+}
+
+function buildApproveCorrectionCommand(task, correctionRequestId) {
+  return {
+    commandType: "ApproveCorrectionCommand",
+    correctionRequestId,
+    reviewTaskId: task.id
+  };
+}
+
+function buildRejectCorrectionCommand(task, correctionRequestId) {
+  return {
+    commandType: "RejectCorrectionCommand",
+    correctionRequestId,
+    reviewTaskId: task.id
+  };
+}
+
+function buildStartReviewTaskCommand(task) {
+  return {
+    commandType: "StartReviewTaskCommand",
+    reviewTaskId: task.id
+  };
+}
+
+function buildDismissReviewTaskCommand(task) {
+  return {
+    commandType: "DismissReviewTaskCommand",
+    reviewTaskId: task.id
+  };
+}
+
+async function submitReviewCommand(button) {
+  if (!button || button.disabled || WarenwirtschaftApp.state.actorRole !== "admin") {
+    return;
+  }
+
+  const taskId = button.dataset.taskId;
+  const action = button.dataset.reviewCommand;
+  const task = getReviewTaskById(taskId);
+  if (!task || !action) {
+    return;
+  }
+
+  const allActionButtons = Array.from(
+    WarenwirtschaftApp.refs.reviewTaskActions?.querySelectorAll("[data-review-command]") || []
+  );
+  allActionButtons.forEach((element) => {
+    element.disabled = true;
+    element.setAttribute("aria-disabled", "true");
+  });
+
+  try {
+    if (action === "start-review") {
+      const command = buildStartReviewTaskCommand(task);
+      await postJson(`/admin/review-tasks/${encodeURIComponent(command.reviewTaskId)}/start-review`, {}, "");
+      showToast("Review gestartet. Bestand unverändert.", { tone: "info" });
+      await loadReviewTasks();
+      return;
+    }
+
+    if (action === "resolve-review") {
+      const command = buildResolveReviewTaskCommand(task);
+      await postJson(`/admin/review-tasks/${encodeURIComponent(command.reviewTaskId)}/resolve`, {}, "");
+      showToast("Review abgeschlossen. Bestand unverändert.", { tone: "success" });
+      await loadReviewTasks();
+      return;
+    }
+
+    if (action === "dismiss-review") {
+      const command = buildDismissReviewTaskCommand(task);
+      await postJson(`/admin/review-tasks/${encodeURIComponent(command.reviewTaskId)}/dismiss`, {}, "");
+      showToast("Review verworfen. Bestand unverändert.", { tone: "warning" });
+      await loadReviewTasks();
+      return;
+    }
+
+    if (action === "approve-correction") {
+      const correctionRequestId = button.dataset.correctionRequestId || "";
+      if (!correctionRequestId) {
+        showToast("Korrektur-ID fehlt. Keine Freigabe möglich.", { tone: "warning" });
+        return;
+      }
+
+      const command = buildApproveCorrectionCommand(task, correctionRequestId);
+      const approval = await postJson(
+        `/admin/correction-requests/${encodeURIComponent(command.correctionRequestId)}/approve`,
+        {},
+        ""
+      );
+      await postJson(`/admin/review-tasks/${encodeURIComponent(command.reviewTaskId)}/resolve`, {}, "");
+      showToast(
+        `Korrektur freigegeben. Bestand aktualisiert auf ${formatEffectNumber(approval.stockAfter)}.`,
+        { tone: "success" }
+      );
+      await Promise.allSettled([loadMasterData(), loadStockMovements(), loadReviewTasks()]);
+      return;
+    }
+
+    if (action === "reject-correction") {
+      const correctionRequestId = button.dataset.correctionRequestId || "";
+      if (!correctionRequestId) {
+        showToast("Korrektur-ID fehlt. Keine Ablehnung möglich.", { tone: "warning" });
+        return;
+      }
+
+      const command = buildRejectCorrectionCommand(task, correctionRequestId);
+      await postJson(`/admin/correction-requests/${encodeURIComponent(command.correctionRequestId)}/reject`, {}, "");
+      await postJson(`/admin/review-tasks/${encodeURIComponent(command.reviewTaskId)}/resolve`, {}, "");
+      showToast("Korrektur abgelehnt. Bestand unverändert.", { tone: "warning" });
+      await loadReviewTasks();
+    }
+  } catch (error) {
+    showToast(error?.message || "Review-Aktion fehlgeschlagen.", { tone: "error" });
+  } finally {
+    allActionButtons.forEach((element) => {
+      element.disabled = false;
+      element.setAttribute("aria-disabled", "false");
+    });
+    renderReviewTaskDrawer();
+  }
 }
 
 function openStockDetail(itemId) {
@@ -2414,10 +3310,59 @@ function inventoryItemActivityBadge(isActive) {
   });
 }
 
-function showToast(message, isError = false) {
-  WarenwirtschaftApp.refs.toast.textContent = message;
-  WarenwirtschaftApp.refs.toast.hidden = false;
-  WarenwirtschaftApp.refs.toast.classList.toggle("is-error", isError);
+function showToast(message, options = {}) {
+  const toastZone = WarenwirtschaftApp.refs.toastZone;
+  if (!toastZone) {
+    return;
+  }
+
+  const normalizedOptions =
+    typeof options === "boolean"
+      ? {
+          tone: options ? "error" : "success"
+        }
+      : options || {};
+  const tone = normalizedOptions.tone || "success";
+  const durationMs =
+    typeof normalizedOptions.durationMs === "number"
+      ? normalizedOptions.durationMs
+      : tone === "success"
+        ? 4000
+        : tone === "warning"
+          ? 8000
+          : 0;
+
+  const toast = document.createElement("article");
+  toast.className = `toast-item is-${tone}`;
+  toast.setAttribute("role", tone === "error" ? "alert" : "status");
+
+  const messageElement = document.createElement("p");
+  messageElement.className = "toast-item-message";
+  messageElement.textContent = String(message || "");
+  toast.append(messageElement);
+
+  const closeButton = document.createElement("button");
+  closeButton.type = "button";
+  closeButton.className = "toast-close";
+  closeButton.setAttribute("aria-label", "Meldung schließen");
+  closeButton.textContent = "×";
+  toast.append(closeButton);
+
+  let timer = null;
+  const removeToast = () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    toast.remove();
+  };
+
+  closeButton.addEventListener("click", removeToast);
+  toastZone.prepend(toast);
+
+  if (durationMs > 0) {
+    timer = window.setTimeout(removeToast, durationMs);
+  }
 }
 
 function escapeHtml(value) {

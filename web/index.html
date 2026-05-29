@@ -88,7 +88,7 @@
           </div>
         </section>
 
-        <section class="toast" id="toast" role="status" aria-live="polite" hidden></section>
+        <section class="toast-zone" id="toast-zone" aria-live="polite" aria-relevant="additions text"></section>
 
         <section
           class="view is-active"
@@ -379,6 +379,7 @@
                 /></label>
                 <label>Notiz<input name="note" /></label>
                 <section class="command-effect-preview" data-command-effect-preview aria-live="polite"></section>
+                <p class="warning-banner" data-command-warning-banner role="status" aria-live="polite" hidden></p>
                 <div class="command-meta-row">
                   <p class="command-idempotency-key">Idempotency Key: <code data-command-idempotency-key></code></p>
                   <button type="button" data-action="refresh-idempotency-key">Neu</button>
@@ -386,6 +387,7 @@
                 <input type="hidden" name="idempotencyKey" data-command-idempotency-input />
                 <div class="sticky-action-footer">
                   <p class="command-form-status" data-command-form-status aria-live="polite"></p>
+                  <button type="button" data-command-retry hidden>Erneut senden</button>
                   <button type="submit" data-command-primary>Bestellung anlegen</button>
                 </div>
               </form>
@@ -409,10 +411,21 @@
                 id="goods-receipt-form"
                 data-workspace-tab-panel="book"
                 data-command-form="goods-receipt"
+                data-command-payload="RecordGoodsReceiptCommand"
                 data-command-confirm-title="Wareneingang buchen?"
                 data-command-confirm-action="Wareneingang buchen"
               >
                 <h3>Wareneingang buchen</h3>
+                <label class="command-field"
+                  >Buchungsart
+                  <select id="goods-receipt-mode" name="receiptMode">
+                    <option value="with-order">Mit Bestellung</option>
+                    <option value="free">Freier Wareneingang</option>
+                  </select>
+                ></label>
+                <p class="field-hint" id="goods-receipt-mode-hint">
+                  Mit Bestellung: offene Bestellung wählen. Bestand steigt nach bestätigtem Command.
+                </p>
                 <label>Offene Bestellung<select id="goods-receipt-order" name="purchaseOrderId"></select></label>
                 <label class="command-field command-field--item-picker"
                   >Artikel<select id="goods-receipt-item" name="inventoryItemId" data-item-picker required></select
@@ -428,7 +441,15 @@
                 <label class="command-field command-field--location-selector"
                   >Lagerort<select id="goods-receipt-location" name="storageLocationId" data-location-selector></select
                 ></label>
+                <p
+                  class="command-stock-warning warning-banner"
+                  data-command-stock-warning
+                  role="status"
+                  aria-live="polite"
+                  hidden
+                ></p>
                 <section class="command-effect-preview" data-command-effect-preview aria-live="polite"></section>
+                <p class="warning-banner" data-command-warning-banner role="status" aria-live="polite" hidden></p>
                 <div class="command-meta-row">
                   <p class="command-idempotency-key">Idempotency Key: <code data-command-idempotency-key></code></p>
                   <button type="button" data-action="refresh-idempotency-key">Neu</button>
@@ -436,6 +457,7 @@
                 <input type="hidden" name="idempotencyKey" data-command-idempotency-input />
                 <div class="sticky-action-footer">
                   <p class="command-form-status" data-command-form-status aria-live="polite"></p>
+                  <button type="button" data-command-retry hidden>Erneut senden</button>
                   <button type="submit" data-command-primary>Wareneingang buchen</button>
                 </div>
               </form>
@@ -454,6 +476,7 @@
                 id="withdrawal-form"
                 data-workspace-tab-panel="book"
                 data-command-form="withdrawal"
+                data-command-payload="RecordWithdrawalCommand"
                 data-command-confirm-title="Entnahme buchen?"
                 data-command-confirm-action="Entnahme buchen"
               >
@@ -472,8 +495,38 @@
                 <label class="command-field command-field--location-selector"
                   >Lagerort<select id="withdrawal-location" name="storageLocationId" data-location-selector></select
                 ></label>
+                <label class="reason-select"
+                  >Grund
+                  <select name="reason" data-reason-select required>
+                    <option value="">Grund wählen</option>
+                    <option value="Verbrauch Küche">Verbrauch Küche</option>
+                    <option value="Produktion">Produktion</option>
+                    <option value="Verbrauch Bar">Verbrauch Bar</option>
+                    <option value="Bruch">Bruch</option>
+                    <option value="Verderb">Verderb</option>
+                    <option value="Inventurdifferenz">Inventurdifferenz</option>
+                  </select>
+                ></label>
+                <div class="reason-chip-group reason-chips" data-reason-chips aria-label="Entnahmegrund auswählen">
+                  <button class="reason-chip" type="button" data-reason-chip="Verbrauch Küche">Verbrauch Küche</button>
+                  <button class="reason-chip" type="button" data-reason-chip="Produktion">Produktion</button>
+                  <button class="reason-chip" type="button" data-reason-chip="Verbrauch Bar">Verbrauch Bar</button>
+                  <button class="reason-chip" type="button" data-reason-chip="Bruch">Bruch</button>
+                  <button class="reason-chip" type="button" data-reason-chip="Verderb">Verderb</button>
+                  <button class="reason-chip" type="button" data-reason-chip="Inventurdifferenz">
+                    Inventurdifferenz
+                  </button>
+                </div>
                 <label>Notiz<input name="note" /></label>
+                <p
+                  class="command-stock-warning warning-banner"
+                  data-command-stock-warning
+                  role="status"
+                  aria-live="polite"
+                  hidden
+                ></p>
                 <section class="command-effect-preview" data-command-effect-preview aria-live="polite"></section>
+                <p class="warning-banner" data-command-warning-banner role="status" aria-live="polite" hidden></p>
                 <div class="command-meta-row">
                   <p class="command-idempotency-key">Idempotency Key: <code data-command-idempotency-key></code></p>
                   <button type="button" data-action="refresh-idempotency-key">Neu</button>
@@ -481,6 +534,7 @@
                 <input type="hidden" name="idempotencyKey" data-command-idempotency-input />
                 <div class="sticky-action-footer">
                   <p class="command-form-status" data-command-form-status aria-live="polite"></p>
+                  <button type="button" data-command-retry hidden>Erneut senden</button>
                   <button type="submit" data-command-primary>Entnahme buchen</button>
                 </div>
               </form>
@@ -547,14 +601,17 @@
                 ></label>
                 <label>Notiz<input name="note" /></label>
                 <section class="command-effect-preview" data-command-effect-preview aria-live="polite"></section>
+                <p class="warning-banner" data-command-warning-banner role="status" aria-live="polite" hidden></p>
                 <div class="command-meta-row">
                   <p class="command-idempotency-key">Idempotency Key: <code data-command-idempotency-key></code></p>
                   <button type="button" data-action="refresh-idempotency-key">Neu</button>
                 </div>
                 <input type="hidden" name="idempotencyKey" data-command-idempotency-input />
                 <p class="booking-result" id="quick-booking-result" hidden>Zuletzt gebucht</p>
+                <button type="button" data-workspace="corrections">Fehler melden</button>
                 <div class="sticky-action-footer">
                   <p class="command-form-status" data-command-form-status aria-live="polite"></p>
+                  <button type="button" data-command-retry hidden>Erneut senden</button>
                   <button type="submit" data-command-primary>Sofort buchen</button>
                 </div>
               </form>
@@ -592,10 +649,14 @@
                 id="correction-form"
                 data-workspace-tab-panel="request"
                 data-command-form="correction"
+                data-command-payload="RequestCorrectionCommand"
                 data-command-confirm-title="Korrektur beantragen?"
                 data-command-confirm-action="Korrektur beantragen"
               >
                 <h3>Korrektur beantragen</h3>
+                <p class="field-hint">
+                  Korrekturantrag erzeugt eine Review-Aufgabe. Bestand bleibt unverändert bis zur Admin-Freigabe.
+                </p>
                 <label class="command-field command-field--item-picker"
                   >Artikel<select id="correction-item" name="inventoryItemId" data-item-picker required></select
                 ></label>
@@ -609,6 +670,7 @@
                 <label>Grund<input name="reason" required /></label>
                 <span class="field-error" data-error-for="reason"></span>
                 <section class="command-effect-preview" data-command-effect-preview aria-live="polite"></section>
+                <p class="warning-banner" data-command-warning-banner role="status" aria-live="polite" hidden></p>
                 <div class="command-meta-row">
                   <p class="command-idempotency-key">Idempotency Key: <code data-command-idempotency-key></code></p>
                   <button type="button" data-action="refresh-idempotency-key">Neu</button>
@@ -616,6 +678,7 @@
                 <input type="hidden" name="idempotencyKey" data-command-idempotency-input />
                 <div class="sticky-action-footer">
                   <p class="command-form-status" data-command-form-status aria-live="polite"></p>
+                  <button type="button" data-command-retry hidden>Erneut senden</button>
                   <button type="submit" data-command-primary>Korrektur beantragen</button>
                 </div>
               </form>
@@ -627,12 +690,33 @@
               data-title="Prüfung"
               data-workspace="review-tasks"
             >
-              <article class="panel" data-workspace-tab-panel="tasks">
+              <article class="panel review-queue-panel" data-workspace-tab-panel="tasks">
                 <div class="panel-head">
                   <h3>Prüfaufgaben</h3>
                   <button data-action="load-review-tasks">Laden</button>
                 </div>
-                <div class="table-wrap" id="review-tasks-table"></div>
+                <div class="review-queue-layout">
+                  <div class="review-card-list" id="review-task-card-list" aria-live="polite"></div>
+                  <aside class="review-task-drawer" id="review-task-drawer" hidden>
+                    <div class="review-task-drawer-head">
+                      <div>
+                        <p class="section-label">Review Detail</p>
+                        <h4 id="review-task-title">Review</h4>
+                      </div>
+                      <button type="button" data-action="close-review-task-drawer">Schliessen</button>
+                    </div>
+                    <dl class="review-task-context" id="review-task-context"></dl>
+                    <div class="review-task-history" id="review-task-history"></div>
+                    <p
+                      class="warning-banner review-task-stock-impact"
+                      id="review-task-stock-impact"
+                      role="status"
+                      aria-live="polite"
+                      hidden
+                    ></p>
+                    <div class="review-task-actions" id="review-task-actions"></div>
+                  </aside>
+                </div>
               </article>
             </section>
           </div>

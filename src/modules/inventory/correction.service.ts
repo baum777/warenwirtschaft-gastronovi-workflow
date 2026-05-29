@@ -139,7 +139,7 @@ export class CorrectionService implements CorrectionServicePort {
           status: "open",
           severity: "warning",
           title: "Bestandskorrektur prüfen",
-          description: `${inventoryItem.name}: Korrektur um ${input.expectedDelta} ${input.unit} angefordert.`,
+          description: `${inventoryItem.name}: Korrektur um ${input.expectedDelta} ${input.unit} angefordert. [correctionRequestId: ${correctionRequest.id}]`,
           assignedRole: "admin"
         }
       });

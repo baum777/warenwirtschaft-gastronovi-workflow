@@ -189,7 +189,7 @@ describe("Warenwirtschaft web shell", () => {
     expect(styles).toContain(".dashboard-metric-card.is-error");
   });
 
-  it("keeps staff role focused on quick booking, own history, and hints", () => {
+  it("keeps staff role focused on operational flows and correction reporting", () => {
     const html = readWebFile("index.html");
     const app = readWebFile("app.js");
 
@@ -201,10 +201,11 @@ describe("Warenwirtschaft web shell", () => {
     expect(app).toContain('"staff-history": {\n    title: "Eigener Verlauf",\n    roles: ["staff"]');
     expect(app).toContain('"staff-hints": {\n    title: "Hinweise",\n    roles: ["staff"]');
     expect(app).toContain('withdrawals: {\n    title: "Entnahmen",\n    roles: ["admin", "shift_lead"]');
-    expect(app).toContain('corrections: {\n    title: "Korrekturen",\n    roles: ["admin", "shift_lead"]');
+    expect(app).toContain('corrections: {\n    title: "Korrekturen",\n    roles: ["admin", "shift_lead", "staff"]');
     expect(app).toContain('"goods-receipts": {\n    title: "Wareneingang",\n    roles: ["admin", "shift_lead"]');
     expect(app).toContain('"purchase-orders": {\n    title: "Bestellungen",\n    roles: ["admin", "shift_lead"]');
     expect(app).toContain('"review-tasks": {\n    title: "Prüfung",\n    roles: ["admin"]');
+    expect(html).toContain("Fehler melden");
   });
 
   it("renders role-based nav state with aria-current and a top context bar", () => {
@@ -321,5 +322,100 @@ describe("Warenwirtschaft web shell", () => {
     expect(styles).toContain(".command-effect-preview");
     expect(styles).toContain(".sticky-action-footer");
     expect(styles).toContain(".confirm-command-dialog");
+  });
+
+  it("supports desktop goods-receipt and withdrawal command flows with stock-effect signals", () => {
+    const html = readWebFile("index.html");
+    const app = readWebFile("app.js");
+    const styles = readWebFile("styles.css");
+
+    expect(html).toContain('id="goods-receipt-mode"');
+    expect(html).toContain("Freier Wareneingang");
+    expect(html).toContain('data-command-payload="RecordGoodsReceiptCommand"');
+    expect(html).toContain('data-command-payload="RecordWithdrawalCommand"');
+    expect(html).toContain('data-command-stock-warning');
+    expect(html).toContain('aria-label="Entnahmegrund auswählen"');
+    expect(html).toContain("Grund wählen");
+
+    expect(app).toContain("applyGoodsReceiptMode");
+    expect(app).toContain("buildRecordGoodsReceiptCommand");
+    expect(app).toContain("buildRecordWithdrawalCommand");
+    expect(app).toContain("toGoodsReceiptRequest");
+    expect(app).toContain("toWithdrawalRequest");
+    expect(app).toContain("composeWithdrawalNote");
+    expect(app).toContain("getStockWarningMessage");
+    expect(app).toContain("Bestand steigt");
+    expect(app).toContain("Bestand sinkt");
+    expect(app).toContain("Bestellung verändert Bestand nicht");
+    expect(app).toContain("RecordGoodsReceiptCommand");
+    expect(app).toContain("RecordWithdrawalCommand");
+
+    expect(styles).toContain(".command-stock-warning");
+    expect(styles).toContain(".command-stock-warning.is-warning");
+    expect(styles).toContain(".command-effect-intent");
+    expect(styles).toContain(".field-hint");
+  });
+
+  it("implements command feedback toasts, duplicate state, and timeout retry handling", () => {
+    const html = readWebFile("index.html");
+    const app = readWebFile("app.js");
+    const styles = readWebFile("styles.css");
+
+    expect(html).toContain('id="toast-zone"');
+    expect(html).toContain('data-command-warning-banner');
+    expect(html).toContain("data-command-retry");
+    expect(html).toContain("Erneut senden");
+
+    expect(app).toContain("buildCommandSuccessMessage");
+    expect(app).toContain("buildCommandFailureFeedback");
+    expect(app).toContain('duplicate: "Bereits gebucht"');
+    expect(app).toContain("Netzwerk-Timeout");
+    expect(app).toContain("Bereits gebucht. Bestand wurde nicht erneut verändert. Verlauf prüfen.");
+    expect(app).toContain("Wareneingang gebucht. Bestand");
+    expect(app).toContain("Entnahme gespeichert. Bestand");
+    expect(app).toContain("Korrektur beantragt. Admin prüft, kein Bestandseffekt.");
+    expect(app).toContain("commandRequestTimeoutMs");
+    expect(app).toContain("toastZone.prepend(toast)");
+    expect(app).toContain('tone === "error" ? "alert" : "status"');
+
+    expect(styles).toContain(".toast-zone");
+    expect(styles).toContain(".toast-item");
+    expect(styles).toContain(".toast-item.is-error");
+    expect(styles).toContain(".warning-banner");
+    expect(styles).toContain("[data-command-retry]");
+  });
+
+  it("supports correction requests with admin-only review cards, drawer context, and approve/reject actions", () => {
+    const html = readWebFile("index.html");
+    const app = readWebFile("app.js");
+    const styles = readWebFile("styles.css");
+
+    expect(html).toContain('data-command-payload="RequestCorrectionCommand"');
+    expect(html).toContain('id="review-task-card-list"');
+    expect(html).toContain('id="review-task-drawer"');
+    expect(html).toContain('id="review-task-context"');
+    expect(html).toContain('id="review-task-history"');
+    expect(html).toContain('id="review-task-actions"');
+    expect(html).toContain('data-action="close-review-task-drawer"');
+
+    expect(app).toContain("buildRequestCorrectionCommand");
+    expect(app).toContain("rememberCorrectionReviewMapping");
+    expect(app).toContain("renderReviewTaskCards");
+    expect(app).toContain("renderReviewTaskDrawer");
+    expect(app).toContain("submitReviewCommand");
+    expect(app).toContain("buildApproveCorrectionCommand");
+    expect(app).toContain("buildRejectCorrectionCommand");
+    expect(app).toContain("buildResolveReviewTaskCommand");
+    expect(app).toContain("hydrateCorrectionReviewIndexFromTasks");
+    expect(app).toContain("inventory.correction_request");
+    expect(app).toContain('WarenwirtschaftApp.state.actorRole !== "admin"');
+    expect(app).toContain("/admin/correction-requests/");
+    expect(app).toContain("/admin/review-tasks/");
+
+    expect(styles).toContain(".review-queue-layout");
+    expect(styles).toContain(".review-card-list");
+    expect(styles).toContain(".review-task-drawer");
+    expect(styles).toContain(".review-task-context");
+    expect(styles).toContain(".review-task-action-grid");
   });
 });

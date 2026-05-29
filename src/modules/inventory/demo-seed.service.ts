@@ -308,7 +308,7 @@ export async function ensureDemoData(db: DemoSeedDatabaseClient, now: Date): Pro
       status: "open",
       severity: "warning",
       title: "Bestandskorrektur prüfen",
-      description: "DEMO_MODE Tomaten: Korrektur um -1 kg angefordert.",
+      description: "DEMO_MODE Tomaten: Korrektur um -1 kg angefordert. [correctionRequestId: demo-correction-request-1]",
       assignedRole: "admin",
       resolvedAt: null
     },
@@ -318,7 +318,7 @@ export async function ensureDemoData(db: DemoSeedDatabaseClient, now: Date): Pro
       status: "open",
       severity: "warning",
       title: "Bestandskorrektur prüfen",
-      description: "DEMO_MODE Tomaten: Korrektur um -1 kg angefordert.",
+      description: "DEMO_MODE Tomaten: Korrektur um -1 kg angefordert. [correctionRequestId: demo-correction-request-1]",
       assignedRole: "admin",
       createdAt: now
     }
