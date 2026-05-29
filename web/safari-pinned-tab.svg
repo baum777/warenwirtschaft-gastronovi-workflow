@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <g fill="#000000">
+    <rect x="46" y="46" width="932" height="932" rx="190"/>
+    <text x="80" y="585" font-family="Georgia, 'DejaVu Serif', serif" font-weight="700" font-size="390">M</text>
+    <text x="510" y="585" font-family="Georgia, 'DejaVu Serif', serif" font-weight="700" font-size="390">W</text>
+    <path d="M75 700 C310 610 650 606 940 685" fill="none" stroke="#000000" stroke-width="32" stroke-linecap="round"/>
+    <polygon points="483,625 565,629 537,679 455,675"/>
+    <polygon points="627,628 709,632 681,682 599,678"/>
+    <polygon points="771,631 853,635 825,685 743,681"/>
+    <polygon points="506,671 588,675 560,725 478,721"/>
+    <polygon points="650,674 732,678 704,728 622,724"/>
+    <polygon points="794,677 876,681 848,731 766,727"/>
+  </g>
+</svg>

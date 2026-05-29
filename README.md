@@ -1,127 +1,148 @@
-# gastronovi-workflow-adapter
+# Warenwirtschaft Gastronovi Workflow
 
-`gastronovi-workflow-adapter` is an independent backend service for moving Gastronovi-adjacent POS data into internal workflow logic.
+## Projektüberblick
 
-External POS data is not treated as operational truth directly. Payloads are imported, normalized, versioned, and only then processed as internal workflow events.
+Diese App ist eine Warenwirtschafts-Webapp für Gastronomie-Betriebe. Sie unterstützt Restaurantleitung, Schichtleitung und Mitarbeitende dabei, Artikel, Lagerbestand und Warenbewegungen nachvollziehbar zu erfassen.
 
-## Goals
+Der aktuelle Schwerpunkt liegt auf:
 
-The repository separates three responsibilities:
+- Artikel und Stammdaten
+- Bestand und kritische Bestände
+- Bestellungen
+- Wareneingang
+- Entnahmen
+- Korrekturen mit Prüfung
+- Audit-/Bewegungsverlauf
 
-1. Ingestion: receive or fetch external data.
-2. Normalization: translate external payloads into internal event contracts.
-3. Workflow dispatch: validate, store, and trigger follow-up actions from events.
+Das Repository enthält außerdem die technische Grundlage für einen späteren Gastronovi-nahen Workflow-Adapter. Externe POS-Daten werden nicht direkt als operative Wahrheit behandelt, sondern sollen erst gespeichert, normalisiert, versioniert und dann als interne Workflow-Ereignisse verarbeitet werden.
 
-This keeps workflow apps, admin dashboards, and orchestrators from depending on Gastronovi-specific APIs or payload shapes.
+## Aktueller MVP-Funktionsumfang
 
-## Non-Goals in v1
+Status-Legende:
 
-- No full POS dashboard.
-- No replacement for Gastronovi Office.
-- No direct accounting logic.
-- No automatic decision without audit trail.
-- No assumption that all required Gastronovi endpoints are publicly available.
-- No writeback to Gastronovi or HOTAPI-adjacent systems.
+- **Vorhanden**: im Code umgesetzt und durch Tests oder lokale Dateien belegbar.
+- **Teilweise vorhanden**: UI oder Backend ist vorhanden, aber noch nicht vollständig produktionsreif.
+- **Geplant**: in Doku, Roadmap oder UI-Hinweisen sichtbar, aber noch nicht vollständig umgesetzt.
 
-## Architecture
+| Bereich | Status | Aktueller Stand |
+| --- | --- | --- |
+| Übersicht / Dashboard | **Vorhanden** | Statische Webapp mit Statuskarten, Arbeitsbereichen und Schnellzugriffen für `admin` und `shift_lead`. Einige Kennzahlen sind Fixture-/UI-Zustände. |
+| Artikel | **Vorhanden** | Admin kann Artikel anlegen, listen, bearbeiten und deaktivieren. Artikeländerungen verändern keinen Bestand direkt. |
+| Bestand | **Vorhanden** | Bestand wird aus Bewegungen/Snapshots gelesen. Kritische Bestände werden als `low` oder `negative` angezeigt. |
+| Bestellungen | **Vorhanden** | Admin und Shift-Lead können Bestellungen anlegen, lesen, als bestellt markieren und stornieren. Bestellungen verändern den Bestand nicht direkt. |
+| Wareneingang | **Vorhanden** | Admin und Shift-Lead können Wareneingänge buchen. Wareneingang erhöht den Bestand und kann mit Bestellungen verknüpft werden. |
+| Entnahmen | **Vorhanden** | Admin, Shift-Lead und Staff können backendseitig Entnahmen buchen. Die aktuelle Web-Navigation gibt Staff dafür vor allem den Schnellbuchen-Weg. |
+| Korrekturen | **Vorhanden** | Korrekturen starten als Antrag und ändern Bestand erst nach Admin-Freigabe. |
+| Prüfung / Review | **Vorhanden** | Admin kann Prüfaufgaben starten, lösen, verwerfen sowie Korrekturen genehmigen oder ablehnen. Shift-Lead hat aktuell keine Review-Freigabe. |
+| Rollenbasierte Bedienung | **Teilweise vorhanden** | UI und API kennen `admin`, `shift_lead`, `staff` und `system`. Zugriff wird aktuell über Actor-Header gesteuert, nicht über produktionsreifes Login. |
+| Login / Registrierung | **Geplant** | Es gibt noch kein echtes Login und keine Registrierung. Der aktuelle Kontext nutzt `x-actor-id` und `x-actor-role`. |
+| Profil / Settings | **Geplant** | Noch keine fertigen Profil- oder Einstellungsseiten. Der Dev-/Demo-Kontext wird über `/app-context` bereitgestellt. |
+| Eigener Verlauf / Hinweise für Staff | **Teilweise vorhanden** | UI-Flächen sind vorhanden, aber als read-only bzw. noch nicht vollständig an das Audit-Read-Model angebunden. |
+| CSV Import / Export / Reset | **Vorhanden** | Admin kann Inventardaten exportieren, importieren und zurücksetzen. |
+| Gastronovi-Anbindung | **Teilweise vorhanden** | Raw-Payload-Speicherung, Hashing und Sync-Run-Boundaries existieren. Live-Zugriff, Normalisierung und produktive Connectoren sind späterer Umfang. |
 
-```txt
-Gastronovi / HOTAPI / Export / Webhook
-        |
-Source Connector
-        |
-Raw Payload Store
-        |
-Normalizer
-        |
-Workflow Event Store
-        |
-Rules Engine
-        |
-Tasks / Alerts / Approvals / Reports
-```
+## Rollenmodell
 
-## Technical Defaults
+| Rolle | Zweck | Typische Aufgaben |
+| --- | --- | --- |
+| Chef / Admin | Gesamtverantwortung | Artikel verwalten, Stammdaten pflegen, kritische Bestände prüfen, Korrekturen freigeben oder ablehnen, CSV-Daten verwalten, Review-Aufgaben bearbeiten |
+| Shift-Lead | Operative Schichtleitung | Bestand und Audit prüfen, Bestellungen anlegen, Wareneingänge buchen, Entnahmen kontrollieren, Korrekturen erfassen |
+| Staff | Tagesgeschäft | Schnelle Entnahmen erfassen, Fehler/Korrekturen melden, eigene operative Hinweise nutzen; vollständige Admin- und Review-Bereiche sind nicht freigegeben |
 
-```txt
-Runtime:        Node.js + TypeScript
-HTTP Layer:     Fastify
-Validation:     Zod
-Database:       PostgreSQL
-ORM:            Prisma
-Queue:          BullMQ + Redis later
-Testing:        Vitest
-Docs:           Markdown
-```
+## Technischer Schnellstart
 
-## Current v1 Scope
+### Voraussetzungen
 
-This starter contains the Ticket 1 baseline plus the Ticket 2 raw-ingestion core:
+- Node.js mit npm
+- Supabase Postgres als kanonische Datenbank
+- `.env` auf Basis von `.env.example`
+- Für produktive Umgebungen: Redis oder Upstash Redis REST-Konfiguration
 
-- Fastify service bootstrap.
-- `GET /health`.
-- Zod environment validation.
-- Prisma schema draft.
-- Architecture and event contract docs.
-- Deterministic raw payload hashing.
-- Raw payload repository boundary.
-- Sync run repository boundary.
-- Ingestion service that stores raw payloads and detects duplicate hashes.
-
-Live Gastronovi access, HTTP ingestion routes, normalization, rules, queues, scheduled jobs, and admin APIs are intentionally out of scope for the current slice.
-
-## Local Commands
+### Installation
 
 ```bash
 npm install
+```
+
+### Environment
+
+Kopiere `.env.example` nach `.env` und ersetze Platzhalter durch Werte aus dem Supabase Dashboard. Keine echten Zugangsdaten in Git committen.
+
+Wichtige Variablen:
+
+```env
+DATABASE_URL=...
+DIRECT_URL=...
+REDIS_URL=...
+UPSTASH_REDIS_REST_URL=...
+UPSTASH_REDIS_REST_TOKEN=...
+GASTRONOVI_API_BASE_URL=...
+GASTRONOVI_API_KEY=...
+GASTRONOVI_TENANT_ID=...
+```
+
+`DATABASE_URL` wird für App/Runtime genutzt. `DIRECT_URL` wird für Prisma-CLI- und Migrationsabläufe genutzt, wenn eine direkte Datenbankverbindung erforderlich ist.
+
+### Lokaler Start
+
+```bash
 npm run dev
+```
+
+Der API-Server läuft standardmäßig auf dem konfigurierten `PORT`. Die Webapp liegt als statische Oberfläche in `web/index.html` und nutzt standardmäßig `http://localhost:4000`, wenn sie lokal aus einer Datei oder von einem anderen lokalen Port geöffnet wird.
+
+### Tests und Checks
+
+```bash
 npm run typecheck
 npm test -- --run
 npm run build
-npx prisma validate
+npm run prisma:validate
 ```
 
-## Smoke Tests
-
-Run the Supabase-backed inventory API smoke test with:
+### Smoke-Test
 
 ```bash
 npm run smoke:inventory-api
 ```
 
-Prerequisite: `DATABASE_URL` must be set. The command writes scoped
-`codex-smoke-*` inventory rows to the configured Supabase database, then deletes
-them again before exit.
+Der Smoke-Test benötigt eine gültige Supabase-basierte `DATABASE_URL`. Er schreibt scoped `codex-smoke-*` Inventardaten in die konfigurierte Datenbank und löscht sie vor Ende wieder.
 
-The smoke test verifies:
+### Deployment-Hinweise für Vercel
 
-- `POST /admin/inventory/items` creates a smoke inventory item.
-- `GET /admin/inventory/items/:id` reads the created item.
-- `GET /admin/inventory/items` lists the created item and confirms cleanup.
-- `GET /inventory/master-data` returns HTTP 200 with a non-empty body.
+`vercel.json` liefert die Fastify-API über `api/index.ts` und die statische Webapp aus `web/` aus. Vor einem Deployment müssen produktive Environment-Variablen in Vercel gesetzt sein. Produktive Redis-Konfiguration ist über `REDIS_URL` oder über `UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN` erforderlich.
 
-## Environment
+## Projektstruktur
 
-Copy `.env.example` to `.env` for local development and replace every placeholder with values from the Supabase dashboard.
+| Pfad | Zweck |
+| --- | --- |
+| `web/` | Statische Webapp mit HTML, CSS, JavaScript und Favicon-/Manifest-Dateien. |
+| `src/` | Fastify-App, Routen, Konfiguration und Domain-Services. |
+| `api/` | Vercel-Entry-Point für die Fastify-App. |
+| `tests/` | Vitest-Tests für Services, Routen, Web-Shell und Env-Validierung. |
+| `scripts/` | Lokale Hilfs- und Smoke-Test-Skripte. |
+| `prisma/` | Prisma-Schema und Migrationen für Supabase Postgres. |
+| `docs/` | Architektur-, Entscheidungs- und Bedienungsdokumentation. |
 
-Supabase Postgres is the canonical database for this repo. Do not assume a local Postgres role or database exists, and do not create local DB users, roles, or databases without explicit approval.
+## Betriebs- und Sicherheitsnotizen
 
-Required database variables:
+- Keine echten Secrets, Tokens, Datenbank-URLs oder API-Keys committen.
+- `.env.example` ist nur Vorlage; echte Werte gehören in `.env` oder in die Secret-Verwaltung der Zielumgebung.
+- Supabase Postgres ist die kanonische Datenbank. Lokale Postgres-Setups nur bewusst und nach expliziter Freigabe nutzen.
+- Smoke-Tests können gegen die konfigurierte Datenbank schreiben. Vor Ausführung Zielumgebung prüfen.
+- Rollen und Berechtigungen müssen vor Produktiveinsatz fachlich und technisch geprüft werden.
+- Der aktuelle Rollen-Kontext über Actor-Header ist kein vollständiges produktives Auth-System.
+- Raw Payloads und externe POS-Daten können sensible Betriebsinformationen enthalten und dürfen nicht ungefiltert in UI, Logs oder Reports erscheinen.
 
-```env
-DATABASE_URL="postgresql://..."
-DIRECT_URL="postgresql://..."
-```
+## Roadmap / Nächste Schritte
 
-- `DATABASE_URL` is used by the app/runtime. Prefer the Supabase/Supavisor pooled connection string for runtime connections.
-- `DIRECT_URL` is used by Prisma CLI and migration workflows when a direct connection is required.
-- Use dashboard-provided Supabase connection strings. Do not invent credentials.
-- Keep real values in `.env` only. `.env.example` must contain placeholders only.
-- Production Redis must be configured with either `REDIS_URL` or both `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
-
-DB-backed browser/runtime validation is runnable only when `.env` exists, both database URLs point to Supabase, Prisma can connect successfully, and the app can create/read/list DB-backed records. If those inputs are missing, the correct result is `blocked` pending valid Supabase credentials, not local Postgres admin setup.
-
-Secrets must stay backend-owned. API keys, tenant identifiers, tokens, and raw secret-bearing payloads must not be logged or exposed in API responses.
+- Warenwirtschaftslogik für operative Sonderfälle finalisieren.
+- Rollen- und Rechteprüfung härten, inklusive produktivem Login/Auth.
+- Staff-Flows für mobile Nutzung und eigenen Verlauf fertig anbinden.
+- Benutzerführung bei Fehlbuchungen, Korrekturen und Review-Entscheidungen verbessern.
+- Mobile Nutzung weiter optimieren.
+- Gastronovi-/HOTAPI-Anbindung mit echten Source-Verträgen und Payload-Beispielen vorbereiten.
+- Agenten-Logbook und Projekt-SoT nur dann ergänzen, wenn die repo-lokalen Governance-Flächen dies ausdrücklich übernehmen.
 
 <!-- workspace-root-sync:readme:start -->
 ## Workspace Integration

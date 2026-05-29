@@ -27,6 +27,50 @@
       "dest": "/web/styles.css"
     },
     {
+      "src": "/favicon.ico",
+      "dest": "/web/favicon.ico"
+    },
+    {
+      "src": "/favicon.svg",
+      "dest": "/web/favicon.svg"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "dest": "/web/apple-touch-icon.png"
+    },
+    {
+      "src": "/site.webmanifest",
+      "dest": "/web/site.webmanifest"
+    },
+    {
+      "src": "/safari-pinned-tab.svg",
+      "dest": "/web/safari-pinned-tab.svg"
+    },
+    {
+      "src": "/browserconfig.xml",
+      "dest": "/web/browserconfig.xml"
+    },
+    {
+      "src": "/android-chrome-192x192.png",
+      "dest": "/web/android-chrome-192x192.png"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "dest": "/web/android-chrome-512x512.png"
+    },
+    {
+      "src": "/maskable-icon-192x192.png",
+      "dest": "/web/maskable-icon-192x192.png"
+    },
+    {
+      "src": "/maskable-icon-512x512.png",
+      "dest": "/web/maskable-icon-512x512.png"
+    },
+    {
+      "src": "/mstile-150x150.png",
+      "dest": "/web/mstile-150x150.png"
+    },
+    {
       "src": "/(health|app-context|inventory(?:/.*)?|admin(?:/.*)?|goods-receipts(?:/.*)?|withdrawals(?:/.*)?|correction-requests(?:/.*)?)",
       "dest": "/api/index.ts"
     }
