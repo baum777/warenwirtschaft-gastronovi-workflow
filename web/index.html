@@ -8,7 +8,7 @@
   </head>
   <body class="warenwirtschaft-app">
     <div class="app-shell" id="app">
-      <aside class="sidebar" aria-label="Hauptnavigation">
+      <aside class="sidebar" id="sidebar" aria-label="Hauptnavigation">
         <div class="brand">
           <div class="brand-mark" aria-hidden="true">W</div>
           <div>
@@ -16,23 +16,24 @@
             <p>Inventory control</p>
           </div>
         </div>
-        <nav class="nav-list" aria-label="Bereiche">
-          <button class="nav-item is-active" data-view="dashboard">Übersicht</button>
-          <button class="nav-item" data-workspace="items">Artikel</button>
-          <button class="nav-item" data-workspace="stock">Bestand</button>
-          <button class="nav-item" data-workspace="purchase-orders">Bestellungen</button>
-          <button class="nav-item" data-workspace="goods-receipts">Wareneingang</button>
-          <button class="nav-item" data-workspace="withdrawals">Entnahmen</button>
-          <button class="nav-item" data-workspace="quick-booking">Schnellbuchen</button>
-          <button class="nav-item" data-workspace="corrections">Korrekturen</button>
-          <button class="nav-item" data-workspace="review-tasks">Prüfung</button>
-        </nav>
+        <nav class="nav-list" id="sidebar-nav-list" aria-label="Bereiche"></nav>
       </aside>
 
       <main class="main-panel">
         <header class="topbar">
-          <div>
-            <p class="section-label">Betriebsübersicht</p>
+          <div class="topbar-heading">
+            <div class="topbar-title-row">
+              <button
+                class="sidebar-toggle"
+                id="sidebar-toggle"
+                type="button"
+                aria-label="Navigation öffnen oder schließen"
+                aria-expanded="true"
+              >
+                ☰
+              </button>
+              <p class="section-label">Betriebsübersicht</p>
+            </div>
             <h2 id="view-title">Übersicht</h2>
           </div>
           <form class="actor-panel dev-form" id="dev-form">
@@ -56,9 +57,15 @@
           </form>
         </header>
 
+        <section class="top-context-bar" id="top-context-bar" aria-label="Aktiver Kontext">
+          <p class="context-pill" id="context-role">Rolle: -</p>
+          <p class="context-pill" id="context-location">Lagerort: -</p>
+          <p class="context-pill" id="context-connection">Verbindung: -</p>
+        </section>
+
         <section class="dev-panel" id="dev-panel" hidden></section>
 
-        <section class="status-strip" aria-live="polite">
+        <section class="status-strip" aria-live="polite" data-role-visibility="admin,shift_lead">
           <div class="status-card status-card--tone-info" id="metric-items-card">
             <span>Artikel</span>
             <strong id="metric-items">-</strong>
@@ -83,7 +90,12 @@
 
         <section class="toast" id="toast" role="status" aria-live="polite" hidden></section>
 
-        <section class="view is-active" id="view-dashboard" data-title="Übersicht">
+        <section
+          class="view is-active"
+          id="view-dashboard"
+          data-title="Übersicht"
+          data-role-visibility="admin,shift_lead"
+        >
           <article class="panel dashboard-workspaces">
             <div class="panel-head">
               <div>
@@ -373,6 +385,32 @@
               </form>
             </section>
 
+            <section
+              class="workspace-view"
+              id="view-staff-history"
+              data-title="Eigener Verlauf"
+              data-workspace="staff-history"
+            >
+              <article class="panel" data-workspace-tab-panel="timeline">
+                <h3>Eigener Verlauf</h3>
+                <p class="panel-subtitle">
+                  Read-only Verlauf für zuletzt gebuchte Bewegungen wird in einem späteren Patch an das Audit-Read-Model
+                  angebunden.
+                </p>
+                <p class="empty-state">Noch kein persönlicher Verlauf verfügbar.</p>
+              </article>
+            </section>
+
+            <section class="workspace-view" id="view-staff-hints" data-title="Hinweise" data-workspace="staff-hints">
+              <article class="panel" data-workspace-tab-panel="tips">
+                <h3>Hinweise</h3>
+                <p class="panel-subtitle">
+                  Operative Hinweise für Schicht und Lagerort. Diese Fläche bleibt in Patch 02 bewusst read-only.
+                </p>
+                <p class="empty-state">Keine Hinweise vorhanden.</p>
+              </article>
+            </section>
+
             <section class="workspace-view" id="view-corrections" data-title="Korrekturen" data-workspace="corrections">
               <form class="panel form-panel compact-form" id="correction-form" data-workspace-tab-panel="request">
                 <h3>Korrektur beantragen</h3>
@@ -403,6 +441,8 @@
           </div>
         </section>
       </div>
+
+      <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile Navigation"></nav>
     </div>
     <script type="module" src="./app.js"></script>
   </body>

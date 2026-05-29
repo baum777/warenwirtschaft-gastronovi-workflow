@@ -12,6 +12,8 @@ describe("Warenwirtschaft web shell", () => {
     expect(readWebFile("index.html")).toContain('id="app"');
     expect(readWebFile("index.html")).toContain("warenwirtschaft-app");
     expect(readWebFile("styles.css")).toContain(".app-shell");
+    expect(readWebFile("index.html")).toContain('id="top-context-bar"');
+    expect(readWebFile("index.html")).toContain('id="mobile-nav"');
     expect(readWebFile("app.js")).toContain("WarenwirtschaftApp");
   });
 
@@ -115,7 +117,9 @@ describe("Warenwirtschaft web shell", () => {
       "withdrawals",
       "quick-booking",
       "corrections",
-      "review-tasks"
+      "review-tasks",
+      "staff-history",
+      "staff-hints"
     ]) {
       expect(html).toContain(`data-workspace="${workspace}"`);
     }
@@ -153,16 +157,36 @@ describe("Warenwirtschaft web shell", () => {
     expect(styles).toContain(".status-card.is-clickable");
   });
 
-  it("keeps staff workspace access restricted while allowing stock, quick booking, and corrections", () => {
+  it("keeps staff role focused on quick booking, own history, and hints", () => {
     const html = readWebFile("index.html");
     const app = readWebFile("app.js");
 
+    expect(html).toContain('id="view-staff-history"');
+    expect(html).toContain('id="view-staff-hints"');
     expect(html).toContain('data-workspace="quick-booking"');
-    expect(app).toContain('stock: {\n    title: "Bestand",\n    roles: ["admin", "shift_lead", "staff"]');
+    expect(app).toContain('stock: {\n    title: "Bestand",\n    roles: ["admin", "shift_lead"]');
     expect(app).toContain('"quick-booking": {\n    title: "Schnellbuchen",\n    roles: ["admin", "shift_lead", "staff"]');
+    expect(app).toContain('"staff-history": {\n    title: "Eigener Verlauf",\n    roles: ["staff"]');
+    expect(app).toContain('"staff-hints": {\n    title: "Hinweise",\n    roles: ["staff"]');
+    expect(app).toContain('withdrawals: {\n    title: "Entnahmen",\n    roles: ["admin", "shift_lead"]');
+    expect(app).toContain('corrections: {\n    title: "Korrekturen",\n    roles: ["admin", "shift_lead"]');
     expect(app).toContain('"goods-receipts": {\n    title: "Wareneingang",\n    roles: ["admin", "shift_lead"]');
     expect(app).toContain('"purchase-orders": {\n    title: "Bestellungen",\n    roles: ["admin", "shift_lead"]');
     expect(app).toContain('"review-tasks": {\n    title: "Prüfung",\n    roles: ["admin"]');
+  });
+
+  it("renders role-based nav state with aria-current and a top context bar", () => {
+    const html = readWebFile("index.html");
+    const app = readWebFile("app.js");
+
+    expect(html).toContain('id="sidebar-nav-list"');
+    expect(html).toContain('id="mobile-nav"');
+    expect(html).toContain('id="context-role"');
+    expect(html).toContain('id="context-location"');
+    expect(html).toContain('id="context-connection"');
+    expect(app).toContain("renderRoleNavigation");
+    expect(app).toContain('item.setAttribute("aria-current", "page")');
+    expect(app).toContain("renderTopContextBar");
   });
 
   it("defines guided workspace context, critical empty states, and quick-booking reason chips", () => {

@@ -3,6 +3,12 @@ const WarenwirtschaftApp = {
     apiBase: localStorage.getItem("ww.apiBase") || defaultApiBase(),
     actorId: localStorage.getItem("ww.actorId") || "demo-admin",
     actorRole: localStorage.getItem("ww.actorRole") || "admin",
+    currentLocation: localStorage.getItem("ww.currentLocation") || "Hauptlager",
+    connectionStatus: navigator.onLine ? "online" : "offline",
+    ui: {
+      isSidebarCollapsed: localStorage.getItem("ww.sidebarCollapsed") === "1",
+      isSidebarOpenMobile: false
+    },
     appContext: {
       demoMode: false,
       devPanelEnabled: false,
@@ -96,6 +102,58 @@ const purchaseOrderStatusPresentation = {
   closed_with_difference: { label: "Abgeschlossen (Diff.)", tone: "warning", icon: "!" }
 };
 
+const rolePresentation = {
+  admin: "Admin",
+  shift_lead: "Shift Lead",
+  staff: "Staff"
+};
+
+const roleDefaultLocation = {
+  admin: "Zentrallager",
+  shift_lead: "Service-Lager",
+  staff: "Küche"
+};
+
+const connectionPresentation = {
+  online: { label: "Online", tone: "ok" },
+  degraded: { label: "Eingeschränkt", tone: "warning" },
+  offline: { label: "Offline", tone: "danger" }
+};
+
+const navigationItems = [
+  { id: "dashboard", label: "Übersicht", icon: "⌂", target: "view", view: "dashboard", roles: ["admin", "shift_lead"] },
+  { id: "items", label: "Artikel", icon: "▦", target: "workspace", workspace: "items", roles: ["admin"] },
+  { id: "stock", label: "Bestand", icon: "◫", target: "workspace", workspace: "stock", roles: ["admin", "shift_lead"] },
+  {
+    id: "purchase-orders",
+    label: "Bestellungen",
+    icon: "◎",
+    target: "workspace",
+    workspace: "purchase-orders",
+    roles: ["admin", "shift_lead"]
+  },
+  {
+    id: "goods-receipts",
+    label: "Wareneingang",
+    icon: "↥",
+    target: "workspace",
+    workspace: "goods-receipts",
+    roles: ["admin", "shift_lead"]
+  },
+  { id: "withdrawals", label: "Entnahmen", icon: "↧", target: "workspace", workspace: "withdrawals", roles: ["admin", "shift_lead"] },
+  { id: "quick-booking", label: "Schnellbuchen", icon: "⚡", target: "workspace", workspace: "quick-booking", roles: ["admin", "shift_lead", "staff"] },
+  { id: "corrections", label: "Korrekturen", icon: "△", target: "workspace", workspace: "corrections", roles: ["admin", "shift_lead"] },
+  { id: "review-tasks", label: "Prüfung", icon: "✓", target: "workspace", workspace: "review-tasks", roles: ["admin"] },
+  { id: "staff-history", label: "Eigener Verlauf", icon: "◷", target: "workspace", workspace: "staff-history", roles: ["staff"] },
+  { id: "staff-hints", label: "Hinweise", icon: "ⓘ", target: "workspace", workspace: "staff-hints", roles: ["staff"] }
+];
+
+const mobilePrimaryNavigationByRole = {
+  admin: ["dashboard", "stock", "review-tasks"],
+  shift_lead: ["dashboard", "stock", "quick-booking"],
+  staff: ["quick-booking", "staff-history", "staff-hints"]
+};
+
 const workspaces = {
   items: {
     title: "Artikel",
@@ -108,7 +166,7 @@ const workspaces = {
   },
   stock: {
     title: "Bestand",
-    roles: ["admin", "shift_lead", "staff"],
+    roles: ["admin", "shift_lead"],
     tabs: [
       { name: "live", label: "Live Bestand", load: loadStock },
       { name: "critical", label: "Kritisch", filter: "critical", load: loadStock }
@@ -135,7 +193,7 @@ const workspaces = {
   },
   withdrawals: {
     title: "Entnahmen",
-    roles: ["admin", "shift_lead", "staff"],
+    roles: ["admin", "shift_lead"],
     tabs: [{ name: "book", label: "Buchen" }]
   },
   "quick-booking": {
@@ -145,7 +203,7 @@ const workspaces = {
   },
   corrections: {
     title: "Korrekturen",
-    roles: ["admin", "shift_lead", "staff"],
+    roles: ["admin", "shift_lead"],
     tabs: [{ name: "request", label: "Beantragen" }]
   },
   "review-tasks": {
@@ -153,6 +211,16 @@ const workspaces = {
     roles: ["admin"],
     tabs: [{ name: "tasks", label: "Offen", load: loadReviewTasks }],
     load: loadReviewTasks
+  },
+  "staff-history": {
+    title: "Eigener Verlauf",
+    roles: ["staff"],
+    tabs: [{ name: "timeline", label: "Verlauf" }]
+  },
+  "staff-hints": {
+    title: "Hinweise",
+    roles: ["staff"],
+    tabs: [{ name: "tips", label: "Hinweise" }]
   }
 };
 
@@ -169,17 +237,32 @@ async function boot() {
   bindMasterDataEvents();
   bindWorkspaceShell();
   bindReasonChips();
+  bindShellControls();
+  bindConnectivityEvents();
 
   await loadAppContext();
   applyAppContext();
+  applyRoleDefaults();
+  renderRoleNavigation();
   syncDevForm();
   updateWorkspaceAccess();
+  syncShellState();
+  renderTopContextBar();
+  ensureRoleLanding();
   await refreshDashboard();
 }
 
 function cacheRefs() {
   WarenwirtschaftApp.refs = {
+    appShell: document.querySelector("#app"),
+    sidebar: document.querySelector("#sidebar"),
+    sidebarNav: document.querySelector("#sidebar-nav-list"),
+    mobileNav: document.querySelector("#mobile-nav"),
+    sidebarToggle: document.querySelector("#sidebar-toggle"),
     title: document.querySelector("#view-title"),
+    contextRole: document.querySelector("#context-role"),
+    contextLocation: document.querySelector("#context-location"),
+    contextConnection: document.querySelector("#context-connection"),
     toast: document.querySelector("#toast"),
     devPanel: document.querySelector("#dev-panel"),
     apiBase: document.querySelector("#api-base"),
@@ -201,22 +284,28 @@ function cacheRefs() {
 }
 
 function bindNavigation() {
-  document.querySelectorAll("[data-view], [data-view-link], [data-workspace]").forEach((element) => {
-    element.addEventListener("click", () => {
-      const view = element.dataset.view || element.dataset.viewLink;
-      const workspace = element.dataset.workspace;
+  document.addEventListener("click", (event) => {
+    const element = event.target.closest("[data-view], [data-view-link], [data-workspace]");
+    if (!element || element.disabled || element.getAttribute("aria-disabled") === "true") {
+      return;
+    }
 
-      if (view) {
-        showView(view);
-      }
-      if (workspace) {
-        openWorkspace(workspace, {
-          tab: element.dataset.workspaceTab,
-          filter: element.dataset.workspaceFilter,
-          trigger: element
-        });
-      }
-    });
+    const view = element.dataset.view || element.dataset.viewLink;
+    const workspace = element.dataset.workspace;
+
+    if (view) {
+      showView(view);
+      closeSidebarOnMobile();
+    }
+
+    if (workspace) {
+      openWorkspace(workspace, {
+        tab: element.dataset.workspaceTab,
+        filter: element.dataset.workspaceFilter,
+        trigger: element
+      });
+      closeSidebarOnMobile();
+    }
   });
 }
 
@@ -229,12 +318,16 @@ function bindDevForm() {
     localStorage.setItem("ww.apiBase", WarenwirtschaftApp.state.apiBase);
     localStorage.setItem("ww.actorId", WarenwirtschaftApp.state.actorId);
     localStorage.setItem("ww.actorRole", WarenwirtschaftApp.state.actorRole);
+    applyRoleDefaults();
+    renderRoleNavigation();
     updateWorkspaceAccess();
 
     if (WarenwirtschaftApp.state.activeWorkspace && !canOpenWorkspace(WarenwirtschaftApp.state.activeWorkspace)) {
       closeWorkspace();
     }
 
+    ensureRoleLanding();
+    renderTopContextBar();
     showToast("Actor-Kontext gespeichert.");
     await refreshDashboard();
   });
@@ -266,8 +359,60 @@ function bindWorkspaceShell() {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && WarenwirtschaftApp.state.activeWorkspace) {
       closeWorkspace();
+      return;
+    }
+
+    if (event.key === "Escape" && WarenwirtschaftApp.state.ui.isSidebarOpenMobile) {
+      closeSidebarOnMobile();
     }
   });
+}
+
+function bindShellControls() {
+  WarenwirtschaftApp.refs.sidebarToggle.addEventListener("click", () => {
+    if (isMobileViewport()) {
+      WarenwirtschaftApp.state.ui.isSidebarOpenMobile = !WarenwirtschaftApp.state.ui.isSidebarOpenMobile;
+    } else {
+      WarenwirtschaftApp.state.ui.isSidebarCollapsed = !WarenwirtschaftApp.state.ui.isSidebarCollapsed;
+      localStorage.setItem("ww.sidebarCollapsed", WarenwirtschaftApp.state.ui.isSidebarCollapsed ? "1" : "0");
+    }
+    syncShellState();
+  });
+
+  window.addEventListener("resize", () => {
+    if (!isMobileViewport() && WarenwirtschaftApp.state.ui.isSidebarOpenMobile) {
+      WarenwirtschaftApp.state.ui.isSidebarOpenMobile = false;
+      syncShellState();
+    }
+  });
+}
+
+function bindConnectivityEvents() {
+  window.addEventListener("online", () => updateConnectionStatus("online"));
+  window.addEventListener("offline", () => updateConnectionStatus("offline"));
+}
+
+function syncShellState() {
+  const mobileViewport = isMobileViewport();
+  WarenwirtschaftApp.refs.appShell.classList.toggle(
+    "is-sidebar-collapsed",
+    !mobileViewport && WarenwirtschaftApp.state.ui.isSidebarCollapsed
+  );
+  WarenwirtschaftApp.refs.appShell.classList.toggle("is-sidebar-open", WarenwirtschaftApp.state.ui.isSidebarOpenMobile);
+
+  const isExpanded = mobileViewport
+    ? WarenwirtschaftApp.state.ui.isSidebarOpenMobile
+    : !WarenwirtschaftApp.state.ui.isSidebarCollapsed;
+  WarenwirtschaftApp.refs.sidebarToggle.setAttribute("aria-expanded", String(isExpanded));
+}
+
+function closeSidebarOnMobile() {
+  if (!isMobileViewport() || !WarenwirtschaftApp.state.ui.isSidebarOpenMobile) {
+    return;
+  }
+
+  WarenwirtschaftApp.state.ui.isSidebarOpenMobile = false;
+  syncShellState();
 }
 
 function bindReasonChips() {
@@ -336,18 +481,134 @@ function applyAppContext() {
   }
 }
 
+function applyRoleDefaults() {
+  WarenwirtschaftApp.state.currentLocation = roleDefaultLocation[WarenwirtschaftApp.state.actorRole] || "Hauptlager";
+  localStorage.setItem("ww.currentLocation", WarenwirtschaftApp.state.currentLocation);
+}
+
 function syncDevForm() {
   WarenwirtschaftApp.refs.apiBase.value = WarenwirtschaftApp.state.apiBase;
   WarenwirtschaftApp.refs.actorId.value = WarenwirtschaftApp.state.actorId;
   WarenwirtschaftApp.refs.actorRole.value = WarenwirtschaftApp.state.actorRole;
 }
 
+function getAllowedNavigationItems() {
+  return navigationItems.filter((item) => item.roles.includes(WarenwirtschaftApp.state.actorRole));
+}
+
+function getMobileNavigationItems() {
+  const allowed = getAllowedNavigationItems();
+  const preferred = mobilePrimaryNavigationByRole[WarenwirtschaftApp.state.actorRole] || [];
+
+  return preferred
+    .map((id) => allowed.find((item) => item.id === id))
+    .filter(Boolean);
+}
+
+function navigationButtonMarkup(item) {
+  const attrs = [`class="nav-item"`, `data-nav-id="${escapeHtml(item.id)}"`];
+
+  if (item.target === "view") {
+    attrs.push(`data-view="${escapeHtml(item.view)}"`);
+  } else {
+    attrs.push(`data-workspace="${escapeHtml(item.workspace)}"`);
+    if (item.tab) {
+      attrs.push(`data-workspace-tab="${escapeHtml(item.tab)}"`);
+    }
+    if (item.filter) {
+      attrs.push(`data-workspace-filter="${escapeHtml(item.filter)}"`);
+    }
+  }
+
+  return `
+    <button type="button" ${attrs.join(" ")}>
+      <span class="nav-item-icon" aria-hidden="true">${escapeHtml(item.icon)}</span>
+      <span class="nav-item-label">${escapeHtml(item.label)}</span>
+    </button>
+  `;
+}
+
+function renderRoleNavigation() {
+  if (WarenwirtschaftApp.refs.sidebarNav) {
+    WarenwirtschaftApp.refs.sidebarNav.innerHTML = getAllowedNavigationItems().map(navigationButtonMarkup).join("");
+  }
+  if (WarenwirtschaftApp.refs.mobileNav) {
+    WarenwirtschaftApp.refs.mobileNav.innerHTML = getMobileNavigationItems().map(navigationButtonMarkup).join("");
+  }
+  updateWorkspaceNavigation();
+}
+
+function getActiveNavigationId() {
+  if (WarenwirtschaftApp.state.activeWorkspace) {
+    const activeWorkspace = normalizeWorkspaceName(WarenwirtschaftApp.state.activeWorkspace);
+    return navigationItems.find((item) => item.workspace === activeWorkspace)?.id || activeWorkspace;
+  }
+
+  const defaultViewItem = getAllowedNavigationItems().find((item) => item.target === "view" && item.view === "dashboard");
+  return defaultViewItem?.id || null;
+}
+
+function updateRoleVisibility() {
+  const role = WarenwirtschaftApp.state.actorRole;
+  document.querySelectorAll("[data-role-visibility]").forEach((element) => {
+    const roles = String(element.dataset.roleVisibility || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+    element.hidden = roles.length ? !roles.includes(role) : false;
+  });
+}
+
+function renderTopContextBar() {
+  const roleLabel = rolePresentation[WarenwirtschaftApp.state.actorRole] || WarenwirtschaftApp.state.actorRole;
+  const location = WarenwirtschaftApp.state.currentLocation || "Hauptlager";
+  const connection = connectionPresentation[WarenwirtschaftApp.state.connectionStatus] || connectionPresentation.degraded;
+
+  WarenwirtschaftApp.refs.contextRole.textContent = `Rolle: ${roleLabel}`;
+  WarenwirtschaftApp.refs.contextLocation.textContent = `Lagerort: ${location}`;
+  WarenwirtschaftApp.refs.contextConnection.textContent = `Verbindung: ${connection.label}`;
+  WarenwirtschaftApp.refs.contextConnection.classList.remove("is-ok", "is-warning", "is-danger");
+  WarenwirtschaftApp.refs.contextConnection.classList.add(`is-${connection.tone}`);
+}
+
+function updateConnectionStatus(status) {
+  if (WarenwirtschaftApp.state.connectionStatus === status) {
+    return;
+  }
+
+  WarenwirtschaftApp.state.connectionStatus = status;
+  renderTopContextBar();
+}
+
+function isMobileViewport() {
+  return window.matchMedia("(max-width: 1023px)").matches;
+}
+
+function isStaffRole() {
+  return WarenwirtschaftApp.state.actorRole === "staff";
+}
+
+function ensureRoleLanding() {
+  if (!isStaffRole()) {
+    return;
+  }
+
+  if (WarenwirtschaftApp.state.activeWorkspace) {
+    return;
+  }
+
+  openWorkspace("quick-booking");
+}
+
 function showView(viewName) {
   if (viewName === "dashboard") {
     closeWorkspace();
+    WarenwirtschaftApp.refs.title.textContent = "Übersicht";
   } else {
     openWorkspace(viewName);
   }
+
+  updateWorkspaceNavigation();
 }
 
 function openWorkspace(workspaceName, options = {}) {
@@ -372,6 +633,7 @@ function openWorkspace(workspaceName, options = {}) {
   WarenwirtschaftApp.refs.overlay.hidden = false;
   WarenwirtschaftApp.refs.overlay.setAttribute("aria-hidden", "false");
   document.body.classList.add("has-workspace-open");
+  WarenwirtschaftApp.refs.title.textContent = workspace.title;
   renderWorkspaceShell(normalizedWorkspaceName);
   updateWorkspaceNavigation();
   loadWorkspace(normalizedWorkspaceName);
@@ -396,7 +658,10 @@ function closeWorkspace() {
     element.classList.remove("is-active");
   });
   updateWorkspaceNavigation();
-  WarenwirtschaftApp.refs.title.textContent = "Übersicht";
+  WarenwirtschaftApp.refs.title.textContent = isStaffRole() ? "Schnellbuchen" : "Übersicht";
+  if (isStaffRole()) {
+    ensureRoleLanding();
+  }
 
   if (trigger && trigger.isConnected) {
     trigger.focus();
@@ -475,26 +740,35 @@ function renderWorkspaceContext(workspaceName) {
     withdrawals: "Entnahmen reduzieren den Bestand · Bestand wird vor Buchung geprüft",
     "quick-booking": "Für Touch-Bedienung optimiert · ideal für Küche/Bar",
     corrections: "Korrekturen erzeugen Prüfaufgaben und ändern Bestand nicht sofort",
-    "review-tasks": `${data.reviewTasks.length} offene Prüfaufgaben · nur Admin`
+    "review-tasks": `${data.reviewTasks.length} offene Prüfaufgaben · nur Admin`,
+    "staff-history": "Eigene Bewegungen als read-only Verlauf",
+    "staff-hints": "Hinweise für Schicht und Lagerort"
   };
   WarenwirtschaftApp.refs.workspaceContext.textContent = context[workspaceName] || "";
 }
 
 function updateWorkspaceNavigation() {
-  document.querySelectorAll(".nav-item").forEach((item) => {
-    const isDashboard = item.dataset.view === "dashboard";
-    const isActiveWorkspace = normalizeWorkspaceName(item.dataset.workspace) === WarenwirtschaftApp.state.activeWorkspace;
-    item.classList.toggle("is-active", isDashboard ? !WarenwirtschaftApp.state.activeWorkspace : isActiveWorkspace);
+  const activeId = getActiveNavigationId();
+  document.querySelectorAll("[data-nav-id]").forEach((item) => {
+    const isActive = item.dataset.navId === activeId;
+    item.classList.toggle("is-active", isActive);
+    if (isActive) {
+      item.setAttribute("aria-current", "page");
+    } else {
+      item.removeAttribute("aria-current");
+    }
   });
 }
 
 function updateWorkspaceAccess() {
+  updateRoleVisibility();
+
   document.querySelectorAll("[data-workspace]").forEach((element) => {
     const isAllowed = canOpenWorkspace(element.dataset.workspace);
     element.disabled = !isAllowed;
     element.setAttribute("aria-disabled", String(!isAllowed));
 
-    if (element.matches("[data-dashboard-card]")) {
+    if (element.matches("[data-dashboard-card], .quick-actions button, .status-strip [data-workspace]")) {
       element.hidden = !isAllowed;
     }
   });
@@ -522,27 +796,36 @@ function loadWorkspace(workspaceName) {
 
 async function apiFetch(path, options = {}) {
   const { includeActor = true, ...fetchOptions } = options;
-  const response = await fetch(`${WarenwirtschaftApp.state.apiBase}${path}`, {
-    ...fetchOptions,
-    headers: {
-      "content-type": "application/json",
-      ...(includeActor
-        ? {
-            "x-actor-id": WarenwirtschaftApp.state.actorId,
-            "x-actor-role": WarenwirtschaftApp.state.actorRole
-          }
-        : {}),
-      ...(fetchOptions.headers || {})
-    }
-  });
+  let response;
+
+  try {
+    response = await fetch(`${WarenwirtschaftApp.state.apiBase}${path}`, {
+      ...fetchOptions,
+      headers: {
+        "content-type": "application/json",
+        ...(includeActor
+          ? {
+              "x-actor-id": WarenwirtschaftApp.state.actorId,
+              "x-actor-role": WarenwirtschaftApp.state.actorRole
+            }
+          : {}),
+        ...(fetchOptions.headers || {})
+      }
+    });
+  } catch (error) {
+    updateConnectionStatus(navigator.onLine ? "degraded" : "offline");
+    throw error;
+  }
 
   const text = await response.text();
   const payload = text ? JSON.parse(text) : {};
 
   if (!response.ok) {
+    updateConnectionStatus(response.status >= 500 ? "degraded" : "online");
     throw new Error(payload.message || `HTTP ${response.status}`);
   }
 
+  updateConnectionStatus("online");
   return payload;
 }
 
