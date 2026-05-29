@@ -192,6 +192,11 @@ export type InventoryMovementRow = {
   storageLocationName?: string;
   purchaseOrderId?: string;
   goodsReceiptId?: string;
+  relatedMovementId?: string;
+  idempotencyKey?: string;
+  correlationId?: string;
+  sourceType?: string;
+  sourceId?: string;
   note?: string;
   createdAt: string;
 };

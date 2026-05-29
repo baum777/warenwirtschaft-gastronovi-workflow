@@ -65,7 +65,7 @@ export async function inventoryRoute(
   });
 
   app.get("/admin/inventory/movements", async (request, reply) => {
-    const actor = authenticate(request, reply, adminOnlyRoles);
+    const actor = authenticate(request, reply, leadRoles);
 
     if (!actor) {
       return reply;

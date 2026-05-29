@@ -81,7 +81,8 @@ describe("Warenwirtschaft web shell", () => {
       "view-goods-receipts",
       "view-withdrawals",
       "view-corrections",
-      "view-review-tasks"
+      "view-review-tasks",
+      "view-audit-trail"
     ]) {
       expect(html).toContain(id);
     }
@@ -118,6 +119,7 @@ describe("Warenwirtschaft web shell", () => {
       "quick-booking",
       "corrections",
       "review-tasks",
+      "audit-trail",
       "staff-history",
       "staff-hints"
     ]) {
@@ -205,6 +207,7 @@ describe("Warenwirtschaft web shell", () => {
     expect(app).toContain('"goods-receipts": {\n    title: "Wareneingang",\n    roles: ["admin", "shift_lead"]');
     expect(app).toContain('"purchase-orders": {\n    title: "Bestellungen",\n    roles: ["admin", "shift_lead"]');
     expect(app).toContain('"review-tasks": {\n    title: "Prüfung",\n    roles: ["admin"]');
+    expect(app).toContain('"audit-trail": {\n    title: "Audit Verlauf",\n    roles: ["admin", "shift_lead"]');
     expect(html).toContain("Fehler melden");
   });
 
@@ -418,6 +421,53 @@ describe("Warenwirtschaft web shell", () => {
     expect(styles).toContain(".review-task-drawer");
     expect(styles).toContain(".review-task-context");
     expect(styles).toContain(".review-task-action-grid");
+  });
+
+  it("renders a read-only audit timeline workspace with filters, movement details, and no-go guards", () => {
+    const html = readWebFile("index.html");
+    const app = readWebFile("app.js");
+    const styles = readWebFile("styles.css");
+
+    for (const id of [
+      "view-audit-trail",
+      "audit-filter-date-from",
+      "audit-filter-date-to",
+      "audit-filter-item",
+      "audit-filter-type",
+      "audit-filter-actor",
+      "audit-filter-location",
+      "audit-events-table",
+      "movement-timeline",
+      "audit-detail-drawer",
+      "audit-detail-grid"
+    ]) {
+      expect(html).toContain(`id="${id}"`);
+    }
+    expect(html).toContain("Movement Detail");
+    expect(html).toContain("Read-only Audit");
+
+    expect(app).toContain("loadAuditTrail");
+    expect(app).toContain("bindAuditWorkspaceEvents");
+    expect(app).toContain("AuditEventRow");
+    expect(app).toContain("MovementTimeline");
+    expect(app).toContain("renderAuditDetailIfSelected");
+    expect(app).toContain("movement_id");
+    expect(app).toContain("idempotency_key");
+    expect(app).toContain("correlation_id");
+    expect(app).toContain("source_type");
+    expect(app).toContain("source_id");
+
+    expect(styles).toContain(".audit-filter-bar");
+    expect(styles).toContain(".audit-layout");
+    expect(styles).toContain(".audit-detail-drawer");
+    expect(styles).toContain(".movement-timeline");
+
+    expect(html).not.toContain("Movement bearbeiten");
+    expect(html).not.toContain("Movement löschen");
+    expect(html).not.toContain("Bestand setzen");
+    expect(html).not.toContain("Snapshot überschreiben");
+    expect(html).not.toContain('data-command-primary">Speichern');
+    expect(app).toContain('WarenwirtschaftApp.state.actorRole !== "admin"');
   });
 
   it("provides a staff-first mobile execution mode with action cards, stepper, and stock-effect success screen", () => {

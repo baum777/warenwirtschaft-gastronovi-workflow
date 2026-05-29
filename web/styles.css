@@ -861,6 +861,103 @@ select {
   gap: 8px;
 }
 
+.audit-workspace-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.audit-filter-bar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.audit-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.9fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.audit-timeline-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.movement-timeline {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.movement-timeline li {
+  display: grid;
+  gap: 4px;
+}
+
+.movement-timeline li p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.audit-detail-drawer {
+  position: sticky;
+  top: 0;
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  padding: 12px;
+}
+
+.audit-detail-head {
+  display: flex;
+  gap: 8px;
+  align-items: start;
+  justify-content: space-between;
+}
+
+.audit-detail-head h4 {
+  margin: 0;
+}
+
+.audit-detail-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 10px;
+  margin: 0;
+}
+
+.audit-detail-grid dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.audit-detail-grid dd {
+  margin: 0;
+  font-size: 13px;
+}
+
+.audit-linked-movements {
+  display: grid;
+  gap: 8px;
+}
+
+.audit-linked-movements h5,
+.audit-linked-movements ul {
+  margin: 0;
+}
+
+.audit-linked-movements ul {
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
 .form-panel {
   align-content: start;
   display: grid;
@@ -1541,6 +1638,18 @@ th {
   .review-task-drawer {
     position: static;
   }
+
+  .audit-filter-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .audit-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .audit-detail-drawer {
+    position: static;
+  }
 }
 
 @media (max-width: 1023px) {
@@ -1574,7 +1683,8 @@ th {
   .status-strip,
   .dashboard-metric-grid,
   .workspace-card-grid,
-  .command-effect-grid {
+  .command-effect-grid,
+  .audit-filter-bar {
     grid-template-columns: 1fr;
   }
 

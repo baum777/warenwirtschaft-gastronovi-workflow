@@ -194,6 +194,51 @@ describe("inventory API routes", () => {
     }
   });
 
+  it("lets shift leads read movement audit rows", async () => {
+    const app = buildApp({
+      inventory: fakeInventoryServices()
+    });
+
+    try {
+      await app.ready();
+      const response = await app.inject({
+        method: "GET",
+        url: "/admin/inventory/movements",
+        headers: {
+          "x-actor-id": "shift-1",
+          "x-actor-role": "shift_lead"
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        movements: [
+          {
+            id: "move-1",
+            inventoryItemId: "item-1",
+            inventoryItemName: "Tomaten passiert 5kg",
+            type: "goods_received",
+            quantity: 8,
+            unit: "Stück",
+            actorUserId: "shift-1",
+            storageLocationName: "Küche",
+            goodsReceiptId: "gr-1",
+            purchaseOrderId: "po-1",
+            relatedMovementId: undefined,
+            idempotencyKey: "inventory.goods_receipt.recorded:gr-1",
+            correlationId: "gr-1",
+            sourceType: "goods_receipt",
+            sourceId: "gr-1",
+            note: "DEMO_MODE Wareneingang",
+            createdAt: "2026-05-25T20:00:00.000Z"
+          }
+        ]
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
 
   it("rejects invalid actor roles over HTTP", async () => {
     const app = buildApp({
@@ -1624,7 +1669,27 @@ function fakeInventoryServices(
         ];
       },
       async listMovements() {
-        return [];
+        return [
+          {
+            id: "move-1",
+            inventoryItemId: "item-1",
+            inventoryItemName: "Tomaten passiert 5kg",
+            type: "goods_received",
+            quantity: 8,
+            unit: "Stück",
+            actorUserId: "shift-1",
+            storageLocationName: "Küche",
+            goodsReceiptId: "gr-1",
+            purchaseOrderId: "po-1",
+            relatedMovementId: undefined,
+            idempotencyKey: "inventory.goods_receipt.recorded:gr-1",
+            correlationId: "gr-1",
+            sourceType: "goods_receipt",
+            sourceId: "gr-1",
+            note: "DEMO_MODE Wareneingang",
+            createdAt: "2026-05-25T20:00:00.000Z"
+          }
+        ];
       },
       async listOpenReviewTasks() {
         return [

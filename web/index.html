@@ -170,6 +170,10 @@
                 <strong>Prüfung</strong>
                 <span>Offene Prüfaufgaben bearbeiten</span>
               </button>
+              <button class="workspace-card" type="button" data-dashboard-card data-workspace="audit-trail">
+                <strong>Audit Verlauf</strong>
+                <span>Unveränderlicher Bewegungsverlauf mit Filter und Detail</span>
+              </button>
             </div>
           </article>
 
@@ -197,6 +201,7 @@
                 <button data-workspace="withdrawals">Entnahme erfassen</button>
                 <button data-workspace="quick-booking">Sofort buchen</button>
                 <button data-workspace="corrections">Korrektur beantragen</button>
+                <button data-workspace="audit-trail">Audit Verlauf</button>
               </div>
             </article>
             <article class="panel">
@@ -747,6 +752,78 @@
                       hidden
                     ></p>
                     <div class="review-task-actions" id="review-task-actions"></div>
+                  </aside>
+                </div>
+              </article>
+            </section>
+
+            <section
+              class="workspace-view"
+              id="view-audit-trail"
+              data-title="Audit Verlauf"
+              data-workspace="audit-trail"
+            >
+              <article class="panel audit-workspace-panel" data-workspace-tab-panel="timeline">
+                <div class="panel-head">
+                  <div>
+                    <h3>Bewegungsverlauf</h3>
+                    <p class="panel-subtitle">Read-only Audit: Movements werden angezeigt, nie bearbeitet.</p>
+                  </div>
+                  <button data-action="load-audit-trail">Laden</button>
+                </div>
+
+                <div class="audit-filter-bar" aria-label="Audit Filter">
+                  <label>
+                    Von
+                    <input id="audit-filter-date-from" type="date" />
+                  </label>
+                  <label>
+                    Bis
+                    <input id="audit-filter-date-to" type="date" />
+                  </label>
+                  <label>
+                    Artikel
+                    <select id="audit-filter-item">
+                      <option value="">Alle Artikel</option>
+                    </select>
+                  </label>
+                  <label>
+                    Typ
+                    <select id="audit-filter-type">
+                      <option value="">Alle Typen</option>
+                      <option value="goods_received">Wareneingang</option>
+                      <option value="item_removed">Entnahme</option>
+                      <option value="correction_positive">Korrektur +</option>
+                      <option value="correction_negative">Korrektur -</option>
+                    </select>
+                  </label>
+                  <label>
+                    Actor
+                    <input id="audit-filter-actor" type="search" placeholder="z. B. staff-1" />
+                  </label>
+                  <label>
+                    Lagerort
+                    <select id="audit-filter-location">
+                      <option value="">Alle Lagerorte</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div class="audit-layout">
+                  <div class="audit-timeline-panel">
+                    <div class="table-wrap" id="audit-events-table"></div>
+                    <ol class="movement-timeline" id="movement-timeline"></ol>
+                  </div>
+                  <aside class="audit-detail-drawer" id="audit-detail-drawer" hidden>
+                    <div class="audit-detail-head">
+                      <div>
+                        <p class="section-label">Movement Detail</p>
+                        <h4 id="audit-detail-title">Movement</h4>
+                      </div>
+                      <button type="button" data-action="close-audit-detail">Schliessen</button>
+                    </div>
+                    <dl class="audit-detail-grid" id="audit-detail-grid"></dl>
+                    <div class="audit-linked-movements" id="audit-linked-movements"></div>
                   </aside>
                 </div>
               </article>

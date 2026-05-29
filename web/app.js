@@ -46,6 +46,17 @@ const WarenwirtschaftApp = {
     reviewUi: {
       selectedTaskId: null
     },
+    auditUi: {
+      filters: {
+        dateFrom: "",
+        dateTo: "",
+        inventoryItemId: "",
+        type: "",
+        actorUserId: "",
+        storageLocationName: ""
+      },
+      selectedMovementId: null
+    },
     mobileUi: {
       quickBookingStep: 0,
       quickBookingSuccess: null
@@ -286,6 +297,7 @@ const navigationItems = [
   { id: "quick-booking", label: "Schnellbuchen", icon: "⚡", target: "workspace", workspace: "quick-booking", roles: ["admin", "shift_lead", "staff"] },
   { id: "corrections", label: "Korrekturen", icon: "△", target: "workspace", workspace: "corrections", roles: ["admin", "shift_lead"] },
   { id: "review-tasks", label: "Prüfung", icon: "✓", target: "workspace", workspace: "review-tasks", roles: ["admin"] },
+  { id: "audit-trail", label: "Audit", icon: "≣", target: "workspace", workspace: "audit-trail", roles: ["admin", "shift_lead"] },
   { id: "staff-history", label: "Eigener Verlauf", icon: "◷", target: "workspace", workspace: "staff-history", roles: ["staff"] },
   { id: "staff-hints", label: "Hinweise", icon: "ⓘ", target: "workspace", workspace: "staff-hints", roles: ["staff"] }
 ];
@@ -382,6 +394,12 @@ const workspaces = {
     tabs: [{ name: "tasks", label: "Offen", load: loadReviewTasks }],
     load: loadReviewTasks
   },
+  "audit-trail": {
+    title: "Audit Verlauf",
+    roles: ["admin", "shift_lead"],
+    tabs: [{ name: "timeline", label: "Timeline", load: loadAuditTrail }],
+    load: loadAuditTrail
+  },
   "staff-history": {
     title: "Eigener Verlauf",
     roles: ["staff"],
@@ -411,6 +429,7 @@ async function boot() {
   bindMobileStaffFlowEvents();
   bindStockWorkspaceEvents();
   bindReviewWorkspaceEvents();
+  bindAuditWorkspaceEvents();
   bindShellControls();
   bindConnectivityEvents();
 
@@ -485,6 +504,18 @@ function cacheRefs() {
     reviewTaskHistory: document.querySelector("#review-task-history"),
     reviewTaskStockImpact: document.querySelector("#review-task-stock-impact"),
     reviewTaskActions: document.querySelector("#review-task-actions"),
+    auditFilterDateFrom: document.querySelector("#audit-filter-date-from"),
+    auditFilterDateTo: document.querySelector("#audit-filter-date-to"),
+    auditFilterItem: document.querySelector("#audit-filter-item"),
+    auditFilterType: document.querySelector("#audit-filter-type"),
+    auditFilterActor: document.querySelector("#audit-filter-actor"),
+    auditFilterLocation: document.querySelector("#audit-filter-location"),
+    auditEventsTable: document.querySelector("#audit-events-table"),
+    movementTimeline: document.querySelector("#movement-timeline"),
+    auditDetailDrawer: document.querySelector("#audit-detail-drawer"),
+    auditDetailTitle: document.querySelector("#audit-detail-title"),
+    auditDetailGrid: document.querySelector("#audit-detail-grid"),
+    auditLinkedMovements: document.querySelector("#audit-linked-movements"),
     confirmCommandDialog: document.querySelector("#confirm-command-dialog"),
     confirmCommandTitle: document.querySelector("#confirm-command-title"),
     confirmCommandMessage: document.querySelector("#confirm-command-message")
@@ -1730,6 +1761,41 @@ function bindReviewWorkspaceEvents() {
   });
 }
 
+function bindAuditWorkspaceEvents() {
+  const refs = WarenwirtschaftApp.refs;
+  const filterInputs = [
+    refs.auditFilterDateFrom,
+    refs.auditFilterDateTo,
+    refs.auditFilterItem,
+    refs.auditFilterType,
+    refs.auditFilterActor,
+    refs.auditFilterLocation
+  ].filter(Boolean);
+
+  filterInputs.forEach((input) => {
+    const eventName = input.tagName === "SELECT" || input.type === "date" ? "change" : "input";
+    input.addEventListener(eventName, () => {
+      syncAuditFiltersFromInputs();
+      renderMovementTimeline();
+      renderAuditEventRows();
+      renderAuditDetailIfSelected();
+    });
+  });
+
+  document.addEventListener("click", (event) => {
+    const openButton = event.target.closest("[data-audit-event-open]");
+    if (openButton) {
+      openAuditDetail(openButton.dataset.auditEventOpen);
+      return;
+    }
+
+    const linkedButton = event.target.closest("[data-audit-linked-open]");
+    if (linkedButton) {
+      openAuditDetail(linkedButton.dataset.auditLinkedOpen);
+    }
+  });
+}
+
 async function loadAppContext() {
   try {
     WarenwirtschaftApp.state.appContext = await apiFetch("/app-context", {
@@ -1997,6 +2063,7 @@ function closeWorkspace() {
   const trigger = WarenwirtschaftApp.state.lastWorkspaceTrigger;
   closeStockDetail();
   closeReviewTaskDrawer();
+  closeAuditDetail();
   WarenwirtschaftApp.state.activeWorkspace = null;
   WarenwirtschaftApp.state.activeWorkspaceTab = null;
   WarenwirtschaftApp.state.activeWorkspaceFilter = null;
@@ -2098,6 +2165,7 @@ function renderWorkspaceContext(workspaceName) {
     "quick-booking": "Für Touch-Bedienung optimiert · ideal für Küche/Bar",
     corrections: "Korrekturen erzeugen Prüfaufgaben und ändern Bestand nicht sofort",
     "review-tasks": `${data.reviewTasks.length} offene Prüfaufgaben · nur Admin`,
+    "audit-trail": "Read-only MovementTimeline · keine Edit/Delete-Aktionen",
     "staff-history": "Eigene Bewegungen als read-only Verlauf",
     "staff-hints": "Hinweise für Schicht und Lagerort"
   };
@@ -2256,6 +2324,9 @@ async function runAction(action, source = null) {
     if (action === "close-review-task-drawer") {
       closeReviewTaskDrawer();
     }
+    if (action === "close-audit-detail") {
+      closeAuditDetail();
+    }
     if (action === "refresh-all") {
       await refreshDashboard();
     }
@@ -2273,6 +2344,9 @@ async function runAction(action, source = null) {
     }
     if (action === "load-review-tasks") {
       await loadReviewTasks();
+    }
+    if (action === "load-audit-trail") {
+      await loadAuditTrail();
     }
     if (action === "refresh-dashboard-metrics") {
       renderDashboardMetricCards();
@@ -2321,6 +2395,8 @@ function renderMasterDataControls() {
   fillSelect("#correction-item", data.items, "inventoryItemId", itemOptionText, "Artikel wählen");
   fillSelect("#quick-booking-item", data.items, "inventoryItemId", itemOptionText, "Artikel wählen");
   fillSelect("#quick-booking-location", data.storageLocations, "storageLocationId", "name", "Kein Lagerort");
+  fillSelect("#audit-filter-item", data.items, "inventoryItemId", itemOptionText, "Alle Artikel");
+  fillSelect("#audit-filter-location", data.storageLocations, "name", "name", "Alle Lagerorte");
   applyGoodsReceiptMode();
   syncWithdrawalDefaults("#withdrawal-form", WarenwirtschaftApp.refs.withdrawalStockHint);
   syncWithdrawalDefaults("#quick-booking-form", WarenwirtschaftApp.refs.quickBookingStockHint);
@@ -2676,6 +2752,255 @@ async function loadReviewTasks() {
   renderReviewTaskTable("#dashboard-review-table", tasks.slice(0, 5));
   updateMetricCardTones();
   renderActiveWorkspaceContext();
+}
+
+async function loadAuditTrail() {
+  await loadStockMovements();
+  markUpdated();
+  syncAuditFilterInputs();
+  renderAuditEventRows();
+  renderMovementTimeline();
+  renderAuditDetailIfSelected();
+  renderActiveWorkspaceContext();
+}
+
+function syncAuditFiltersFromInputs() {
+  const refs = WarenwirtschaftApp.refs;
+  WarenwirtschaftApp.state.auditUi.filters = {
+    dateFrom: refs.auditFilterDateFrom?.value || "",
+    dateTo: refs.auditFilterDateTo?.value || "",
+    inventoryItemId: refs.auditFilterItem?.value || "",
+    type: refs.auditFilterType?.value || "",
+    actorUserId: refs.auditFilterActor?.value?.trim() || "",
+    storageLocationName: refs.auditFilterLocation?.value || ""
+  };
+}
+
+function syncAuditFilterInputs() {
+  const filters = WarenwirtschaftApp.state.auditUi.filters;
+  if (WarenwirtschaftApp.refs.auditFilterDateFrom) {
+    WarenwirtschaftApp.refs.auditFilterDateFrom.value = filters.dateFrom;
+  }
+  if (WarenwirtschaftApp.refs.auditFilterDateTo) {
+    WarenwirtschaftApp.refs.auditFilterDateTo.value = filters.dateTo;
+  }
+  if (WarenwirtschaftApp.refs.auditFilterItem) {
+    WarenwirtschaftApp.refs.auditFilterItem.value = filters.inventoryItemId;
+  }
+  if (WarenwirtschaftApp.refs.auditFilterType) {
+    WarenwirtschaftApp.refs.auditFilterType.value = filters.type;
+  }
+  if (WarenwirtschaftApp.refs.auditFilterActor) {
+    WarenwirtschaftApp.refs.auditFilterActor.value = filters.actorUserId;
+  }
+  if (WarenwirtschaftApp.refs.auditFilterLocation) {
+    WarenwirtschaftApp.refs.auditFilterLocation.value = filters.storageLocationName;
+  }
+}
+
+function getFilteredMovementRows() {
+  const filters = WarenwirtschaftApp.state.auditUi.filters;
+  const actorSearch = filters.actorUserId.toLowerCase();
+  const dateFrom = filters.dateFrom ? new Date(`${filters.dateFrom}T00:00:00`) : null;
+  const dateTo = filters.dateTo ? new Date(`${filters.dateTo}T23:59:59.999`) : null;
+
+  return WarenwirtschaftApp.state.stockMovements.filter((movement) => {
+    const createdAt = new Date(movement.createdAt);
+    if (dateFrom && createdAt < dateFrom) {
+      return false;
+    }
+    if (dateTo && createdAt > dateTo) {
+      return false;
+    }
+    if (filters.inventoryItemId && movement.inventoryItemId !== filters.inventoryItemId) {
+      return false;
+    }
+    if (filters.type && movement.type !== filters.type) {
+      return false;
+    }
+    if (filters.storageLocationName && (movement.storageLocationName || "") !== filters.storageLocationName) {
+      return false;
+    }
+    if (actorSearch && !String(movement.actorUserId || "").toLowerCase().includes(actorSearch)) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function AuditEventRow(movement) {
+  const linked = getLinkedMovements(movement);
+  const linkedLabel = linked.length ? `${linked.length} verknüpft` : "kein Link";
+
+  return [
+    escapeHtml(formatDateTime(movement.createdAt)),
+    escapeHtml(movement.inventoryItemName || movement.inventoryItemId),
+    escapeHtml(movementTypeLabel(movement.type)),
+    escapeHtml(`${movement.quantity} ${movement.unit}`),
+    escapeHtml(movement.actorUserId),
+    escapeHtml(movement.storageLocationName || "-"),
+    escapeHtml(linkedLabel),
+    `<button type="button" data-audit-event-open="${escapeHtml(movement.id)}">Detail</button>`
+  ];
+}
+
+function renderAuditEventRows() {
+  const container = WarenwirtschaftApp.refs.auditEventsTable;
+  if (!container) {
+    return;
+  }
+
+  const rows = getFilteredMovementRows();
+  if (!rows.length) {
+    container.innerHTML = `<p class="empty-state">Keine Bewegungen für den gewählten Filter.</p>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Datum</th>
+          <th>Artikel</th>
+          <th>Typ</th>
+          <th>Menge</th>
+          <th>Actor</th>
+          <th>Lagerort</th>
+          <th>Link</th>
+          <th>Detail</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows
+          .map((movement) => `<tr>${AuditEventRow(movement).map((cell) => `<td>${cell}</td>`).join("")}</tr>`)
+          .join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function MovementTimeline(rows) {
+  return rows
+    .map((movement) => {
+      const linked = getLinkedMovements(movement);
+      const linkedHint = linked.length
+        ? ` · Verknüpft mit ${linked.map((entry) => entry.id).join(", ")}`
+        : "";
+      return `
+        <li>
+          <button type="button" data-audit-event-open="${escapeHtml(movement.id)}">
+            ${escapeHtml(formatDateTime(movement.createdAt))} · ${escapeHtml(movementTypeLabel(movement.type))} · ${escapeHtml(`${movement.quantity} ${movement.unit}`)}
+          </button>
+          <p>${escapeHtml(movement.inventoryItemName || movement.inventoryItemId)} · ${escapeHtml(movement.actorUserId)}${escapeHtml(linkedHint)}</p>
+        </li>
+      `;
+    })
+    .join("");
+}
+
+function renderMovementTimeline() {
+  const timeline = WarenwirtschaftApp.refs.movementTimeline;
+  if (!timeline) {
+    return;
+  }
+
+  const rows = getFilteredMovementRows();
+  if (!rows.length) {
+    timeline.innerHTML = `<li>Keine Timeline-Einträge verfügbar.</li>`;
+    return;
+  }
+
+  timeline.innerHTML = MovementTimeline(rows.slice(0, 30));
+}
+
+function findMovementById(movementId) {
+  return WarenwirtschaftApp.state.stockMovements.find((movement) => movement.id === movementId) || null;
+}
+
+function getLinkedMovements(movement) {
+  return WarenwirtschaftApp.state.stockMovements.filter(
+    (candidate) =>
+      candidate.id !== movement.id &&
+      (candidate.relatedMovementId === movement.id || movement.relatedMovementId === candidate.id)
+  );
+}
+
+function openAuditDetail(movementId) {
+  if (!movementId) {
+    return;
+  }
+
+  WarenwirtschaftApp.state.auditUi.selectedMovementId = movementId;
+  renderAuditDetailIfSelected();
+}
+
+function closeAuditDetail() {
+  WarenwirtschaftApp.state.auditUi.selectedMovementId = null;
+  if (WarenwirtschaftApp.refs.auditDetailDrawer) {
+    WarenwirtschaftApp.refs.auditDetailDrawer.hidden = true;
+  }
+}
+
+function renderAuditDetailIfSelected() {
+  const drawer = WarenwirtschaftApp.refs.auditDetailDrawer;
+  const movementId = WarenwirtschaftApp.state.auditUi.selectedMovementId;
+  if (!drawer || !movementId) {
+    closeAuditDetail();
+    return;
+  }
+
+  const movement = findMovementById(movementId);
+  if (!movement) {
+    closeAuditDetail();
+    return;
+  }
+
+  drawer.hidden = false;
+  if (WarenwirtschaftApp.refs.auditDetailTitle) {
+    WarenwirtschaftApp.refs.auditDetailTitle.textContent = `${movementTypeLabel(movement.type)} · ${movement.id}`;
+  }
+
+  if (WarenwirtschaftApp.refs.auditDetailGrid) {
+    WarenwirtschaftApp.refs.auditDetailGrid.innerHTML = `
+      <dt>movement_id</dt><dd>${escapeHtml(movement.id)}</dd>
+      <dt>idempotency_key</dt><dd>${escapeHtml(movement.idempotencyKey || "n/a")}</dd>
+      <dt>correlation_id</dt><dd>${escapeHtml(movement.correlationId || "n/a")}</dd>
+      <dt>source_type</dt><dd>${escapeHtml(movement.sourceType || "inventory_movement")}</dd>
+      <dt>source_id</dt><dd>${escapeHtml(movement.sourceId || movement.id)}</dd>
+      <dt>Artikel</dt><dd>${escapeHtml(movement.inventoryItemName || movement.inventoryItemId)}</dd>
+      <dt>Typ</dt><dd>${escapeHtml(movementTypeLabel(movement.type))}</dd>
+      <dt>Menge</dt><dd>${escapeHtml(`${movement.quantity} ${movement.unit}`)}</dd>
+      <dt>Actor</dt><dd>${escapeHtml(movement.actorUserId)}</dd>
+      <dt>Lagerort</dt><dd>${escapeHtml(movement.storageLocationName || "-")}</dd>
+      <dt>Zeitpunkt</dt><dd>${escapeHtml(formatDateTime(movement.createdAt))}</dd>
+      <dt>Notiz</dt><dd>${escapeHtml(movement.note || "-")}</dd>
+    `;
+  }
+
+  const linked = getLinkedMovements(movement);
+  if (WarenwirtschaftApp.refs.auditLinkedMovements) {
+    if (!linked.length) {
+      WarenwirtschaftApp.refs.auditLinkedMovements.innerHTML = `<p class="empty-state">Keine verknüpfte Gegenbewegung gefunden.</p>`;
+    } else {
+      WarenwirtschaftApp.refs.auditLinkedMovements.innerHTML = `
+        <h5>Verknüpfte Gegenbewegungen</h5>
+        <ul>
+          ${linked
+            .map(
+              (entry) => `
+                <li>
+                  <button type="button" data-audit-linked-open="${escapeHtml(entry.id)}">
+                    ${escapeHtml(entry.id)} · ${escapeHtml(movementTypeLabel(entry.type))} · ${escapeHtml(`${entry.quantity} ${entry.unit}`)}
+                  </button>
+                </li>
+              `
+            )
+            .join("")}
+        </ul>
+      `;
+    }
+  }
 }
 
 function renderReviewTaskTable(selector, tasks) {

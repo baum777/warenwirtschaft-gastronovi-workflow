@@ -41,6 +41,7 @@ type MovementReadRecord = {
   } | null;
   purchaseOrderId: string | null;
   goodsReceiptId: string | null;
+  relatedMovementId: string | null;
   note: string | null;
   createdAt: Date;
 };
@@ -163,6 +164,11 @@ export class InventoryReadService implements InventoryReadServicePort {
       storageLocationName: movement.storageLocation?.name ?? undefined,
       purchaseOrderId: movement.purchaseOrderId ?? undefined,
       goodsReceiptId: movement.goodsReceiptId ?? undefined,
+      relatedMovementId: movement.relatedMovementId ?? undefined,
+      idempotencyKey: deriveMovementIdempotencyKey(movement),
+      correlationId: deriveMovementCorrelationId(movement),
+      sourceType: deriveMovementSourceType(movement),
+      sourceId: deriveMovementSourceId(movement),
       note: movement.note ?? undefined,
       createdAt: movement.createdAt.toISOString()
     }));
@@ -215,6 +221,49 @@ function extractCorrectionRequestId(task: ReviewTaskRecord): string | undefined 
 
   const candidate = (metadata as Record<string, unknown>).correctionRequestId;
   return typeof candidate === "string" && candidate.trim() ? candidate : undefined;
+}
+
+function deriveMovementIdempotencyKey(movement: MovementReadRecord): string | undefined {
+  if (movement.goodsReceiptId) {
+    return `inventory.goods_receipt.recorded:${movement.goodsReceiptId}`;
+  }
+
+  return undefined;
+}
+
+function deriveMovementCorrelationId(movement: MovementReadRecord): string | undefined {
+  if (movement.relatedMovementId) {
+    return movement.relatedMovementId;
+  }
+  if (movement.goodsReceiptId) {
+    return movement.goodsReceiptId;
+  }
+  if (movement.purchaseOrderId) {
+    return movement.purchaseOrderId;
+  }
+
+  return undefined;
+}
+
+function deriveMovementSourceType(movement: MovementReadRecord): string {
+  if (movement.goodsReceiptId) {
+    return "goods_receipt";
+  }
+  if (movement.purchaseOrderId) {
+    return "purchase_order";
+  }
+  if (movement.type === "correction_positive" || movement.type === "correction_negative") {
+    return "correction_movement";
+  }
+  if (movement.type === "item_removed") {
+    return "withdrawal";
+  }
+
+  return "inventory_movement";
+}
+
+function deriveMovementSourceId(movement: MovementReadRecord): string {
+  return movement.goodsReceiptId || movement.purchaseOrderId || movement.id;
 }
 
 function calculateStockStatus(
