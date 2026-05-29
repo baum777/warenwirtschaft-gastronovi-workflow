@@ -101,6 +101,15 @@ describe("Warenwirtschaft web shell", () => {
     }
   });
 
+  it("exposes purchase-order actions without stock-changing item edits", () => {
+    const app = readWebFile("app.js");
+
+    expect(app).toContain("/admin/purchase-orders/${id}/mark-ordered");
+    expect(app).toContain("data-order-action");
+    expect(app).toContain("body: JSON.stringify({})");
+    expect(app).not.toContain('apiFetch(`/admin/inventory/items/${id}`');
+  });
+
   it("defines the workspace overlay shell and workspace entry points", () => {
     const html = readWebFile("index.html");
     const styles = readWebFile("styles.css");
@@ -225,6 +234,23 @@ describe("Warenwirtschaft web shell", () => {
     expect(app).toContain("renderTopContextBar");
   });
 
+  it("keeps sidebar workspace routing keys for corrections and review explicit", () => {
+    const html = readWebFile("index.html");
+    const app = readWebFile("app.js");
+
+    expect(html).toContain('data-workspace="corrections"');
+    expect(html).toContain('data-workspace="review-tasks"');
+    expect(app).toContain("if (workspace) {");
+    expect(app).toContain("return;");
+    expect(app).toContain('korrekturen: "corrections"');
+    expect(app).toContain('pruefung: "review-tasks"');
+    expect(app).toContain('prüfung: "review-tasks"');
+    expect(app).toContain('bestellungen: "purchase-orders"');
+    expect(app).toContain('wareneingang: "goods-receipts"');
+    expect(app).toContain('entnahmen: "withdrawals"');
+    expect(app).toContain('schnellbuchen: "quick-booking"');
+  });
+
   it("defines guided workspace context, critical empty states, and quick-booking reason chips", () => {
     const html = readWebFile("index.html");
     const app = readWebFile("app.js");
@@ -280,6 +306,41 @@ describe("Warenwirtschaft web shell", () => {
     expect(styles).toContain(".stock-layout");
     expect(styles).toContain(".stock-detail-drawer");
     expect(styles).toContain(".stock-movement-timeline");
+  });
+
+  it("keeps item-driven form defaults deterministic across all booking inputs", () => {
+    const app = readWebFile("app.js");
+
+    expect(app).toContain('form.elements.storageLocationId.value = item.storageLocationId || "";');
+    expect(app).toContain('form.elements.storageLocationId.value = "";');
+    expect(app).toContain('if (!itemId) {');
+    expect(app).toContain("Bestand wird nach Artikelauswahl angezeigt.");
+  });
+
+  it("validates quick-booking receipts separately from withdrawal stock limits", () => {
+    const app = readWebFile("app.js");
+
+    expect(app).toContain("#quick-booking-form [name='movementType']");
+    expect(app).toContain('form.elements.movementType?.value === "goods-receipt"');
+    expect(app).toContain("Wareneingang erhöht den Bestand.");
+  });
+
+  it("binds CSV import, export, and reset controls to admin inventory endpoints", () => {
+    const html = readWebFile("index.html");
+    const app = readWebFile("app.js");
+    const styles = readWebFile("styles.css");
+
+    expect(html).toContain('id="csv-import-file"');
+    expect(html).toContain('data-action="export-csv"');
+    expect(html).toContain('data-action="import-csv"');
+    expect(html).toContain('data-action="reset-inventory"');
+    expect(app).toContain("function exportInventoryCsv");
+    expect(app).toContain("/admin/inventory/csv");
+    expect(app).toContain("/admin/inventory/csv-import");
+    expect(app).toContain("/admin/inventory/reset");
+    expect(app).toContain("apiTextFetch");
+    expect(styles).toContain(".data-actions");
+    expect(styles).toContain(".danger-action");
   });
 
   it("defines reusable command UI primitives with lifecycle states and idempotency keys", () => {

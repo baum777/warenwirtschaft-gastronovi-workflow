@@ -65,12 +65,18 @@ export const updateInventoryItemSchema = createInventoryItemSchema.partial().ref
   }
 );
 
+export const importInventoryCsvSchema = z.object({
+  csv: z.string().min(1),
+  reset: z.boolean().optional()
+});
+
 export type CreatePurchaseOrderInput = z.infer<typeof createPurchaseOrderSchema>;
 export type CreateGoodsReceiptInput = z.infer<typeof createGoodsReceiptSchema>;
 export type CreateWithdrawalInput = z.infer<typeof createWithdrawalSchema>;
 export type CreateCorrectionRequestInput = z.infer<typeof createCorrectionRequestSchema>;
 export type CreateInventoryItemInput = z.infer<typeof createInventoryItemSchema>;
 export type UpdateInventoryItemInput = z.infer<typeof updateInventoryItemSchema>;
+export type ImportInventoryCsvInputBody = z.infer<typeof importInventoryCsvSchema>;
 
 export type PurchaseOrderDto = {
   purchaseOrderId: string;

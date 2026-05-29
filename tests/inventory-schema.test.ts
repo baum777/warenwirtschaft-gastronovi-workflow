@@ -22,6 +22,10 @@ function escapeRegExp(value: string): string {
 }
 
 describe("Inventory Prisma schema presence", () => {
+  it("generates Prisma Client for the Vercel serverless runtime", () => {
+    expect(schema).toContain('binaryTargets = ["native", "rhel-openssl-3.0.x"]');
+  });
+
   it("contains the Inventory-1 domain models", () => {
     const expectedModels = [
       "InventoryItem",

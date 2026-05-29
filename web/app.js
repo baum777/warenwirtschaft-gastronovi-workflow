@@ -88,6 +88,7 @@ const columns = {
   items: ["Name", "SKU", "Kategorie", "Einheit", "Min", "Status"],
   stock: ["Artikel", "Kategorie", "Bestand", "Einheit", "Status", "Letzte Bewegung", "Detail"],
   orders: ["ID", "Status", "Lieferant", "Positionen"],
+  orders: ["ID", "Status", "Lieferant", "Positionen", "Aktion"],
   receipts: ["ID", "Bestellung", "Empfangen von", "Positionen"],
   tasks: ["Typ", "Status", "Schwere", "Titel", "Aktion"]
 };
@@ -516,6 +517,8 @@ function cacheRefs() {
     auditDetailTitle: document.querySelector("#audit-detail-title"),
     auditDetailGrid: document.querySelector("#audit-detail-grid"),
     auditLinkedMovements: document.querySelector("#audit-linked-movements"),
+    csvImportFile: document.querySelector("#csv-import-file"),
+    csvImportReset: document.querySelector("#csv-import-reset"),
     confirmCommandDialog: document.querySelector("#confirm-command-dialog"),
     confirmCommandTitle: document.querySelector("#confirm-command-title"),
     confirmCommandMessage: document.querySelector("#confirm-command-message")
@@ -1664,6 +1667,9 @@ function bindMasterDataEvents() {
   document.querySelector("#quick-booking-item").addEventListener("change", () => {
     syncWithdrawalDefaults("#quick-booking-form", WarenwirtschaftApp.refs.quickBookingStockHint);
   });
+  document.querySelector("#quick-booking-form [name='movementType']").addEventListener("change", () => {
+    validateWithdrawalStock("#quick-booking-form", WarenwirtschaftApp.refs.quickBookingStockHint);
+  });
   document.querySelector("#quick-booking-form [name='quantity']").addEventListener("input", () => {
     validateWithdrawalStock("#quick-booking-form", WarenwirtschaftApp.refs.quickBookingStockHint);
   });
@@ -2211,7 +2217,25 @@ function canOpenWorkspace(workspaceName) {
 }
 
 function normalizeWorkspaceName(workspaceName) {
-  return workspaceName === "quick-book" ? "quick-booking" : workspaceName;
+  const aliases = {
+    "quick-book": "quick-booking",
+    quickbook: "quick-booking",
+    schnellbuchen: "quick-booking",
+    bestand: "stock",
+    bestellungen: "purchase-orders",
+    wareneingang: "goods-receipts",
+    entnahmen: "withdrawals",
+    korrekturen: "corrections",
+    pruefung: "review-tasks",
+    prüfung: "review-tasks",
+    review: "review-tasks"
+  };
+
+  const normalized = String(workspaceName || "")
+    .trim()
+    .toLowerCase();
+
+  return aliases[normalized] || normalized;
 }
 
 function loadWorkspace(workspaceName) {
@@ -2298,6 +2322,29 @@ async function apiFetch(path, options = {}) {
   return payload;
 }
 
+async function apiTextFetch(path, options = {}) {
+  const { includeActor = true, ...fetchOptions } = options;
+  const response = await fetch(`${WarenwirtschaftApp.state.apiBase}${path}`, {
+    ...fetchOptions,
+    headers: {
+      ...(includeActor
+        ? {
+            "x-actor-id": WarenwirtschaftApp.state.actorId,
+            "x-actor-role": WarenwirtschaftApp.state.actorRole
+          }
+        : {}),
+      ...(fetchOptions.headers || {})
+    }
+  });
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(text || `HTTP ${response.status}`);
+  }
+
+  return text;
+}
+
 async function refreshDashboard() {
   renderDashboardMetricCards();
 
@@ -2359,9 +2406,73 @@ async function runAction(action, source = null) {
         markCommandFormAsFilling(form);
       }
     }
+    if (action === "export-csv") {
+      await exportInventoryCsv();
+    }
+    if (action === "import-csv") {
+      await importInventoryCsv();
+    }
+    if (action === "reset-inventory") {
+      await resetInventoryData();
+    }
   } catch (error) {
     showToast(error.message, true);
   }
+}
+
+async function exportInventoryCsv() {
+  const csv = await apiTextFetch("/admin/inventory/csv");
+  const blob = new Blob([csv], {
+    type: "text/csv;charset=utf-8"
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "warenwirtschaft.csv";
+  link.click();
+  URL.revokeObjectURL(url);
+  showToast("CSV exportiert.");
+}
+
+async function importInventoryCsv() {
+  const file = WarenwirtschaftApp.refs.csvImportFile.files[0];
+
+  if (!file) {
+    showToast("CSV-Datei auswählen.", true);
+    return;
+  }
+
+  const reset = WarenwirtschaftApp.refs.csvImportReset.checked;
+
+  if (reset && !window.confirm("Alle bestehenden Warenwirtschaft-Einträge vor dem Import löschen?")) {
+    return;
+  }
+
+  const result = await apiFetch("/admin/inventory/csv-import", {
+    method: "POST",
+    body: JSON.stringify({
+      csv: await file.text(),
+      reset
+    })
+  });
+
+  WarenwirtschaftApp.refs.csvImportFile.value = "";
+  WarenwirtschaftApp.refs.csvImportReset.checked = false;
+  showToast(`CSV importiert: ${result.importedItems} Artikel.`);
+  await refreshDashboard();
+}
+
+async function resetInventoryData() {
+  if (!window.confirm("Alle Warenwirtschaft-Einträge löschen?")) {
+    return;
+  }
+
+  await apiFetch("/admin/inventory/reset", {
+    method: "POST",
+    body: JSON.stringify({})
+  });
+  showToast("Alle Einträge gelöscht.");
+  await refreshDashboard();
 }
 
 async function loadMasterData() {
@@ -2469,8 +2580,8 @@ function syncItemDefaults(itemId, formSelector) {
   if (form.elements.unit) {
     form.elements.unit.value = item.defaultUnit;
   }
-  if (form.elements.storageLocationId && item.storageLocationId) {
-    form.elements.storageLocationId.value = item.storageLocationId;
+  if (form.elements.storageLocationId) {
+    form.elements.storageLocationId.value = item.storageLocationId || "";
   }
 
   updateCommandEffectPreview(form);
@@ -2484,9 +2595,11 @@ function syncWithdrawalDefaults(formSelector, hint) {
     if (form.elements.unit) {
       form.elements.unit.value = item.defaultUnit;
     }
-    if (form.elements.storageLocationId && item.storageLocationId) {
-      form.elements.storageLocationId.value = item.storageLocationId;
+    if (form.elements.storageLocationId) {
+      form.elements.storageLocationId.value = item.storageLocationId || "";
     }
+  } else if (form.elements.storageLocationId) {
+    form.elements.storageLocationId.value = "";
   }
 
   validateWithdrawalStock(formSelector, hint);
@@ -2503,12 +2616,22 @@ function validateWithdrawalStock(formSelector, hint) {
   clearFieldError(form, "quantity");
   quantityInput.setCustomValidity("");
 
+  if (!itemId) {
+    hint.textContent = "Bestand wird nach Artikelauswahl angezeigt.";
+    return true;
+  }
+
   if (!stock) {
     hint.textContent = "Für diesen Artikel liegt noch kein Bestand vor.";
     return true;
   }
 
   hint.textContent = `Verfügbar: ${stock.currentStock} ${stock.unit}`;
+
+  if (form.elements.movementType?.value === "goods-receipt") {
+    hint.textContent = `Aktueller Bestand: ${stock.currentStock} ${stock.unit}. Wareneingang erhöht den Bestand.`;
+    return true;
+  }
 
   if (quantity > stock.currentStock) {
     const message = `Maximal verfügbar: ${stock.currentStock} ${stock.unit}.`;
@@ -2724,8 +2847,21 @@ function renderPurchaseOrders() {
     order.purchaseOrderId,
     purchaseOrderStatusBadge(order.status),
     order.supplierName || order.supplierId || "-",
-    order.items.map((item) => `${item.inventoryItemName || item.inventoryItemId}: ${item.pendingQty} ${item.unit}`).join(", ")
+    order.items.map((item) => `${item.inventoryItemName || item.inventoryItemId}: ${item.pendingQty} ${item.unit}`).join(", "),
+    purchaseOrderActions(order)
   ], emptyStates.purchaseOrders);
+}
+
+function purchaseOrderActions(order) {
+  if (order.status !== "draft") {
+    return "-";
+  }
+
+  return `
+    <span class="row-actions">
+      <button data-order-action="mark-ordered" data-order-id="${escapeHtml(order.purchaseOrderId)}">Bestellt</button>
+    </span>
+  `;
 }
 
 async function loadGoodsReceipts() {
@@ -3981,12 +4117,33 @@ function renderTable(selector, headers, rows, mapRow, emptyMessage = "Keine Eint
   container.querySelectorAll("[data-task-action]").forEach((button) => {
     button.addEventListener("click", () => submitTaskAction(button.dataset.taskId, button.dataset.taskAction));
   });
+  container.querySelectorAll("[data-order-action]").forEach((button) => {
+    button.addEventListener("click", () => submitPurchaseOrderAction(button.dataset.orderId, button.dataset.orderAction));
+  });
+}
+
+async function submitPurchaseOrderAction(id, action) {
+  try {
+    if (action !== "mark-ordered") {
+      return;
+    }
+
+    await apiFetch(`/admin/purchase-orders/${id}/mark-ordered`, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    showToast("Bestellung als bestellt markiert.");
+    await loadMasterData();
+  } catch (error) {
+    showToast(error.message, true);
+  }
 }
 
 async function submitTaskAction(id, action) {
   try {
     await apiFetch(`/admin/review-tasks/${id}/${action}`, {
-      method: "POST"
+      method: "POST",
+      body: JSON.stringify({})
     });
     showToast("Review Task aktualisiert.");
     await loadReviewTasks();

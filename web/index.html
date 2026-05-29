@@ -206,6 +206,21 @@
             </article>
             <article class="panel">
               <div class="panel-head">
+                <h3>Daten</h3>
+                <button data-action="export-csv">CSV Export</button>
+              </div>
+              <div class="data-actions">
+                <input id="csv-import-file" type="file" accept=".csv,text/csv" />
+                <label class="inline-check">
+                  <input id="csv-import-reset" type="checkbox" />
+                  Vor Import leeren
+                </label>
+                <button data-action="import-csv">CSV Import</button>
+                <button class="danger-action" data-action="reset-inventory">Alle Einträge löschen</button>
+              </div>
+            </article>
+            <article class="panel">
+              <div class="panel-head">
                 <h3>Offene Prüfungen</h3>
                 <button data-action="load-review-tasks">Laden</button>
               </div>
