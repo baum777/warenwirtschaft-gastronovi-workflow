@@ -31,6 +31,8 @@ DIRECT_URL="postgresql://..."
 - Prefer Supabase connection pooling for runtime connections.
 - Use a direct DB URL for migration workflows where Prisma requires a direct connection.
 - Before browser/runtime validation, confirm `.env` exists and contains valid Supabase values.
+- Service-role credentials are restricted to admin/migration/cron-style maintenance tasks.
+- User-facing request paths must not use service-role credentials to bypass RLS.
 
 ## Validation Gate
 

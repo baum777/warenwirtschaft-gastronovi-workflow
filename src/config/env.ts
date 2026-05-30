@@ -55,6 +55,7 @@ const rawEnvSchema = z
     GASTRONOVI_API_BASE_URL: optionalUrl,
     GASTRONOVI_API_KEY: optionalNonEmptyString,
     GASTRONOVI_TENANT_ID: optionalNonEmptyString,
+    SUPABASE_JWT_SECRET: optionalNonEmptyString,
     SYNC_DEFAULT_LOOKBACK_DAYS: integerEnv("SYNC_DEFAULT_LOOKBACK_DAYS", 1, 365, 7),
     SYNC_ENABLE_SCHEDULED_JOBS: booleanEnv("SYNC_ENABLE_SCHEDULED_JOBS", false),
     DEMO_MODE: booleanEnv("DEMO_MODE", false),
@@ -73,6 +74,7 @@ export type Env = {
   GASTRONOVI_API_BASE_URL?: string;
   GASTRONOVI_API_KEY?: string;
   GASTRONOVI_TENANT_ID?: string;
+  SUPABASE_JWT_SECRET: string;
   SYNC_DEFAULT_LOOKBACK_DAYS: number;
   SYNC_ENABLE_SCHEDULED_JOBS: boolean;
   DEMO_MODE: boolean;
@@ -99,6 +101,7 @@ export function parseEnv(input: NodeJS.ProcessEnv = process.env): Env {
   const missingRequiredValues = [
     data.DATABASE_URL ? undefined : "DATABASE_URL",
     data.DIRECT_URL ? undefined : "DIRECT_URL",
+    data.SUPABASE_JWT_SECRET ? undefined : "SUPABASE_JWT_SECRET",
     data.NODE_ENV === "production" && !hasProductionRedis ? "REDIS_URL or UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN" : undefined
   ].filter((value): value is string => Boolean(value));
 
@@ -121,6 +124,7 @@ export function parseEnv(input: NodeJS.ProcessEnv = process.env): Env {
     GASTRONOVI_API_BASE_URL: data.GASTRONOVI_API_BASE_URL,
     GASTRONOVI_API_KEY: data.GASTRONOVI_API_KEY,
     GASTRONOVI_TENANT_ID: data.GASTRONOVI_TENANT_ID,
+    SUPABASE_JWT_SECRET: data.SUPABASE_JWT_SECRET!,
     SYNC_DEFAULT_LOOKBACK_DAYS: data.SYNC_DEFAULT_LOOKBACK_DAYS,
     SYNC_ENABLE_SCHEDULED_JOBS: data.SYNC_ENABLE_SCHEDULED_JOBS,
     DEMO_MODE: data.DEMO_MODE,
@@ -139,6 +143,7 @@ export function parseEnv(input: NodeJS.ProcessEnv = process.env): Env {
     if (env.UPSTASH_REDIS_REST_TOKEN) {
       process.env.UPSTASH_REDIS_REST_TOKEN ??= env.UPSTASH_REDIS_REST_TOKEN;
     }
+    process.env.SUPABASE_JWT_SECRET ??= env.SUPABASE_JWT_SECRET;
   }
 
   return env;

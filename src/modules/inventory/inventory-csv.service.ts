@@ -107,6 +107,7 @@ export type ImportInventoryCsvInput = {
   csv: string;
   reset?: boolean;
   actorUserId: string;
+  actorOrganizationId: string;
 };
 
 export type InventoryCsvImportResult = {
@@ -210,6 +211,8 @@ export class InventoryCsvService implements InventoryCsvServicePort {
         if (row.currentStock !== 0) {
           await transaction.inventoryMovement.create({
             data: {
+              idempotencyKey: `inventory.csv_import.seeded:${item.id}`,
+              organizationId: input.actorOrganizationId,
               inventoryItemId: item.id,
               type: row.currentStock > 0 ? "correction_positive" : "correction_negative",
               quantity: Math.abs(row.currentStock),

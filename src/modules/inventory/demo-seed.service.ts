@@ -254,6 +254,8 @@ export async function ensureDemoData(db: DemoSeedDatabaseClient, now: Date): Pro
   await db.inventoryMovement.upsert({
     where: { id: "demo-movement-withdrawal-1" },
     update: {
+      idempotencyKey: "inventory.withdrawal.created:demo-movement-withdrawal-1",
+      organizationId: "demo-organization-main",
       inventoryItemId: "demo-item-tomaten",
       type: "item_removed",
       quantity: 3,
@@ -264,6 +266,8 @@ export async function ensureDemoData(db: DemoSeedDatabaseClient, now: Date): Pro
     },
     create: {
       id: "demo-movement-withdrawal-1",
+      idempotencyKey: "inventory.withdrawal.created:demo-movement-withdrawal-1",
+      organizationId: "demo-organization-main",
       inventoryItemId: "demo-item-tomaten",
       type: "item_removed",
       quantity: 3,
@@ -465,6 +469,8 @@ async function upsertReceiptItemAndMovement(
   await db.inventoryMovement.upsert({
     where: { id: input.movementId },
     update: {
+      idempotencyKey: `inventory.goods_receipt.item_recorded:${input.receiptItemId}`,
+      organizationId: "demo-organization-main",
       inventoryItemId: input.inventoryItemId,
       type: "goods_received",
       quantity: input.quantity,
@@ -477,6 +483,8 @@ async function upsertReceiptItemAndMovement(
     },
     create: {
       id: input.movementId,
+      idempotencyKey: `inventory.goods_receipt.item_recorded:${input.receiptItemId}`,
+      organizationId: "demo-organization-main",
       inventoryItemId: input.inventoryItemId,
       type: "goods_received",
       quantity: input.quantity,

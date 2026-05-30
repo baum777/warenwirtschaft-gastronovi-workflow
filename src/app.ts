@@ -48,7 +48,7 @@ import type { Env } from "./config/env.js";
 
 const localWebAppOriginPattern = /^http:\/\/(?:127\.0\.0\.1|localhost):\d+$/;
 const allowedCorsMethods = "GET,POST,PATCH,OPTIONS";
-const allowedCorsHeaders = "content-type,x-actor-id,x-actor-role";
+const allowedCorsHeaders = "content-type,authorization";
 
 type ErrorWithStatusCode = Error & {
   statusCode?: number;
@@ -58,7 +58,7 @@ export type AppOptions = {
   logger?: FastifyServerOptions["logger"];
   now?: () => Date;
   inventory?: InventoryRouteDependencies;
-  env?: Pick<Env, "NODE_ENV" | "DEMO_MODE">;
+  env?: Partial<Pick<Env, "NODE_ENV" | "DEMO_MODE" | "SUPABASE_JWT_SECRET">>;
   demoSeedService?: DemoSeedServicePort;
 };
 
@@ -80,10 +80,17 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   return app;
 }
 
-function runtimeContext(options: AppOptions): Pick<Env, "NODE_ENV" | "DEMO_MODE"> {
+function runtimeContext(
+  options: AppOptions
+): Pick<Env, "NODE_ENV" | "DEMO_MODE" | "SUPABASE_JWT_SECRET"> {
+  const nodeEnv = options.env?.NODE_ENV ?? (process.env.NODE_ENV === "production" ? "production" : "development");
   return {
-    NODE_ENV: options.env?.NODE_ENV ?? (process.env.NODE_ENV === "production" ? "production" : "development"),
-    DEMO_MODE: options.env?.DEMO_MODE ?? process.env.DEMO_MODE === "true"
+    NODE_ENV: nodeEnv,
+    DEMO_MODE: options.env?.DEMO_MODE ?? process.env.DEMO_MODE === "true",
+    SUPABASE_JWT_SECRET:
+      options.env?.SUPABASE_JWT_SECRET ??
+      process.env.SUPABASE_JWT_SECRET ??
+      (nodeEnv === "production" ? "" : "test-supabase-jwt-secret")
   };
 }
 
@@ -161,6 +168,7 @@ function registerLocalCors(app: FastifyInstance): void {
 }
 
 function buildInventoryDependencies(options: AppOptions): InventoryRouteDependencies {
+  const env = runtimeContext(options);
   const inventoryReadService = new InventoryReadService(
     prisma as unknown as InventoryReadDatabaseClient
   );
@@ -196,6 +204,10 @@ function buildInventoryDependencies(options: AppOptions): InventoryRouteDependen
     inventoryCsvService: new InventoryCsvService({
       db: prisma as unknown as InventoryCsvDatabaseClient,
       now: options.now
-    })
+    }),
+    auth: {
+      db: prisma as unknown as NonNullable<InventoryRouteDependencies["auth"]>["db"],
+      jwtSecret: env.SUPABASE_JWT_SECRET
+    }
   };
 }

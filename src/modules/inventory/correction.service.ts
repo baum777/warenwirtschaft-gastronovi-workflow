@@ -71,6 +71,8 @@ type CorrectionTransactionClient = {
   inventoryMovement: {
     create(args: {
       data: {
+        idempotencyKey: string;
+        organizationId?: string;
         inventoryItemId: string;
         type: CorrectionMovementType;
         quantity: number;
@@ -205,6 +207,8 @@ export class CorrectionService implements CorrectionServicePort {
       const movementType = correctionMovementType(correctionRequest.expectedDelta);
       const movement = await tx.inventoryMovement.create({
         data: {
+          idempotencyKey: `inventory.correction.approved:${correctionRequest.id}`,
+          organizationId: actor.organizationId,
           inventoryItemId: correctionRequest.inventoryItemId,
           type: movementType,
           quantity: Math.abs(correctionRequest.expectedDelta),

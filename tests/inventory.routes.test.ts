@@ -1,3 +1,5 @@
+import { createHmac } from "node:crypto";
+
 import { describe, expect, it } from "vitest";
 
 import { buildApp } from "../src/app.js";
@@ -11,6 +13,47 @@ import type { InventoryReadServicePort } from "../src/modules/inventory/inventor
 import type { PurchaseOrderServicePort } from "../src/modules/inventory/purchase-order.service.js";
 import type { ReviewTaskServicePort } from "../src/modules/inventory/review-task.service.js";
 import type { WithdrawalServicePort } from "../src/modules/inventory/withdrawal.service.js";
+
+const testJwtSecret = "test-supabase-jwt-secret";
+const testOrganizationId = "org-test";
+
+type TestRouteRole = "admin" | "shift_lead" | "staff" | "viewer" | "owner";
+
+function authHeaders(userId: string, role: TestRouteRole): Record<string, string> {
+  return {
+    authorization: `Bearer ${createTestToken(userId, role)}`
+  };
+}
+
+function createTestToken(userId: string, role: TestRouteRole): string {
+  const now = Math.floor(Date.now() / 1000);
+  const header = toBase64Url(
+    Buffer.from(
+      JSON.stringify({
+        alg: "HS256",
+        typ: "JWT"
+      })
+    )
+  );
+  const payload = toBase64Url(
+    Buffer.from(
+      JSON.stringify({
+        sub: userId,
+        role,
+        iat: now,
+        exp: now + 60 * 60
+      })
+    )
+  );
+  const body = `${header}.${payload}`;
+  const signature = createHmac("sha256", testJwtSecret).update(body).digest();
+
+  return `${body}.${toBase64Url(signature)}`;
+}
+
+function toBase64Url(buffer: Buffer): string {
+  return buffer.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
 
 describe("inventory API routes", () => {
   it("returns public app context and only seeds demo data when demo mode is enabled", async () => {
@@ -75,7 +118,7 @@ describe("inventory API routes", () => {
     }
   });
 
-  it("requires actor headers for protected admin routes", async () => {
+  it("requires bearer authorization for protected admin routes", async () => {
     const app = buildApp({
       inventory: fakeInventoryServices()
     });
@@ -90,7 +133,7 @@ describe("inventory API routes", () => {
       expect(response.statusCode).toBe(401);
       expect(response.json()).toEqual({
         error: "Unauthorized",
-        message: "actor headers are required"
+        message: "authorization header is required"
       });
     } finally {
       await app.close();
@@ -107,10 +150,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "POST",
         url: "/admin/purchase-orders",
-        headers: {
-          "x-actor-id": "staff-1",
-          "x-actor-role": "staff"
-        },
+        headers: authHeaders("staff-1", "staff"),
         payload: {
           items: [{ inventoryItemId: "item-1", orderedQty: 10, unit: "Stück" }]
         }
@@ -132,10 +172,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "POST",
         url: "/admin/purchase-orders",
-        headers: {
-          "x-actor-id": "shift-1",
-          "x-actor-role": "shift_lead"
-        },
+        headers: authHeaders("shift-1", "shift_lead"),
         payload: {
           items: [{ inventoryItemId: "item-1", orderedQty: 10, unit: "Stück" }]
         }
@@ -161,10 +198,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "GET",
         url: "/admin/inventory/movements",
-        headers: {
-          "x-actor-id": "staff-1",
-          "x-actor-role": "staff"
-        }
+        headers: authHeaders("staff-1", "staff")
       });
 
       expect(response.statusCode).toBe(403);
@@ -183,10 +217,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "GET",
         url: "/admin/review-tasks",
-        headers: {
-          "x-actor-id": "shift-1",
-          "x-actor-role": "shift_lead"
-        }
+        headers: authHeaders("shift-1", "shift_lead")
       });
 
       expect(response.statusCode).toBe(403);
@@ -205,10 +236,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "GET",
         url: "/admin/inventory/movements",
-        headers: {
-          "x-actor-id": "shift-1",
-          "x-actor-role": "shift_lead"
-        }
+        headers: authHeaders("shift-1", "shift_lead")
       });
 
       expect(response.statusCode).toBe(200);
@@ -240,8 +268,7 @@ describe("inventory API routes", () => {
     }
   });
 
-
-  it("rejects invalid actor roles over HTTP", async () => {
+  it("rejects authenticated users without organization membership", async () => {
     const app = buildApp({
       inventory: fakeInventoryServices()
     });
@@ -251,23 +278,20 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "GET",
         url: "/admin/inventory/stock",
-        headers: {
-          "x-actor-id": "owner-1",
-          "x-actor-role": "owner"
-        }
+        headers: authHeaders("orphan-user-1", "staff")
       });
 
       expect(response.statusCode).toBe(403);
       expect(response.json()).toEqual({
         error: "Forbidden",
-        message: "actor role is not allowed"
+        message: "actor has no organization membership"
       });
     } finally {
       await app.close();
     }
   });
 
-  it("rejects empty actor ids over HTTP", async () => {
+  it("rejects malformed bearer tokens over HTTP", async () => {
     const app = buildApp({
       inventory: fakeInventoryServices()
     });
@@ -278,8 +302,7 @@ describe("inventory API routes", () => {
         method: "POST",
         url: "/withdrawals",
         headers: {
-          "x-actor-id": "   ",
-          "x-actor-role": "staff"
+          authorization: "Bearer invalid-token"
         },
         payload: {
           inventoryItemId: "item-1",
@@ -291,7 +314,7 @@ describe("inventory API routes", () => {
       expect(response.statusCode).toBe(401);
       expect(response.json()).toEqual({
         error: "Unauthorized",
-        message: "actor headers are required"
+        message: "authorization token is malformed"
       });
     } finally {
       await app.close();
@@ -309,10 +332,7 @@ describe("inventory API routes", () => {
         const response = await app.inject({
           method: "GET",
           url: "/inventory/master-data",
-          headers: {
-            "x-actor-id": `${role}-1`,
-            "x-actor-role": role
-          }
+          headers: authHeaders(`${role}-1`, role)
         });
 
         expect(response.statusCode).toBe(200);
@@ -333,10 +353,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "GET",
         url: "/admin/inventory/stock",
-        headers: {
-          "x-actor-id": "staff-1",
-          "x-actor-role": "staff"
-        }
+        headers: authHeaders("staff-1", "staff")
       });
 
       expect(response.statusCode).toBe(200);
@@ -370,10 +387,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "POST",
         url: "/admin/purchase-orders",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        },
+        headers: authHeaders("admin-1", "admin"),
         payload: {
           items: [{ inventoryItemId: "item-1", orderedQty: 10, unit: "Stück" }]
         }
@@ -399,10 +413,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "POST",
         url: "/admin/purchase-orders",
-        headers: {
-          "x-actor-id": "shift-1",
-          "x-actor-role": "shift_lead"
-        },
+        headers: authHeaders("shift-1", "shift_lead"),
         payload: {
           items: [{ inventoryItemId: "item-1", orderedQty: 10, unit: "Stück" }]
         }
@@ -448,10 +459,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "POST",
         url: "/admin/inventory/items",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        },
+        headers: authHeaders("admin-1", "admin"),
         payload: {
           name: "Tomaten passiert 5kg",
           sku: "TOM-5",
@@ -490,10 +498,7 @@ describe("inventory API routes", () => {
         const response = await app.inject({
           method: "POST",
           url: "/admin/inventory/items",
-          headers: {
-            "x-actor-id": `${role}-1`,
-            "x-actor-role": role
-          },
+          headers: authHeaders(`${role}-1`, role),
           payload: {
             name: "Tomaten passiert 5kg",
             defaultUnit: "Stück"
@@ -517,18 +522,12 @@ describe("inventory API routes", () => {
       const listResponse = await app.inject({
         method: "GET",
         url: "/admin/inventory/items",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        }
+        headers: authHeaders("admin-1", "admin")
       });
       const detailResponse = await app.inject({
         method: "GET",
         url: "/admin/inventory/items/item-1",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        }
+        headers: authHeaders("admin-1", "admin")
       });
 
       expect(listResponse.statusCode).toBe(200);
@@ -552,10 +551,7 @@ describe("inventory API routes", () => {
       const updateResponse = await app.inject({
         method: "PATCH",
         url: "/admin/inventory/items/item-1",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        },
+        headers: authHeaders("admin-1", "admin"),
         payload: {
           name: "Tomaten passiert 6kg",
           minStock: 6
@@ -564,10 +560,7 @@ describe("inventory API routes", () => {
       const deactivateResponse = await app.inject({
         method: "POST",
         url: "/admin/inventory/items/item-1/deactivate",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        }
+        headers: authHeaders("admin-1", "admin")
       });
 
       expect(updateResponse.statusCode).toBe(200);
@@ -596,10 +589,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "POST",
         url: "/admin/purchase-orders/po-1/mark-ordered",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        }
+        headers: authHeaders("admin-1", "admin")
       });
 
       expect(response.statusCode).toBe(200);
@@ -642,10 +632,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "POST",
         url: "/admin/purchase-orders/po-1/cancel",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        }
+        headers: authHeaders("admin-1", "admin")
       });
 
       expect(response.statusCode).toBe(200);
@@ -674,18 +661,12 @@ describe("inventory API routes", () => {
       const listResponse = await app.inject({
         method: "GET",
         url: "/admin/purchase-orders",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        }
+        headers: authHeaders("admin-1", "admin")
       });
       const detailResponse = await app.inject({
         method: "GET",
         url: "/admin/purchase-orders/po-1",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        }
+        headers: authHeaders("admin-1", "admin")
       });
 
       expect(listResponse.statusCode).toBe(200);
@@ -709,18 +690,12 @@ describe("inventory API routes", () => {
       const listResponse = await app.inject({
         method: "GET",
         url: "/admin/purchase-orders",
-        headers: {
-          "x-actor-id": "shift-1",
-          "x-actor-role": "shift_lead"
-        }
+        headers: authHeaders("shift-1", "shift_lead")
       });
       const detailResponse = await app.inject({
         method: "GET",
         url: "/admin/purchase-orders/po-1",
-        headers: {
-          "x-actor-id": "shift-1",
-          "x-actor-role": "shift_lead"
-        }
+        headers: authHeaders("shift-1", "shift_lead")
       });
 
       expect(listResponse.statusCode).toBe(200);
@@ -744,18 +719,12 @@ describe("inventory API routes", () => {
       const listResponse = await app.inject({
         method: "GET",
         url: "/admin/purchase-orders",
-        headers: {
-          "x-actor-id": "staff-1",
-          "x-actor-role": "staff"
-        }
+        headers: authHeaders("staff-1", "staff")
       });
       const detailResponse = await app.inject({
         method: "GET",
         url: "/admin/purchase-orders/po-1",
-        headers: {
-          "x-actor-id": "staff-1",
-          "x-actor-role": "staff"
-        }
+        headers: authHeaders("staff-1", "staff")
       });
 
       expect(listResponse.statusCode).toBe(403);
@@ -792,10 +761,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "POST",
         url: "/goods-receipts",
-        headers: {
-          "x-actor-id": "shift-1",
-          "x-actor-role": "shift_lead"
-        },
+        headers: authHeaders("shift-1", "shift_lead"),
         payload: {
           items: [{ inventoryItemId: "item-1", quantity: 8, unit: "Stück" }]
         }
@@ -811,10 +777,11 @@ describe("inventory API routes", () => {
           input: {
             items: [{ inventoryItemId: "item-1", quantity: 8, unit: "Stück" }]
           },
-          actor: {
+          actor: expect.objectContaining({
             userId: "shift-1",
-            role: "shift_lead"
-          }
+            role: "shift_lead",
+            organizationId: testOrganizationId
+          })
         }
       ]);
     } finally {
@@ -832,10 +799,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "POST",
         url: "/goods-receipts",
-        headers: {
-          "x-actor-id": "staff-1",
-          "x-actor-role": "staff"
-        },
+        headers: authHeaders("staff-1", "staff"),
         payload: {
           items: [{ inventoryItemId: "item-1", quantity: 8, unit: "Stück" }]
         }
@@ -857,18 +821,12 @@ describe("inventory API routes", () => {
       const listResponse = await app.inject({
         method: "GET",
         url: "/goods-receipts",
-        headers: {
-          "x-actor-id": "shift-1",
-          "x-actor-role": "shift_lead"
-        }
+        headers: authHeaders("shift-1", "shift_lead")
       });
       const detailResponse = await app.inject({
         method: "GET",
         url: "/goods-receipts/gr-1",
-        headers: {
-          "x-actor-id": "shift-1",
-          "x-actor-role": "shift_lead"
-        }
+        headers: authHeaders("shift-1", "shift_lead")
       });
 
       expect(listResponse.statusCode).toBe(200);
@@ -892,10 +850,7 @@ describe("inventory API routes", () => {
       const createResponse = await app.inject({
         method: "POST",
         url: "/goods-receipts",
-        headers: {
-          "x-actor-id": "staff-1",
-          "x-actor-role": "staff"
-        },
+        headers: authHeaders("staff-1", "staff"),
         payload: {
           items: [{ inventoryItemId: "item-1", quantity: 8, unit: "Stück" }]
         }
@@ -903,18 +858,12 @@ describe("inventory API routes", () => {
       const listResponse = await app.inject({
         method: "GET",
         url: "/goods-receipts",
-        headers: {
-          "x-actor-id": "staff-1",
-          "x-actor-role": "staff"
-        }
+        headers: authHeaders("staff-1", "staff")
       });
       const detailResponse = await app.inject({
         method: "GET",
         url: "/goods-receipts/gr-1",
-        headers: {
-          "x-actor-id": "staff-1",
-          "x-actor-role": "staff"
-        }
+        headers: authHeaders("staff-1", "staff")
       });
 
       expect(createResponse.statusCode).toBe(403);
@@ -947,10 +896,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "POST",
         url: "/withdrawals",
-        headers: {
-          "x-actor-id": "staff-1",
-          "x-actor-role": "staff"
-        },
+        headers: authHeaders("staff-1", "staff"),
         payload: {
           inventoryItemId: "item-1",
           quantity: 2,
@@ -973,10 +919,11 @@ describe("inventory API routes", () => {
             unit: "Stück",
             note: "prep usage"
           },
-          actor: {
+          actor: expect.objectContaining({
             userId: "staff-1",
-            role: "staff"
-          }
+            role: "staff",
+            organizationId: testOrganizationId
+          })
         }
       ]);
     } finally {
@@ -995,10 +942,7 @@ describe("inventory API routes", () => {
         const response = await app.inject({
           method: "POST",
           url: "/withdrawals",
-          headers: {
-            "x-actor-id": `${role}-1`,
-            "x-actor-role": role
-          },
+          headers: authHeaders(`${role}-1`, role),
           payload: {
             inventoryItemId: "item-1",
             quantity: 2,
@@ -1047,10 +991,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "POST",
         url: "/correction-requests",
-        headers: {
-          "x-actor-id": "staff-1",
-          "x-actor-role": "staff"
-        },
+        headers: authHeaders("staff-1", "staff"),
         payload: {
           inventoryItemId: "item-1",
           expectedDelta: -2,
@@ -1073,10 +1014,11 @@ describe("inventory API routes", () => {
             unit: "Stück",
             reason: "count mismatch"
           },
-          actor: {
+          actor: expect.objectContaining({
             userId: "staff-1",
-            role: "staff"
-          }
+            role: "staff",
+            organizationId: testOrganizationId
+          })
         }
       ]);
     } finally {
@@ -1095,10 +1037,7 @@ describe("inventory API routes", () => {
         const response = await app.inject({
           method: "POST",
           url: "/correction-requests",
-          headers: {
-            "x-actor-id": `${role}-1`,
-            "x-actor-role": role
-          },
+          headers: authHeaders(`${role}-1`, role),
           payload: {
             inventoryItemId: "item-1",
             expectedDelta: -2,
@@ -1148,10 +1087,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "POST",
         url: "/admin/correction-requests/correction-1/approve",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        }
+        headers: authHeaders("admin-1", "admin")
       });
 
       expect(response.statusCode).toBe(200);
@@ -1164,10 +1100,11 @@ describe("inventory API routes", () => {
       expect(calls).toEqual([
         {
           id: "correction-1",
-          actor: {
+          actor: expect.objectContaining({
             userId: "admin-1",
-            role: "admin"
-          }
+            role: "admin",
+            organizationId: testOrganizationId
+          })
         }
       ]);
     } finally {
@@ -1204,10 +1141,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "POST",
         url: "/admin/correction-requests/correction-1/approve",
-        headers: {
-          "x-actor-id": "shift-1",
-          "x-actor-role": "shift_lead"
-        }
+        headers: authHeaders("shift-1", "shift_lead")
       });
 
       expect(response.statusCode).toBe(403);
@@ -1244,10 +1178,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "POST",
         url: "/admin/correction-requests/correction-1/reject",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        }
+        headers: authHeaders("admin-1", "admin")
       });
 
       expect(response.statusCode).toBe(200);
@@ -1258,10 +1189,11 @@ describe("inventory API routes", () => {
       expect(calls).toEqual([
         {
           id: "correction-1",
-          actor: {
+          actor: expect.objectContaining({
             userId: "admin-1",
-            role: "admin"
-          }
+            role: "admin",
+            organizationId: testOrganizationId
+          })
         }
       ]);
     } finally {
@@ -1297,10 +1229,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "POST",
         url: "/admin/review-tasks/task-1/start-review",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        }
+        headers: authHeaders("admin-1", "admin")
       });
 
       expect(response.statusCode).toBe(200);
@@ -1311,10 +1240,11 @@ describe("inventory API routes", () => {
       expect(calls).toEqual([
         {
           id: "task-1",
-          actor: {
+          actor: expect.objectContaining({
             userId: "admin-1",
-            role: "admin"
-          }
+            role: "admin",
+            organizationId: testOrganizationId
+          })
         }
       ]);
     } finally {
@@ -1348,10 +1278,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "POST",
         url: "/admin/review-tasks/task-1/resolve",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        }
+        headers: authHeaders("admin-1", "admin")
       });
 
       expect(response.statusCode).toBe(200);
@@ -1391,10 +1318,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "POST",
         url: "/admin/review-tasks/task-1/dismiss",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        }
+        headers: authHeaders("admin-1", "admin")
       });
 
       expect(response.statusCode).toBe(200);
@@ -1419,34 +1343,22 @@ describe("inventory API routes", () => {
         const readResponse = await app.inject({
           method: "GET",
           url: "/admin/review-tasks",
-          headers: {
-            "x-actor-id": `${role}-1`,
-            "x-actor-role": role
-          }
+          headers: authHeaders(`${role}-1`, role)
         });
         const startResponse = await app.inject({
           method: "POST",
           url: "/admin/review-tasks/task-1/start-review",
-          headers: {
-            "x-actor-id": `${role}-1`,
-            "x-actor-role": role
-          }
+          headers: authHeaders(`${role}-1`, role)
         });
         const resolveResponse = await app.inject({
           method: "POST",
           url: "/admin/review-tasks/task-1/resolve",
-          headers: {
-            "x-actor-id": `${role}-1`,
-            "x-actor-role": role
-          }
+          headers: authHeaders(`${role}-1`, role)
         });
         const dismissResponse = await app.inject({
           method: "POST",
           url: "/admin/review-tasks/task-1/dismiss",
-          headers: {
-            "x-actor-id": `${role}-1`,
-            "x-actor-role": role
-          }
+          headers: authHeaders(`${role}-1`, role)
         });
 
         expect(readResponse.statusCode).toBe(403);
@@ -1469,18 +1381,12 @@ describe("inventory API routes", () => {
       const stockResponse = await app.inject({
         method: "GET",
         url: "/admin/inventory/stock",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        }
+        headers: authHeaders("admin-1", "admin")
       });
       const reviewResponse = await app.inject({
         method: "GET",
         url: "/admin/review-tasks",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        }
+        headers: authHeaders("admin-1", "admin")
       });
 
       expect(stockResponse.statusCode).toBe(200);
@@ -1520,7 +1426,7 @@ describe("inventory API routes", () => {
   });
 
   it("lets admins export, import, and reset inventory CSV data", async () => {
-    const calls: Array<{ csv: string; reset?: boolean; actorUserId: string } | "reset"> = [];
+    const calls: Array<{ csv: string; reset?: boolean; actorUserId: string; actorOrganizationId: string } | "reset"> = [];
     const app = buildApp({
       inventory: fakeInventoryServices({
         inventoryCsvService: {
@@ -1564,18 +1470,12 @@ describe("inventory API routes", () => {
       const exportResponse = await app.inject({
         method: "GET",
         url: "/admin/inventory/csv",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        }
+        headers: authHeaders("admin-1", "admin")
       });
       const importResponse = await app.inject({
         method: "POST",
         url: "/admin/inventory/csv-import",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        },
+        headers: authHeaders("admin-1", "admin"),
         payload: {
           csv: "name,sku,category,defaultUnit,minStock,storageLocationName,currentStock\nTomaten,TOM,food,kg,1,Kueche,3",
           reset: true
@@ -1584,10 +1484,7 @@ describe("inventory API routes", () => {
       const resetResponse = await app.inject({
         method: "POST",
         url: "/admin/inventory/reset",
-        headers: {
-          "x-actor-id": "admin-1",
-          "x-actor-role": "admin"
-        },
+        headers: authHeaders("admin-1", "admin"),
         payload: {}
       });
 
@@ -1609,7 +1506,8 @@ describe("inventory API routes", () => {
         {
           csv: "name,sku,category,defaultUnit,minStock,storageLocationName,currentStock\nTomaten,TOM,food,kg,1,Kueche,3",
           reset: true,
-          actorUserId: "admin-1"
+          actorUserId: "admin-1",
+          actorOrganizationId: testOrganizationId
         },
         "reset"
       ]);
@@ -1630,10 +1528,7 @@ describe("inventory API routes", () => {
         const response = await app.inject({
           method: route === "/admin/inventory/csv" ? "GET" : "POST",
           url: route,
-          headers: {
-            "x-actor-id": "staff-1",
-            "x-actor-role": "staff"
-          },
+          headers: authHeaders("staff-1", "staff"),
           payload: route === "/admin/inventory/csv-import" ? { csv: "name" } : {}
         });
 
@@ -1654,10 +1549,7 @@ describe("inventory API routes", () => {
       const response = await app.inject({
         method: "GET",
         url: "/inventory/master-data",
-        headers: {
-          "x-actor-id": "staff-1",
-          "x-actor-role": "staff"
-        }
+        headers: authHeaders("staff-1", "staff")
       });
 
       expect(response.statusCode).toBe(200);
@@ -1860,8 +1752,49 @@ function fakeInventoryServices(
           }
         ];
       }
+    },
+    auth: {
+      jwtSecret: testJwtSecret,
+      db: {
+        organizationMember: {
+          async findMany(args: { where: { userId: string } }) {
+            const role = organizationRoleForUser(args.where.userId);
+            if (!role) {
+              return [];
+            }
+
+            return [
+              {
+                organizationId: testOrganizationId,
+                role,
+                createdAt: new Date("2026-05-30T10:00:00.000Z")
+              }
+            ];
+          }
+        }
+      }
     }
   };
+}
+
+function organizationRoleForUser(userId: string): "owner" | "admin" | "manager" | "staff" | "viewer" | null {
+  if (userId.startsWith("owner-")) {
+    return "owner";
+  }
+  if (userId.startsWith("admin-")) {
+    return "admin";
+  }
+  if (userId.startsWith("shift-") || userId.startsWith("shift_lead-")) {
+    return "manager";
+  }
+  if (userId.startsWith("staff-")) {
+    return "staff";
+  }
+  if (userId.startsWith("viewer-")) {
+    return "viewer";
+  }
+
+  return null;
 }
 
 function expectedInventoryItemReadModel() {

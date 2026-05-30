@@ -15,14 +15,14 @@ describe("CORS preflight", () => {
         headers: {
           origin: "http://127.0.0.1:4173",
           "access-control-request-method": "GET",
-          "access-control-request-headers": "content-type,x-actor-id,x-actor-role"
+          "access-control-request-headers": "content-type,authorization"
         }
       });
 
       expect(response.statusCode).toBe(204);
       expect(response.headers["access-control-allow-origin"]).toBe("http://127.0.0.1:4173");
       expect(response.headers["access-control-allow-methods"]).toContain("GET");
-      expect(response.headers["access-control-allow-headers"]).toContain("x-actor-id");
+      expect(response.headers["access-control-allow-headers"]).toContain("authorization");
       expect(response.body).toBe("");
     } finally {
       await app.close();

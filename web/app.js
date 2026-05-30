@@ -3,6 +3,7 @@ const WarenwirtschaftApp = {
     apiBase: localStorage.getItem("ww.apiBase") || defaultApiBase(),
     actorId: localStorage.getItem("ww.actorId") || "demo-admin",
     actorRole: localStorage.getItem("ww.actorRole") || "admin",
+    authToken: localStorage.getItem("ww.authToken") || "",
     currentLocation: localStorage.getItem("ww.currentLocation") || "Hauptlager",
     connectionStatus: navigator.onLine ? "online" : "offline",
     ui: {
@@ -2537,12 +2538,7 @@ async function apiFetch(path, options = {}) {
       signal: requestSignal,
       headers: {
         "content-type": "application/json",
-        ...(includeActor
-          ? {
-              "x-actor-id": WarenwirtschaftApp.state.actorId,
-              "x-actor-role": WarenwirtschaftApp.state.actorRole
-            }
-          : {}),
+        ...(includeActor ? actorAuthorizationHeader() : {}),
         ...(fetchOptions.headers || {})
       }
     });
@@ -2591,12 +2587,7 @@ async function apiTextFetch(path, options = {}) {
   const response = await fetch(`${WarenwirtschaftApp.state.apiBase}${path}`, {
     ...fetchOptions,
     headers: {
-      ...(includeActor
-        ? {
-            "x-actor-id": WarenwirtschaftApp.state.actorId,
-            "x-actor-role": WarenwirtschaftApp.state.actorRole
-          }
-        : {}),
+      ...(includeActor ? actorAuthorizationHeader() : {}),
       ...(fetchOptions.headers || {})
     }
   });
@@ -2607,6 +2598,17 @@ async function apiTextFetch(path, options = {}) {
   }
 
   return text;
+}
+
+function actorAuthorizationHeader() {
+  const token = WarenwirtschaftApp.state.authToken?.trim();
+  if (!token) {
+    return {};
+  }
+
+  return {
+    "authorization": `Bearer ${token}`
+  };
 }
 
 async function refreshDashboard() {

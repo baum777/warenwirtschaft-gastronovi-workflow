@@ -93,6 +93,8 @@ type ReceiptTransactionClient = {
   inventoryMovement: {
     create(args: {
       data: {
+        idempotencyKey: string;
+        organizationId?: string;
         inventoryItemId: string;
         type: "goods_received";
         quantity: number;
@@ -240,7 +242,7 @@ export class GoodsReceiptService implements GoodsReceiptServicePort {
 
         receivedItemNames.push(inventoryItem.name);
 
-        await tx.goodsReceiptItem.create({
+        const receiptItem = await tx.goodsReceiptItem.create({
           data: {
             goodsReceiptId: receipt.id,
             inventoryItemId: item.inventoryItemId,
@@ -253,6 +255,8 @@ export class GoodsReceiptService implements GoodsReceiptServicePort {
 
         const movement = await tx.inventoryMovement.create({
           data: {
+            idempotencyKey: `inventory.goods_receipt.item_recorded:${receiptItem.id}`,
+            organizationId: actor.organizationId,
             inventoryItemId: item.inventoryItemId,
             type: "goods_received",
             quantity: item.quantity,

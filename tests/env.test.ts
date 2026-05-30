@@ -15,6 +15,7 @@ const exampleEnv = {
   GASTRONOVI_API_BASE_URL: "",
   GASTRONOVI_API_KEY: "",
   GASTRONOVI_TENANT_ID: "",
+  SUPABASE_JWT_SECRET: "replace_me",
   SYNC_DEFAULT_LOOKBACK_DAYS: "7",
   SYNC_ENABLE_SCHEDULED_JOBS: "false",
   LOG_LEVEL: "info"
@@ -35,6 +36,7 @@ describe("parseEnv", () => {
       GASTRONOVI_API_BASE_URL: undefined,
       GASTRONOVI_API_KEY: undefined,
       GASTRONOVI_TENANT_ID: undefined,
+      SUPABASE_JWT_SECRET: "replace_me",
       SYNC_DEFAULT_LOOKBACK_DAYS: 7,
       SYNC_ENABLE_SCHEDULED_JOBS: false,
       LOG_LEVEL: "info",
@@ -80,6 +82,15 @@ describe("parseEnv", () => {
     ).toThrow(/DATABASE_URL.*DIRECT_URL.*REDIS_URL/);
   });
 
+  it("requires the supabase jwt secret", () => {
+    expect(() =>
+      parseEnv({
+        ...exampleEnv,
+        SUPABASE_JWT_SECRET: ""
+      })
+    ).toThrow(/SUPABASE_JWT_SECRET/);
+  });
+
   it("accepts Upstash REST credentials as production redis configuration", () => {
     expect(
       parseEnv({
@@ -112,11 +123,13 @@ describe("parseEnv", () => {
     const previousDatabaseUrl = process.env.DATABASE_URL;
     const previousDirectUrl = process.env.DIRECT_URL;
     const previousRedisUrl = process.env.REDIS_URL;
+    const previousSupabaseJwtSecret = process.env.SUPABASE_JWT_SECRET;
 
     try {
       process.env.NODE_ENV = "development";
       process.env.DATABASE_URL = exampleEnv.DATABASE_URL;
       process.env.DIRECT_URL = exampleEnv.DIRECT_URL;
+      process.env.SUPABASE_JWT_SECRET = exampleEnv.SUPABASE_JWT_SECRET;
       delete process.env.REDIS_URL;
 
       const env = parseEnv();
@@ -124,6 +137,7 @@ describe("parseEnv", () => {
       expect(process.env.DATABASE_URL).toBe(env.DATABASE_URL);
       expect(process.env.DIRECT_URL).toBe(env.DIRECT_URL);
       expect(process.env.REDIS_URL).toBe(env.REDIS_URL);
+      expect(process.env.SUPABASE_JWT_SECRET).toBe(env.SUPABASE_JWT_SECRET);
     } finally {
       process.env.NODE_ENV = previousNodeEnv;
       if (previousDatabaseUrl === undefined) {
@@ -142,6 +156,12 @@ describe("parseEnv", () => {
         delete process.env.REDIS_URL;
       } else {
         process.env.REDIS_URL = previousRedisUrl;
+      }
+
+      if (previousSupabaseJwtSecret === undefined) {
+        delete process.env.SUPABASE_JWT_SECRET;
+      } else {
+        process.env.SUPABASE_JWT_SECRET = previousSupabaseJwtSecret;
       }
     }
   });

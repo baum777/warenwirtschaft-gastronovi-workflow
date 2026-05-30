@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import type { Actor } from "../auth/actor.js";
 import { InventoryNotFoundError } from "./errors.js";
 import type { InventoryMovementRecord } from "./inventory-movement.types.js";
@@ -26,6 +27,8 @@ type WithdrawalTransactionClient = {
   inventoryMovement: {
     create(args: {
       data: {
+        idempotencyKey: string;
+        organizationId?: string;
         inventoryItemId: string;
         type: "item_removed";
         quantity: number;
@@ -35,6 +38,14 @@ type WithdrawalTransactionClient = {
         note?: string;
       };
     }): Promise<{ id: string }>;
+    findFirst?(args: {
+      where: {
+        idempotencyKey: string;
+      };
+      select: {
+        id: true;
+      };
+    }): Promise<{ id: string } | null>;
     findMany(args: unknown): Promise<InventoryMovementRecord[]>;
   };
   inventoryStockSnapshot: {
@@ -71,6 +82,10 @@ export class WithdrawalService implements WithdrawalServicePort {
   ) {}
 
   public async create(input: CreateWithdrawalInput, actor: Actor): Promise<WithdrawalDto> {
+    const idempotencyKey =
+      input.idempotencyKey?.trim() ||
+      `inventory.withdrawal.created:${actor.userId}:${Date.now()}:${Math.random().toString(16).slice(2)}`;
+
     return this.options.db.$transaction(async (transaction) => {
       const tx = transaction as WithdrawalTransactionClient;
       const inventoryItem = await tx.inventoryItem.findUnique({
@@ -88,17 +103,41 @@ export class WithdrawalService implements WithdrawalServicePort {
         throw new InventoryNotFoundError("inventory item not found");
       }
 
-      const movement = await tx.inventoryMovement.create({
-        data: {
-          inventoryItemId: input.inventoryItemId,
-          type: "item_removed",
-          quantity: input.quantity,
-          unit: input.unit,
-          actorUserId: actor.userId,
-          storageLocationId: input.storageLocationId,
-          note: input.note
+      let movementId: string;
+      try {
+        const movement = await tx.inventoryMovement.create({
+          data: {
+            idempotencyKey,
+            organizationId: actor.organizationId,
+            inventoryItemId: input.inventoryItemId,
+            type: "item_removed",
+            quantity: input.quantity,
+            unit: input.unit,
+            actorUserId: actor.userId,
+            storageLocationId: input.storageLocationId,
+            note: input.note
+          }
+        });
+        movementId = movement.id;
+      } catch (error) {
+        if (
+          input.idempotencyKey &&
+          isUniqueConstraintError(error) &&
+          tx.inventoryMovement.findFirst
+        ) {
+          const existing = await tx.inventoryMovement.findFirst({
+            where: { idempotencyKey: input.idempotencyKey },
+            select: { id: true }
+          });
+          if (!existing) {
+            throw error;
+          }
+          movementId = existing.id;
+        } else {
+          throw error;
         }
-      });
+      }
+
       const stockService = new InventoryStockService({
         db: tx,
         now: this.options.now
@@ -125,10 +164,19 @@ export class WithdrawalService implements WithdrawalServicePort {
       }
 
       return {
-        movementId: movement.id,
+        movementId,
         stockAfter,
         reviewTaskIds
       };
     });
   }
+}
+
+function isUniqueConstraintError(error: unknown): error is Prisma.PrismaClientKnownRequestError {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "P2002"
+  );
 }

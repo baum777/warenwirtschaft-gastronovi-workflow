@@ -17,11 +17,11 @@ describe("Warenwirtschaft web shell", () => {
     expect(readWebFile("app.js")).toContain("WarenwirtschaftApp");
   });
 
-  it("sends actor headers with API requests", () => {
+  it("sends bearer authorization with API requests", () => {
     const app = readWebFile("app.js");
 
-    expect(app).toContain('"x-actor-id"');
-    expect(app).toContain('"x-actor-role"');
+    expect(app).toContain('"authorization"');
+    expect(app).toContain("Bearer");
     expect(app).toContain("apiFetch");
   });
 

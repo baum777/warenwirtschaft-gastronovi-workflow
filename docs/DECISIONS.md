@@ -74,6 +74,56 @@ Status: accepted
 
 Role-based workspace UX must build on the current DB-backed inventory services and migrations. Separate in-memory movement routes or replacement static UI shells are not canonical once the database-backed Warenwirtschaft slice exists. Future role and workspace changes require explicit Prisma migrations, route-level authorization updates, and web-shell integration on top of the existing admin workflow.
 
+## ADR-0013: Cockpit evolves the existing DB-backed repo
+
+Status: accepted
+
+Cockpit work is a migration of the existing Warenwirtschaft repository, not a new Supabase-only project and not a replacement of the Prisma-backed inventory path. The local canonical model remains the current `InventoryMovement` plus `InventoryStockSnapshot` architecture until a later ADR explicitly replaces it with a materialized read model.
+
+Any new Supabase project, Prisma replacement, or `stock_movements` / `inventory_balances` schema must be treated as a separate architecture change. It requires an explicit superseding ADR, a data migration plan, RLS policy design, and compatibility checks against the existing inventory routes and web shell before implementation.
+
+## ADR-0014: Organization identity is derived from Supabase Auth membership
+
+Status: accepted
+
+Cockpit tenant isolation must not trust `organization_id` from request bodies, custom actor headers, or other client-controlled identity fields. Runtime identity must come from Supabase Auth, and organization access must be derived from `auth.uid()` through an `organization_members` membership lookup enforced by RLS policies.
+
+Rows that are organization-owned must carry an organization foreign key. Read and write policies must allow access only when a matching membership exists for `auth.uid()` and the row's organization. A user with multiple organizations may select an active organization only as a filter over memberships they already have; the filter is not authority by itself.
+
+The current temporary `x-actor-id` and `x-actor-role` headers remain non-production scaffolding. Removing or hard-gating them is required before Cockpit can claim production-ready tenant isolation.
+
+## ADR-0015: Role grants are bounded by the actor's own role
+
+Status: accepted
+
+Cockpit membership writes must enforce role-grant rules in backend logic and database-facing tests, not only in the UI. The target organization role order is:
+
+```txt
+owner > admin > manager > staff > viewer
+```
+
+A user may grant only their own role or a lower role:
+
+| Actor role | May grant |
+| --- | --- |
+| `owner` | `owner`, `admin`, `manager`, `staff`, `viewer` |
+| `admin` | `admin`, `manager`, `staff`, `viewer` |
+| `manager` | `manager`, `staff`, `viewer` |
+| `staff` | none |
+| `viewer` | none |
+
+Workspace-level roles may not exceed the actor's effective organization role unless a later ADR defines a stricter workspace-specific delegation model. Sprint 1 is not complete until a backend test proves that a `manager` cannot create or promote an `admin`.
+
+## ADR-0016: V1 stock snapshots stay transactional and require command idempotency
+
+Status: accepted
+
+For V1, stock read performance continues to use `InventoryStockSnapshot` refreshed in the same Prisma transaction that creates the stock-changing `InventoryMovement`. This preserves the current repo architecture and avoids introducing a materialized view refresh pipeline before the tenant and RBAC model is settled.
+
+Command idempotency is mandatory for stock-changing writes. Each client intent that can create an `InventoryMovement` must have a stable idempotency key stored behind a unique database constraint, and retry handling must return or reuse the original result instead of creating a second movement.
+
+Materialized views over movements remain a valid later optimization, especially for dashboard aggregates. They are not the Sprint 1 stock consistency mechanism unless ADR-0013 is superseded by a new Supabase-only architecture decision.
+
 ## ADR-0017: Runtime database role must enforce RLS
 
 Status: accepted

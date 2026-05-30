@@ -37,6 +37,7 @@ export const createWithdrawalSchema = z.object({
   quantity: z.number().positive(),
   unit: z.string().min(1),
   storageLocationId: z.string().min(1).optional(),
+  idempotencyKey: z.string().min(1).optional(),
   note: z.string().optional()
 });
 
