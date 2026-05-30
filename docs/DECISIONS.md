@@ -73,3 +73,23 @@ The app/runtime reads `DATABASE_URL`, and Prisma direct workflows read `DIRECT_U
 Status: accepted
 
 Role-based workspace UX must build on the current DB-backed inventory services and migrations. Separate in-memory movement routes or replacement static UI shells are not canonical once the database-backed Warenwirtschaft slice exists. Future role and workspace changes require explicit Prisma migrations, route-level authorization updates, and web-shell integration on top of the existing admin workflow.
+
+## ADR-0017: Runtime database role must enforce RLS
+
+Status: accepted
+
+Direct Prisma connections must not rely on the Supabase `authenticated` PostgREST role model. The application uses direct Postgres connections, so production runtime access needs a database role that cannot bypass row-level security.
+
+The `app_runtime` role is the proven RLS execution context for Cockpit-owned application tables. It is constrained with `NOSUPERUSER`, `NOBYPASSRLS`, `NOCREATEROLE`, and `NOCREATEDB`, and has only the table privileges required by the inventory auth foundation.
+
+The completed proof run verified all required checks:
+
+| Check | Result |
+| --- | --- |
+| Request without token | `401` |
+| Valid token without `OrganizationMember` | `403` |
+| Valid token with membership | `200` |
+| User A reads rows from Org B under `app_runtime` | `0 rows` |
+| User B reads rows from Org A under `app_runtime` | `0 rows` |
+
+`app_runtime` is currently a `NOLOGIN` proof role. Production cutover requires a dedicated `LOGIN` runtime role, such as `app_user`, with `NOSUPERUSER`, `NOBYPASSRLS`, `NOCREATEROLE`, and `NOCREATEDB`, granted membership in `app_runtime`. The generated password must remain in secret-owned environment configuration and must never be committed.

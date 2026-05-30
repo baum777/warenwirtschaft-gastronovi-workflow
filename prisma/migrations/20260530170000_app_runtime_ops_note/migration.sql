@@ -1,0 +1,9 @@
+-- ADR-0017: app_runtime role setup
+-- Created: 2026-05-30
+-- Purpose: RLS-enforced runtime context for application DB access.
+-- Status: NOLOGIN proof complete; LOGIN path pending.
+-- Proof run: 5/5 checks passed, cleanup verified.
+-- Next: create app_user LOGIN role before production cutover.
+--
+-- This migration is documentation-only and intentionally contains no
+-- executable database statements.
